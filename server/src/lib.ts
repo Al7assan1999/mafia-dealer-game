@@ -1,10 +1,12 @@
 // Small shared pieces: the app's types, errors, hashing, ids, rate limits.
 import type { Context } from 'hono';
-import type { ApiError } from '@mafia/protocol';
+import type { ApiError, Avatar, Rel, UserCard } from '@mafia/protocol';
 import type { z } from 'zod';
 
 export interface Env {
   DB: D1Database;
+  ROOM: DurableObjectNamespace;   // one per online room code
+  HUB: DurableObjectNamespace;    // one per account: presence + live notifications
   GOOGLE_CLIENT_IDS: string;   // comma-separated Google OAuth client ids (the sign-in token's audience)
   MAIL_FROM: string;
   RESEND_API_KEY?: string;     // secret
@@ -19,6 +21,30 @@ export interface Deps {
 export interface UserRow {
   id: string; handle: string | null; display: string; avatar_preset: number; avatar_ver: number;
   fav_role: string; show_online: number; created_at: number;
+  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game';
+}
+
+export const avatarOf = (u: UserRow): Avatar => (u.avatar_ver > 0 ? { photo: u.avatar_ver } : { preset: u.avatar_preset });
+/** Another account as others see it: never the email. Friends also see presence (unless hidden). */
+export function card(u: UserRow, rel: Rel): UserCard {
+  const c: UserCard = { id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, rel };
+  if (rel === 'friends') Object.assign(c, presenceOf(u));
+  return c;
+}
+export function presenceOf(u: UserRow) {
+  const on = !!u.online && !!u.show_online, st: '' | 'lobby' | 'game' = on ? u.room_status || '' : '';
+  return { on, st, op: st === 'lobby' };
+}
+
+/** The account behind a session token, or null (expired or unknown). Renews the session at most once a day. */
+export async function userFromToken(db: D1Database, tok: string, now: number): Promise<{ user: UserRow; sid: string } | null> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(tok)) return null;
+  const s = await db.prepare('SELECT id, user_id, last_seen_at FROM sessions WHERE token_hash = ? AND expires_at > ?').bind(await sha256(tok), now)
+    .first<{ id: string; user_id: string; last_seen_at: number }>();
+  const user = s && await db.prepare('SELECT * FROM users WHERE id = ?').bind(s.user_id).first<UserRow>();
+  if (!s || !user) return null;
+  if (now - s.last_seen_at > DAY) await db.prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?').bind(now, now + 180 * DAY, s.id).run();
+  return { user, sid: s.id };
 }
 export type AppEnv = { Bindings: Env; Variables: { deps: Deps; user: UserRow; sid: string } };
 export type Ctx = Context<AppEnv>;

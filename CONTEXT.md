@@ -36,7 +36,12 @@ files are copied from there only when a phase needs them.
    (`server/migrations/0001_init.sql`), email-code + Google sign-in, sessions, profile, avatars, friends; 17 vitest
    tests in the Workers runtime; `ci.yml` deploys on main once `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and
    the D1 `database_id` exist; `backup.yml` weekly. The VPS secrets were deleted.
-3. Realtime: presence, invites, chat, server-judged online games (Durable Objects + WebSockets).
+3. **Live play** (built 2026-11-19): `Room` Durable Object per room code (lobby + game on the shared engine,
+   per-seat views, night timer as an alarm, chat in room storage deleted with the room), `Hub` per account (presence,
+   live bell notes), migration `0002_live.sql` (rooms, presence columns, notifications, games + game_players), REST
+   for rooms / invites / join requests / bell / history. His decisions: host controls pass in join order; each phone
+   holds its own suspense reveal; a kick that decides the game ends it (engine). 30 server tests (13 live: full
+   6-phone game, host hand-over, kick, night timer, continue, close, buzz, chat rules, invites, presence).
 4. App: Capacitor shell, Kotlin plugin (Wi-Fi server, keep-alive service, Google sign-in), online via the server, Play updates.
    Open: building the Android app (Google's Maven server has been unreachable at times; the old project decided not
    to route around that with cloud runners).

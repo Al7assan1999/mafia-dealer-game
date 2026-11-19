@@ -1,6 +1,32 @@
 # @mafia/server
 
-The Cloudflare Worker: REST API under `/v1` on a D1 (SQLite) database. Live rooms (Durable Objects) come in phase 3.
+The Cloudflare Worker: REST API under `/v1` on a D1 (SQLite) database, and two kinds of Durable Objects:
+- **`Room`** (one per online room code): the lobby and the game, run by the shared engine. The server is the judge,
+  each phone gets only `viewFor(its seat)`, the night timer is an alarm, the chat lives in the room's storage, and
+  everything is deleted when the room ends (closed, everyone left, or 12 hours empty).
+- **`Hub`** (one per account): the open app's socket. Online status, friends' presence and bell notes are pushed
+  through it.
+
+## Sockets
+`new WebSocket(url, ['mafia.v1', <session token>])`: browsers can't send headers on a socket, so the token rides as
+the second subprotocol, never in the URL. Messages are JSON; their schemas are in `packages/protocol/src/live.ts`.
+Send `"ping"` for a `"pong"` keep-alive.
+
+**`/v1/rooms/:code/ws`** (create the room first with `POST /v1/rooms`). In: `RoomIn` (host: `setup`, `deal` (also
+Play again), `start`, `startDay`, `timer`, `startVote`, `nextNight`, `continue` (skip offline players' turns), `kick`,
+`unmute`, `ping`, `mark`, `lobby`, `close`; everyone: `ready`, `night`, `vote`, `buzz`, `leave`, `chat`, `react`,
+`edit`). Out: `room` (members, host, rules; after every change), `view` (my seat's view), `events` (for narration;
+the private night summary only appears in the saved history), `chatAll` on joining, `chat`, `mention`, `buzz`,
+`ping`, `err`, `bye`.
+- The host's controls belong to the room's host while connected, otherwise to the first connected player in join
+  order; `leave` hands them over for good.
+- Late joiners are refused once roles are dealt (`started`); a seat holder who drops comes back into the same seat.
+  A kick mid-game is an elimination, and kicked players can't come back.
+- Chat: Everyone (`to: -1`) and 1:1 by chat handle (`cn`), out players reach only out players, 30 reactions,
+  replies, mentions, edits for 15 minutes, 200 characters, 8 per 10 s, the last 50 per conversation.
+
+**`/v1/hub/ws`**: pushes `presence` (a friend online / in a lobby / in a game; "show me as online" respected),
+`note` (a new bell note) and `unread` on connecting.
 
 ```bash
 npm run check   # types
@@ -28,8 +54,14 @@ Request bodies are checked with the zod schemas in `packages/protocol`.
 | `POST /v1/friend-requests {handle}` | ✓ (needs a handle) | if they already asked me (or ask at the same moment), it becomes `friends` |
 | `POST /v1/friend-requests/:userId/accept`, `DELETE /v1/friend-requests/:userId` | ✓ | accept; decline or take back |
 | `DELETE /v1/friends/:userId` | ✓ | unfriend |
+| `POST /v1/rooms` | ✓ | a new online room → `{code}` (10 an hour) |
+| `GET /v1/rooms/:code` | ✓ | `{open, status, host}` or `no_room` |
+| `POST /v1/invites {userId, code}` | ✓ | a friend into my room; answering their join request makes it `let_in`. 30 an hour with join requests |
+| `POST /v1/join-requests {userId}` | ✓ | ask a friend who is online in an open lobby (`not_open` otherwise) |
+| `GET /v1/notifications`, `POST /v1/notifications/read {ids?}`, `DELETE /v1/notifications[/:id]` | ✓ | the bell (invites 30 min, friend notes 7 days) |
+| `GET /v1/games`, `GET /v1/games/:id`, `PATCH /v1/games/:id {valid}` | ✓ | my finished online games; the full history; only the host marks valid |
 
-Sign-in by Google and by email code reach the same account when the verified email is the same. Sessions last 180 days
+Friends' cards also carry presence (`on`, `st`, `op`). Sign-in by Google and by email code reach the same account when the verified email is the same. Sessions last 180 days
 and renew with use (at most one write a day). Nobody else ever sees an account's email.
 
 ## Database

@@ -10,7 +10,7 @@ export const AUD = 'test-client.apps.googleusercontent.com';
 export async function setup() {
   // a clean database for every test (the plugin keeps D1 between tests of a file)
   const db = (env as unknown as Env).DB;
-  await db.batch(['users', 'email_codes', 'rate_limits'].map(t => db.prepare(`DELETE FROM ${t}`)));
+  await db.batch(['games', 'rooms', 'users', 'email_codes', 'rate_limits'].map(t => db.prepare(`DELETE FROM ${t}`)));
   const clock = { t: 1_800_000_000_000 };
   const mail: { to: string; code: string }[] = [];
   const { publicKey, privateKey } = await generateKeyPair('RS256');

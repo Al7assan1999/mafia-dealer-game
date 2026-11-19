@@ -2,7 +2,7 @@
 import { Hono, type MiddlewareHandler } from 'hono';
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { EmailStart, EmailVerify, GoogleAuth, type AuthAnswer, type SessionInfo } from '@mafia/protocol';
-import { allow, ApiErr, body, DAY, HOUR, same, sha256, sixDigits, token, type AppEnv, type Ctx, type Env, type UserRow } from './lib.ts';
+import { allow, ApiErr, body, DAY, HOUR, same, sha256, sixDigits, token, userFromToken, type AppEnv, type Ctx, type Env, type UserRow } from './lib.ts';
 import { meOf } from './users.ts';
 
 export const CODE_TTL = 10 * 60e3, CODE_TRIES = 5, RESEND_AFTER = 60e3, SESSION_TTL = 180 * DAY;
@@ -37,15 +37,10 @@ async function signIn(c: Ctx, user: UserRow, device: string): Promise<AuthAnswer
 
 /** Bearer token → c.var.user / c.var.sid, or 401. Renews the session at most once a day. */
 export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const m = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(c.req.header('authorization') || '');
-  if (!m) throw new ApiErr(401, 'auth');
-  const now = c.var.deps.now(), db = c.env.DB;
-  const s = await db.prepare('SELECT id, user_id, last_seen_at FROM sessions WHERE token_hash = ? AND expires_at > ?').bind(await sha256(m[1]), now)
-    .first<{ id: string; user_id: string; last_seen_at: number }>();
-  const user = s && await db.prepare('SELECT * FROM users WHERE id = ?').bind(s.user_id).first<UserRow>();
-  if (!s || !user) throw new ApiErr(401, 'auth');
-  if (now - s.last_seen_at > DAY) await db.prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?').bind(now, now + SESSION_TTL, s.id).run();
-  c.set('user', user); c.set('sid', s.id);
+  const m = /^Bearer (\S+)$/.exec(c.req.header('authorization') || '');
+  const s = m && await userFromToken(c.env.DB, m[1], c.var.deps.now());
+  if (!s) throw new ApiErr(401, 'auth');
+  c.set('user', s.user); c.set('sid', s.sid);
   await next();
 };
 

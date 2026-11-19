@@ -31,7 +31,11 @@ export const FriendRequest = z.object({ handle: Handle });
 /** How another account is shown: never their email. rel: friends, requested (I asked), incoming (they asked), none, me. */
 export type Rel = 'friends' | 'requested' | 'incoming' | 'none' | 'me';
 export type Avatar = { preset: number } | { photo: number };
-export interface UserCard { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; rel: Rel }
+export interface UserCard {
+  id: string; handle: string | null; display: string; avatar: Avatar; fav: string; rel: Rel;
+  // friends only: online, in an online room ('lobby') or game, and whether they can be asked to join (an open lobby)
+  on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean;
+}
 export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; emails: string[]; google: boolean }
 export interface AuthAnswer { token: string; user: Me; needsHandle: boolean }
 export interface SessionInfo { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean }
@@ -39,4 +43,6 @@ export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outg
 
 export type ApiError =
   | 'bad_request' | 'auth' | 'code' | 'slow_down' | 'google' | 'needs_handle' | 'handle_taken'
-  | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big';
+  | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big'
+  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail';
+export * from './live.ts';

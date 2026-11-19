@@ -1,12 +1,10 @@
 // The signed-in user's own account, other accounts' public cards, avatars and friends.
 import { Hono } from 'hono';
-import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, type Avatar, type FriendsAnswer, type Me, type Rel, type UserCard } from '@mafia/protocol';
-import { ApiErr, body, type AppEnv, type Ctx, type UserRow } from './lib.ts';
+import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, type FriendsAnswer, type Me, type Rel } from '@mafia/protocol';
+import { notify, pushPresence } from './hub.ts';
+import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const MAX_FRIENDS = 300;
-
-const avatarOf = (u: UserRow): Avatar => (u.avatar_ver > 0 ? { photo: u.avatar_ver } : { preset: u.avatar_preset });
-export const card = (u: UserRow, rel: Rel): UserCard => ({ id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, rel });
 
 export async function meOf(db: D1Database, u: UserRow): Promise<Me> {
   const { results } = await db.prepare('SELECT kind, email FROM identities WHERE user_id = ?').bind(u.id).all<{ kind: string; email: string }>();
@@ -37,6 +35,7 @@ me.patch('/', async c => {
     throw e;
   }
   const fresh = (await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(u.id).first<UserRow>())!;
+  if (fresh.show_online !== u.show_online) await pushPresence(c.env, u.id);  // "show me as online" switched
   return c.json({ user: await meOf(c.env.DB, fresh), needsHandle: !fresh.handle });
 });
 
@@ -119,11 +118,13 @@ requests.post('/', async c => {
     if ((n?.n ?? 0) >= MAX_FRIENDS) throw new ApiErr(409, 'full');
     const [a, b] = pair(me.id, u.id);
     // both asking at the same moment: one insert wins, the other one turns into an accept below
-    await db.prepare("INSERT INTO friendships (a, b, requested_by, status, created_at) VALUES (?, ?, ?, 'pending', ?) ON CONFLICT DO NOTHING").bind(a, b, me.id, now).run();
+    const ins = await db.prepare("INSERT INTO friendships (a, b, requested_by, status, created_at) VALUES (?, ?, ?, 'pending', ?) ON CONFLICT DO NOTHING").bind(a, b, me.id, now).run();
+    if (ins.meta.changes) await notify(c.env, u.id, me, 'friend_request', null, now);
     f = await friendRow(c, u.id);
   }
   if (f && f.status === 'pending' && f.requested_by !== me.id) {
-    await db.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending'").bind(now, f.a, f.b).run();
+    const up = await db.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending'").bind(now, f.a, f.b).run();
+    if (up.meta.changes) await notify(c.env, u.id, me, 'friend_accept', null, now);
     f = { ...f, status: 'accepted' };
   }
   const rel = relOf(me.id, f);
@@ -134,6 +135,7 @@ requests.post('/:userId/accept', async c => {
   const r = await c.env.DB.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending' AND requested_by = ?")
     .bind(c.var.deps.now(), a, b, c.req.param('userId')).run();
   if (!r.meta.changes) throw new ApiErr(404, 'no_request');
+  await notify(c.env, c.req.param('userId'), c.var.user, 'friend_accept', null, c.var.deps.now());
   return c.json({ rel: 'friends' });
 });
 /** Decline their request, or take mine back. */
