@@ -1,0 +1,16 @@
+# secrets: never commit (they live in GitHub Actions secrets and on the VPS)
+*.pem
+*.key
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+google-services.json
+service-account*.json
+
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
