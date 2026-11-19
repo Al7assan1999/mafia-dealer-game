@@ -1,0 +1,45 @@
+name: Backup D1
+
+# Weekly encrypted export of the live database, kept 30 days as an artifact (the repo is public: hence encrypted).
+# D1 Time Travel covers point-in-time restores on top of this.
+# Restore: download the artifact, then
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in db.sql.enc -out db.sql -pass pass:<BACKUP_PASSPHRASE>
+#   npx wrangler d1 execute DB --remote --file db.sql   (into an empty database)
+on:
+  schedule:
+    - cron: '17 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    defaults:
+      run: { working-directory: server }
+    steps:
+      - uses: actions/checkout@v7
+      - id: ready
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$BACKUP_PASSPHRASE" ] || grep -q '"database_id": "00000000-' wrangler.jsonc; then
+            echo "Not set up yet (Cloudflare secrets, BACKUP_PASSPHRASE or the D1 id). Skipping."; echo "go=false" >> "$GITHUB_OUTPUT"
+          else echo "go=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.ready.outputs.go == 'true'
+        uses: actions/setup-node@v7
+        with: { node-version: 24, cache: npm }
+      - if: steps.ready.outputs.go == 'true'
+        run: npm ci
+        working-directory: .
+      - if: steps.ready.outputs.go == 'true'
+        run: |
+          npx wrangler d1 export DB --remote --output db.sql
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in db.sql -out db.sql.enc -pass env:BACKUP_PASSPHRASE
+          rm db.sql
+      - if: steps.ready.outputs.go == 'true'
+        uses: actions/upload-artifact@v7
+        with: { name: 'd1-${{ github.run_id }}', path: server/db.sql.enc, retention-days: 30 }

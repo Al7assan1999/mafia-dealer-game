@@ -1,0 +1,21 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "mafia-dealer-game",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mafia-dealer-game",
+      "database_id": "068e94a4-cd09-4c78-ba82-5645fc588a69",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // Google OAuth client ids allowed as the sign-in token's audience (comma-separated; the Web client id)
+    "GOOGLE_CLIENT_IDS": "",
+    "MAIL_FROM": "Mafia Dealer <login@mafiadealer.app>"
+  }
+  // secrets (wrangler secret put): RESEND_API_KEY
+}
