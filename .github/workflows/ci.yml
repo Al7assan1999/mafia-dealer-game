@@ -51,4 +51,5 @@ jobs:
       - if: steps.ready.outputs.go == 'true' && env.RESEND_API_KEY != ''
         run: echo "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
       - if: steps.ready.outputs.go == 'true'
-        run: curl -fsS "https://mafia-dealer-game.mafiadealer.workers.dev/v1/health"
+        # a new deploy takes a few seconds to reach every Cloudflare location
+        run: curl -fsS --retry 6 --retry-delay 5 --retry-all-errors "https://mafia-dealer-game.mafiadealer.workers.dev/v1/health"
