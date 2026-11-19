@@ -39,7 +39,7 @@ The state is plain JSON: save it, send it, snapshot it to Postgres as is. Random
 | `vote {seat, choice, id?}` | vote | a living other seat or `'none'`; `id` rejects stale votes; tallies by itself when everyone voted |
 | `decide {choice}` | day | the table decides together on one phone |
 | `nextNight` | verdict | |
-| `remove {seat}` | any but deal / end | the host removes a player: an elimination |
+| `remove {seat}` | any but deal / end | the host removes a player: an elimination; ends the game at once if it decides the winner (`win` with `lead: null`) |
 
 Errors: `phase`, `seat`, `dead`, `done`, `choice`, `stale`, `unknown`, plus setup errors `tooFew`, `tooManyPlayers`,
 `tooManyRoles`, `mafiaGap`, `badName`, `dupNames`.

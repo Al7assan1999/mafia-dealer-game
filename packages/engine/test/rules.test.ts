@@ -147,6 +147,21 @@ test('removing a player counts as an elimination and can finish the night', () =
   assert.deepEqual(s.log[0], { t: 'removed', seat: 7 });
   refuse(s, { t: 'remove', seat: 7 }, 'dead');
 });
+test('removing the last Mafia, or down to parity, ends the game at once', () => {
+  let s = must(night(g8(), { 0: 4, 1: 4, 2: 5 }), { t: 'startDay' }).state;  // 2 Mafia, 5 others left
+  s = must(s, { t: 'remove', seat: 0 }).state;
+  assert.equal(s.phase, 'day');
+  s = must(s, { t: 'remove', seat: 1 }).state;
+  assert.equal(s.phase, 'end'); assert.equal(s.winner, 'citizens');
+  assert.deepEqual(s.log.slice(-2), [{ t: 'removed', seat: 1 }, { t: 'win', winner: 'citizens', lead: null }]);
+  let p = game(['mafia', 'doctor', 'citizen', 'citizen', 'citizen']);
+  p = must(p, { t: 'remove', seat: 2 }).state;  // 1 vs 3: on
+  assert.equal(p.phase, 'night');
+  p = must(p, { t: 'remove', seat: 3 }).state;  // 1 vs 2: on
+  p = must(p, { t: 'remove', seat: 4 }).state;  // 1 vs 1: Mafia win, mid-night
+  assert.equal(p.winner, 'mafia'); assert.equal(p.phase, 'end');
+  assert.equal(viewFor(p, 'table', 0).progress, null);
+});
 test('wins: the Mafia at parity, the Citizens when no Mafia are left', () => {
   // 4 players: 1 mafia, doctor, 2 citizens. Kill one: 1 vs 2 → go on; vote out a citizen: 1 vs 1 → Mafia win
   let s = game(['mafia', 'doctor', 'citizen', 'citizen']);

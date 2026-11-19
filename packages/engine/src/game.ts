@@ -184,7 +184,9 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
       if (s.vote) delete s.vote.votes[a.seat];
       s.night.done[a.seat] = true;
       log({ t: 'removed', seat: a.seat });
-      settle(); break;
+      // a removal can decide the game (the last Mafia, or the Mafia reach parity): it ends at once
+      if (!checkWin(null)) settle();
+      break;
 
     default: return fail('unknown');
   }

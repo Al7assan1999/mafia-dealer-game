@@ -3,15 +3,17 @@
 The rules were ported 1:1. This lists what is odd in the old rules (kept as is, waiting for a decision) and what
 behaves differently by design.
 
+## Fixed (decided by Alhassan)
+1. **Removing a player now checks for a win** (2026-11-19). The old app didn't: removing the last Mafia, or removing
+   someone so the Mafia reached parity, let the game go on until the next night or verdict. On the way a player could
+   be left with nothing to pick (the Doctor, with self-protection off and "no repeat" on, when only one other player
+   was alive), so the night waited for "Continue anyway" or the night timer. Found by the random-game test (seed 230).
+   Now the game ends at once; the `win` event's `lead` is `null`.
+
 ## Odd, kept as is (decide later)
-1. **Removing a player never checks for a win.** If the host removes the last Mafia, or removes someone so the Mafia
-   reach parity, the game goes on until the next night or verdict decides it. On the way a player can be left with
-   nothing to pick: for example the Doctor, with self-protection off and "no repeat" on, when only one other player is
-   alive. That night then waits for "Continue anyway" or the night timer. Found by the random-game test (seed 230).
-   *Suggested fix:* check for a win after a removal.
-2. **A dead Detective still sees their last result** until the next night (the old `mpPriv` built it before the
+1. **A dead Detective still sees their last result** until the next night (the old `mpPriv` built it before the
    "dead" screen).
-3. **A tied Mafia vote between a target and "skip"** is broken at random like any tie, so the one-time skip can be
+2. **A tied Mafia vote between a target and "skip"** is broken at random like any tie, so the one-time skip can be
    spent by chance.
 
 ## Different by design

@@ -24,11 +24,7 @@ function play(seed: number) {
     assert.deepEqual(JSON.parse(JSON.stringify(s)), s, 'plain JSON');
     const al = alive(s), m = al.filter(i => s.roles[i] === 'mafia').length;
     if (s.phase === 'end') assert.equal(s.winner, m === 0 ? 'citizens' : 'mafia');
-    else {
-      // 1:1 with the app: removing a player doesn't check for a win; the next night or verdict does
-      const lastRemove = s.log.findLastIndex(e => e.t === 'removed'), lastResolve = s.log.findLastIndex(e => e.t !== 'removed');
-      if (lastRemove < lastResolve) assert.ok(m > 0 && m < al.length - m, `seed ${seed}: game should have ended`);
-    }
+    else assert.ok(m > 0 && m < al.length - m, `seed ${seed}: game should have ended`);
     for (let i = 0; i < n; i++) {
       const v = viewFor(s, i, now) as SeatView;
       if (s.phase !== 'end' && !(rules.ghost && !s.alive[i])) assert.equal(v.roles, null, 'no roles before the end');
@@ -51,11 +47,7 @@ function play(seed: number) {
       assert.equal(v.ph, 'night');
       const no = v.night!, opts: (number | 'skip')[] = no.opts.filter(o => !o.disabled).map(o => o.seat);
       if (no.skip) opts.push('skip');
-      if (no.key !== 'none' && !opts.length) {
-        // only after a removal that should have ended the game (see QUIRKS.md): the host's "continue anyway" gets past it
-        assert.equal(s.log.at(-1)!.t, 'removed', `seed ${seed}: seat ${p} (${s.roles[p]}) has nothing to pick`);
-        go({ t: 'skipPending', seats: [p] }); continue;
-      }
+      assert.ok(no.key === 'none' || opts.length, `seed ${seed}: seat ${p} (${s.roles[p]}) has nothing to pick`);
       go({ t: 'night', seat: p, choice: no.key === 'none' ? null : pick(opts), day: s.day });
     } else if (s.phase === 'morning') go({ t: 'startDay' });
     else if (s.phase === 'day') {
