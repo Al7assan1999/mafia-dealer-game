@@ -29,6 +29,22 @@ files are copied from there only when a phase needs them.
 - Backups: D1 Time Travel (point-in-time restore) plus a scheduled, encrypted `wrangler d1 export` in Actions.
 - Old users: migrate if easy, else a fresh start. Phone history doesn't carry over to a new package without an export.
 
+## Decisions (2026-11-22)
+- **The app is Flutter** (not Capacitor). The server stays TypeScript, so the rules exist twice: TypeScript (server,
+  online games) and Dart (phone, offline and Wi-Fi). Both must replay `packages/engine/fixtures/records.json`
+  identically. (Recommended; Alhassan asked what "two copies" means and hasn't objected.)
+- **Data moves off the phone into D1**: history, saved names, the setup. What belongs to the device stays there:
+  language, theme, volume, UI flags, the game in progress, the session token (secure storage).
+- **Offline play needs no account and is never logged.**
+- **Wi-Fi games**: a game with a guest (not signed in) is never logged online. Online and Wi-Fi logs stay separate;
+  whether Wi-Fi history lives on the phones is open ("we will see"). Adding a Wi-Fi game to online history is a formal
+  request from the host, judged by **automatic rules** (the server replays the record; plus player count, believable
+  length, a daily limit, no duplicates; each player confirms). Requests are kept raw and versioned, the limits live in
+  a D1 settings row, and migrations only add, so the rules can change later without losing data.
+- **Groups**: to be redesigned entirely (Alhassan's prompt still to come).
+- Work runs in sprints: BA / PM writes a PRD with acceptance criteria → Alhassan signs off → developer → QA
+  (adversarial tests, green build, Sprint Release Report). PRDs in `docs/`.
+
 ## Phases
 1. **Engine** (done 2026-11-19, not committed): `packages/engine`, 31 tests (setup limits, one per rule, test7/test9
    scenarios, 1,000 random games). Open questions in `packages/engine/QUIRKS.md`.
@@ -42,7 +58,11 @@ files are copied from there only when a phase needs them.
    for rooms / invites / join requests / bell / history. His decisions: host controls pass in join order; each phone
    holds its own suspense reveal; a kick that decides the game ends it (engine). 30 server tests (13 live: full
    6-phone game, host hand-over, kick, night timer, continue, close, buzz, chat rules, invites, presence).
-4. App: Capacitor shell, Kotlin plugin (Wi-Fi server, keep-alive service, Google sign-in), online via the server, Play updates.
-   Open: building the Android app (Google's Maven server has been unreachable at times; the old project decided not
-   to route around that with cloud runners).
-5. Play readiness. 6. Migration of old users (optional). 7. Firebase push wiring if not already in 4.
+4. Replaced by sprints (2026-11-22). **Sprint 1, a game you can trust** (`docs/sprint-1-prd.md`, built 2026-11-22, not
+   committed): one change at a time per room (a real race: simultaneous joins lost a member), silent phones closed
+   after 30 s (Cloudflare answers the 10 s pings itself), `rev` on every room message with catch-up on reconnect
+   (`?rev=`, last 200 events, else `missed`), repeated taps ignored, engine game records with `replay` and 60 shared
+   test games, `games.record` (migration `0003`). 34 engine + 38 server tests.
+   Next sprints (proposed): 2 Flutter shell + Dart engine + offline play; 3 sign-in and friends; 4 online rooms in the
+   app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
+5. Play readiness. 6. Migration of old users (optional).

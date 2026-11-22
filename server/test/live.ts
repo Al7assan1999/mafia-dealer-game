@@ -35,7 +35,7 @@ export async function connect(path: string, tok: string) {
   const ws = r.webSocket;
   if (!ws) throw new Error('no socket: ' + r.status + ' ' + await r.text());
   ws.accept();
-  const s = { ws, msgs: [] as any[], room: null as any, view: null as any, me: null as any, closed: false,
+  const s = { ws, msgs: [] as any[], room: null as any, view: null as any, me: null as any, closed: false, pongs: 0,
     send: (o: unknown) => ws.send(JSON.stringify(o)),
     /** Waits until `ok()` holds (polling), or fails after 3 s with what it last saw. */
     async until(ok: () => unknown, what = 'condition') {
@@ -45,6 +45,7 @@ export async function connect(path: string, tok: string) {
     got: (pred: (m: any) => boolean) => s.msgs.find(pred),
   };
   ws.addEventListener('message', e => {
+    if (e.data === 'pong') { s.pongs++; return; }
     const m = JSON.parse(String(e.data)); s.msgs.push(m);
     if (m.t === 'room') { s.room = m.room; s.me = m.me; }
     if (m.t === 'view') s.view = m.view;

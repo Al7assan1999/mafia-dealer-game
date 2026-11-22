@@ -24,6 +24,21 @@ Helpers: `maxMafia`, `deckOk`, `recMafia`, `normalizeCounts`, `nameKey`, `PRESET
 The state is plain JSON: save it, send it, snapshot it to Postgres as is. Random numbers come in through `rng`
 (real games: a `crypto`-backed one) and time through `now` (ms), so any game can be replayed exactly.
 
+## Game records
+```ts
+startRecord(dealtState)               → GameRecord   // format 1: names, rules, the dealt roles, no actions yet
+step(record, state, action, ctx)      → like apply(); on success the action (its time, its random draws) joins the record
+replay(record)                        → { ok, state } | { ok: false, error: 'action 3: phase' | 'roles' | 'result' | … }
+```
+A record holds everything needed to play the game again: the server saves one with every online game and will check
+Wi-Fi games by replaying them. `replay` refuses a record that doesn't hold together: an illegal action, times going
+backwards, a deck the setup can't deal, random draws that don't fit, or a result (winner, history) the actions don't
+lead to. A role swap that leaves every action legal and the same history can't be told from a real deal.
+
+`fixtures/records.json` (60 random games) is the shared set of test games: this engine must replay them identically,
+and so must the Dart engine in the app. A rule change that changes how they play fails the test on purpose; regenerate
+with `UPDATE_FIXTURES=1 npm test` and update the Dart engine the same way.
+
 ## Phases and actions
 `deal` →(begin)→ `night` →(everyone alive acted)→ `morning` →(startDay)→ `day`
 →(startVote → `vote` → everyone voted, or decide)→ `verdict` →(nextNight)→ `night` … → `end` (from a night or a verdict).

@@ -1,12 +1,17 @@
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_RULES } from '@mafia/engine';
+import { DEFAULT_RULES, replay } from '@mafia/engine';
+import { STALE_MS } from '../src/room.ts';
 import { setup } from './helpers.ts';
 import { account, api, befriend, connect, DB, roomStub, sleep, type Sock } from './live.ts';
 
 beforeEach(async () => { await setup(); });
 
 const rules = (o = {}) => ({ ...DEFAULT_RULES, ...o });
+/** Changes the room's saved state (to make time pass without waiting). */
+async function shift(stub: ReturnType<typeof roomStub>, f: (st: any) => void) {
+  await runInDurableObject(stub, async (_o, state) => { const st = await state.storage.get<any>('room'); f(st); await state.storage.put('room', st); });
+}
 /** n players in a new room, connected in join order (players[0] is the host). */
 async function table(n: number) {
   const accts = await Promise.all(Array.from({ length: n }, (_, i) => account('P' + (i + 1) + 'x' + Math.random().toString(36).slice(2, 6))));
@@ -138,6 +143,7 @@ describe('the room', () => {
     for (const p of t.players) p.ws.close();
     await sleep(50);
     const stub = roomStub(t.code);
+    await shift(stub, st => { st.game.night.endsAt = Date.now() - 1; });  // the 30 s have passed
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const back = await connect(`/v1/rooms/${t.code}/ws`, t.accts[0].token);
     await back.until(() => back.view?.phase === 'morning', 'morning after the timer');
@@ -294,4 +300,158 @@ it('rooms: create, look up, unknown codes, sockets need a session', async () => 
   const nope = await connect('/v1/rooms/123456/ws', a.token);
   await nope.until(() => nope.got(m => m.t === 'err' && m.error === 'no_room'));
   await expect(connect(`/v1/rooms/${json.code}/ws`, 'x'.repeat(43))).rejects.toThrow(/401/);
+});
+
+describe('resilience (Sprint 1)', () => {
+  const inDO = <T>(code: string, f: (state: DurableObjectState) => T | Promise<T>) => runInDurableObject(roomStub(code), (_o, state) => f(state));
+  const fresh = (n: number, p: string) => Promise.all(Array.from({ length: n }, (_, i) => account(p + i + 'x' + Math.random().toString(36).slice(2, 6))));
+  const choose = (p: Sock) => { const v = p.view, o = v.night.opts.find((x: any) => !x.disabled && !x.teammate); return v.night.key === 'none' ? null : o.seat; };
+
+  it('S1-1: ten players joining at the same moment all get in (20 rounds)', async () => {
+    const accts = await fresh(10, 'J');
+    for (let round = 0; round < 20; round++) {
+      const { json } = await api('POST', '/v1/rooms', accts[round % 10].token);
+      const socks = await Promise.all(accts.map(a => connect(`/v1/rooms/${json.code}/ws`, a.token)));
+      await socks[0].until(() => socks.every(x => x.room), 'everyone in');
+      const st = await inDO(json.code, s => s.storage.get<any>('room'));
+      expect(st.members.length, `round ${round}`).toBe(10);
+      expect(new Set(st.members.map((m: any) => m.cn)).size, `round ${round}: chat numbers`).toBe(10);
+      for (const x of socks) x.ws.close();
+    }
+  }, 120_000);
+
+  it('S1-1: joins, chat and setup changes at the same moment lose nothing', async () => {
+    const t = await table(5), late = await fresh(5, 'L'), [host] = t.players;
+    const joining = late.map(a => connect(`/v1/rooms/${t.code}/ws`, a.token));
+    t.players.forEach((p, i) => { for (let k = 0; k < 5; k++) p.send({ t: 'chat', to: -1, text: `m${i}.${k}`, cid: `c${i}.${k}` }); });
+    for (let k = 0; k < 5; k++) host.send({ t: 'setup', buzzMax: k, rules: rules(), counts: { mafia: 1, detective: 0 } });
+    const socks = await Promise.all(joining);
+    await host.until(() => host.room.members.length === 10 && host.msgs.filter(m => m.t === 'chat').length === 25, '10 members, 25 messages');
+    const st = await inDO(t.code, s => s.storage.get<any>('room'));
+    expect(st.members.length).toBe(10);
+    const chat = await inDO(t.code, s => s.storage.get<any>('chat'));
+    expect(new Set(chat.msgs.map((m: any) => m.text)).size).toBe(25);
+    for (const x of socks) await x.until(() => x.room, 'late room');
+  }, 30_000);
+
+  it('S1-1 + S1-6: a game-ending vote racing repeats and chat saves the game exactly once, with a record that replays', async () => {
+    const t = await table(4), [host] = t.players;
+    await deal(t, { rules: rules(), counts: { mafia: 1, detective: 0 } });
+    const roleOf: string[] = [];
+    for (const p of t.players) roleOf[p.view.seat] = p.view.role;
+    await playNight(t.players);
+    host.send({ t: 'startDay' }); await host.until(() => phaseOf(host) === 'day', 'day');
+    host.send({ t: 'startVote', open: false }); await host.until(() => phaseOf(host) === 'vote', 'vote');
+    const mafia = roleOf.indexOf('mafia'), id = host.view.voteId;
+    for (const p of t.players) {  // everyone at once: the vote (twice), a chat, and the host marks the game
+      if (p.view.ph !== 'vote') continue;
+      const choice = p.view.seat === mafia ? 'none' : mafia;
+      p.send({ t: 'vote', choice, id }); p.send({ t: 'vote', choice, id }); p.send({ t: 'chat', to: -1, text: 'gg', cid: 'g' + p.view.seat });
+      host.send({ t: 'mark', valid: true });
+    }
+    await host.until(() => phaseOf(host) === 'end', 'end');
+    await sleep(100);
+    const rows = await DB().prepare('SELECT record, winner FROM games WHERE host_id = ?').bind(t.accts[0].id).all<{ record: string; winner: string }>();
+    expect(rows.results.length).toBe(1);
+    const rec = JSON.parse(rows.results[0].record), r = replay(rec);
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.state.winner).toBe(rows.results[0].winner);
+    expect(rec.roles).toEqual(roleOf);
+  }, 30_000);
+
+  it('S1-2: a phone that goes silent is shown offline, loses the host controls, can be skipped, and comes back', async () => {
+    const t = await table(4), [host, b, c, d] = t.players;
+    await deal(t, { rules: rules(), counts: { mafia: 1, detective: 0 } });
+    expect(await inDO(t.code, s => s.storage.getAlarm())).toBeLessThanOrEqual(Date.now() + STALE_MS);
+    // the host's phone loses its signal: the socket stays open, but nothing comes from it
+    const hostSeat = host.view.seat;
+    await inDO(t.code, s => { for (const w of s.getWebSockets(t.accts[0].id)) w.serializeAttachment({ at: Date.now() - STALE_MS - 1 }); });
+    expect(await runDurableObjectAlarm(roomStub(t.code))).toBe(true);
+    await b.until(() => b.room.members.find((m: any) => m.uid === t.accts[0].id)?.online === false, 'host shown offline');
+    expect(b.me.host).toBe(true);
+    await host.until(() => host.closed, 'the silent socket is closed');
+    for (const p of [b, c, d]) p.send({ t: 'night', choice: choose(p), day: p.view.day });
+    await b.until(() => b.view.progress?.done === 3, '3 done');
+    b.send({ t: 'continue' });
+    await b.until(() => phaseOf(b) !== 'night', 'the silent host was skipped');
+    const t0 = Date.now(), back = await connect(`/v1/rooms/${t.code}/ws`, t.accts[0].token);
+    await b.until(() => b.room.members.find((m: any) => m.uid === t.accts[0].id)?.online === true, 'host back online');
+    await back.until(() => back.view?.seat === hostSeat, 'same seat');
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(back.me.host).toBe(true);  // the room's host gets the controls back while connected
+  }, 30_000);
+
+  it('S1-2: live sockets are not closed by the check', async () => {
+    const t = await table(4), [host] = t.players;
+    await runDurableObjectAlarm(roomStub(t.code));
+    await sleep(50);
+    expect(t.players.every(p => !p.closed)).toBe(true);
+    expect(host.room.members.every((m: any) => m.online)).toBe(true);
+  });
+
+  it('S1-5: keep-alives are answered without waking the room', async () => {
+    const t = await table(4), [host] = t.players;
+    const before = await inDO(t.code, s => s.getWebSockets(t.accts[0].id)[0].deserializeAttachment() as { at: number });
+    await sleep(5);
+    host.ws.send('ping');
+    await host.until(() => host.pongs === 1, 'pong');
+    const [after, auto] = await inDO(t.code, s => {
+      const w = s.getWebSockets(t.accts[0].id)[0];
+      return [w.deserializeAttachment(), s.getWebSocketAutoResponseTimestamp(w)?.getTime() ?? null] as const;
+    });
+    expect(after).toEqual(before);  // the room's handler never ran (it stamps every message it sees)
+    expect(auto).toBeGreaterThan(before.at);
+  });
+
+  it('S1-3: a phone that reconnects gets the events it missed, once, in order; too far behind it gets "missed"', async () => {
+    const t = await table(5), [host, , , , e] = t.players;
+    await deal(t, { rules: rules(), counts: { mafia: 1, detective: 0 } });
+    const last = Math.max(...e.msgs.filter(m => m.rev).map(m => m.rev));
+    e.ws.close();
+    await host.until(() => host.room.members.filter((m: any) => m.online).length === 4, 'e offline');
+    for (const p of t.players.slice(0, 4)) p.send({ t: 'night', choice: choose(p), day: p.view.day });
+    await host.until(() => host.view.progress?.done === 4, '4 done');
+    host.send({ t: 'continue' });
+    await host.until(() => phaseOf(host) === 'morning', 'morning');
+    const back = await connect(`/v1/rooms/${t.code}/ws?rev=${last}`, t.accts[4].token);
+    await back.until(() => back.view?.phase === 'morning', 'back in the morning');
+    const evs = back.msgs.filter(m => m.t === 'events'), revs = back.msgs.filter(m => m.rev != null).map(m => m.rev);
+    expect(evs.length).toBeGreaterThan(0);
+    expect(evs.every(m => m.rev > last)).toBe(true);
+    expect(revs).toEqual([...revs].sort((x, y) => x - y));
+    const all = evs.flatMap(m => m.events);
+    expect(all.filter((x: any) => x.t === 'phase' && x.phase === 'morning').length).toBe(1);
+    expect(all.some((x: any) => x.t === 'night')).toBe(false);  // the private night summary stays out
+    expect(back.got(m => m.t === 'missed')).toBeUndefined();
+    const hr = host.msgs.filter(m => m.rev != null).map(m => m.rev);
+    expect(hr).toEqual([...hr].sort((x, y) => x - y));
+
+    await shift(roomStub(t.code), st => { st.cut = st.rev; });  // as if more than 200 events had happened since
+    back.ws.close();
+    const behind = await connect(`/v1/rooms/${t.code}/ws?rev=1`, t.accts[4].token);
+    await behind.until(() => behind.got(m => m.t === 'missed'), 'missed');
+    await behind.until(() => behind.view?.phase === 'morning', 'current view');
+    expect(behind.got(m => m.t === 'events')).toBeUndefined();
+  }, 30_000);
+
+  it('S1-4: a repeated night choice or vote changes nothing and answers nothing; an old one is stale', async () => {
+    const t = await table(4), [host] = t.players;
+    await deal(t, { rules: rules(), counts: { mafia: 1, detective: 0 } });
+    const p = t.players[1], day = p.view.day, choice = choose(p);
+    p.send({ t: 'night', choice, day }); p.send({ t: 'night', choice, day });
+    p.send({ t: 'night', choice, day: day - 1 });
+    await p.until(() => p.got(m => m.t === 'err'), 'an error');
+    await sleep(50);
+    expect(p.msgs.filter(m => m.t === 'err').map(m => m.error)).toEqual(['stale']);
+    await playNight(t.players);
+    host.send({ t: 'startDay' }); await host.until(() => phaseOf(host) === 'day', 'day');
+    host.send({ t: 'startVote', open: false }); await host.until(() => phaseOf(host) === 'vote', 'vote');
+    const v = t.players.find(x => x.view.ph === 'vote')!, id = v.view.voteId, before = v.msgs.filter(m => m.t === 'err').length;
+    v.send({ t: 'vote', choice: 'none', id }); v.send({ t: 'vote', choice: 'none', id });
+    v.send({ t: 'vote', choice: 'none', id: id - 1 });
+    await v.until(() => v.msgs.filter(m => m.t === 'err').length > before, 'an error');
+    await sleep(50);
+    expect(v.msgs.filter(m => m.t === 'err').slice(before).map(m => m.error)).toEqual(['stale']);
+    await host.until(() => host.view.progress?.done === 1, 'one vote counted');
+  }, 30_000);
 });

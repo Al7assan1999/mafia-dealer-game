@@ -10,7 +10,22 @@ The Cloudflare Worker: REST API under `/v1` on a D1 (SQLite) database, and two k
 ## Sockets
 `new WebSocket(url, ['mafia.v1', <session token>])`: browsers can't send headers on a socket, so the token rides as
 the second subprotocol, never in the URL. Messages are JSON; their schemas are in `packages/protocol/src/live.ts`.
-Send `"ping"` for a `"pong"` keep-alive.
+
+**Keep-alive:** send `"ping"` every 10 s. Cloudflare answers `"pong"` itself, without waking the room. A socket that
+sends nothing for 30 s is closed by the room (code 4001 `stale`): it's shown offline within about 40 s, the host's
+controls move on, and "Continue" can skip that player. A phone that's still there simply reconnects.
+
+**Reconnecting:** `room`, `view` and `events` carry `rev`, which only grows within a room (ignore anything older than
+what you have). Reconnect with `/v1/rooms/:code/ws?rev=<the last rev seen>` to get the `events` missed meanwhile, in
+order and once each (the room keeps the last 200). Further behind than that, you get `missed`: just show the current
+view. Repeating a night choice, vote or `ready` that was already applied is ignored silently; an outdated one (`day`,
+vote `id`) answers `stale`.
+
+**Free-tier budget** (Durable Object requests, 100,000 a day): a 10-player, 30-minute game makes about 10 joins,
+~250 messages (night choices, votes, host actions, chat) and ~60–90 liveness alarms (one every 20–30 s while
+phones are connected): **about 350–400 requests, so roughly 250 games a day.** Keep-alives don't wake the room; whether
+Cloudflare counts its own automatic replies as requests isn't something the local tests can show (check the dashboard
+once real games run).
 
 **`/v1/rooms/:code/ws`** (create the room first with `POST /v1/rooms`). In: `RoomIn` (host: `setup`, `deal` (also
 Play again), `start`, `startDay`, `timer`, `startVote`, `nextNight`, `continue` (skip offline players' turns), `kick`,
@@ -67,6 +82,8 @@ and renew with use (at most one write a day). Nobody else ever sees an account's
 ## Database
 `migrations/NNNN_*.sql` are applied by CI (`wrangler d1 migrations apply DB --remote`) before each deploy; each has a
 hand-run rollback in `rollbacks/`. Tables use `STRICT`, foreign keys with `ON DELETE CASCADE`, and CHECK constraints.
+Migrations only **add** (columns, tables): nothing that holds data is dropped or renamed, so plans can change later
+without losing data. Online games keep their engine record in `games.record` (`0003`; older games have none).
 
 ## Deploy (GitHub Actions, `.github/workflows/ci.yml`)
 On `main`, after the tests: migrations, `wrangler deploy`, the `RESEND_API_KEY` Worker secret, a health check. It

@@ -53,11 +53,13 @@ export interface RoomInfo {
 }
 export interface ChatMsg { id: number; from: number; to: number; text: string; at: number; reply?: number; mentions?: number[]; rx?: Record<number, number[]>; edited?: true; outOnly?: true }
 
-/** Everything the room sends a phone. */
+/** Everything the room sends a phone. `rev` only grows within a room: reconnect with `?rev=<the last one seen>` to get
+ *  the events missed meanwhile (or `missed` when there were too many: just show the current view). */
 export type RoomOut =
-  | { t: 'room'; room: RoomInfo; me: { uid: string; cn: number; host: boolean } }
-  | { t: 'view'; view: SeatView | PublicView | null }
-  | { t: 'events'; events: GameEvent[] }
+  | { t: 'room'; rev: number; room: RoomInfo; me: { uid: string; cn: number; host: boolean } }
+  | { t: 'view'; rev: number; view: SeatView | PublicView | null }
+  | { t: 'events'; rev: number; events: GameEvent[] }
+  | { t: 'missed' }
   | { t: 'chatAll'; msgs: ChatMsg[] }
   | { t: 'chat'; msg: ChatMsg; cid?: string }
   | { t: 'mention'; id: number; from: number }

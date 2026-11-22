@@ -1,7 +1,7 @@
 // One Durable Object per online room code. It runs the lobby and the game with the shared engine (the server is the
 // judge), sends each phone only its own view, keeps the room chat, and deletes everything when the room ends.
 import { DurableObject } from 'cloudflare:workers';
-import { apply, createGame, DEFAULT_RULES, nameKey, viewFor, type Action, type Counts, type GameEvent, type GameState, type Rules } from '@mafia/engine';
+import { createGame, DEFAULT_RULES, nameKey, startRecord, step, viewFor, type Action, type Counts, type GameEvent, type GameRecord, type GameState, type Rules } from '@mafia/engine';
 import { RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
 import { canSee, edit, newChat, react, send, type ChatResult, type ChatState, type Who } from './chat.ts';
 import { setRoom } from './hub.ts';
@@ -13,9 +13,16 @@ interface RoomState {
   rules: Rules; counts: Counts; buzzMax: number;
   deal: number; game: GameState | null; seats: string[]; ready: string[]; gameId: string | null; valid: boolean | null;
   lastActive: number;
+  rev: number;                                  // grows with every change: phones reconnect with the last one they saw
+  past: { rev: number; events: GameEvent[] }[]; // the last KEEP_EVENTS events, for phones that reconnect
+  cut: number;                                  // the newest rev dropped from `past` (a phone behind it missed events)
+  lastIn: Record<string, string>;               // each player's last applied night / vote / ready, so a retry is ignored
+  rec: GameRecord | null;                       // the running game's record (saved with the game)
 }
 
-export const IDLE_MS = 12 * 3600e3, MAX_MEMBERS = 20;
+export const IDLE_MS = 12 * 3600e3, MAX_MEMBERS = 20, KEEP_EVENTS = 200;
+/** A socket that sent nothing (not even its 10 s "ping") for this long is closed: the phone lost its signal. */
+export const STALE_MS = 30e3;
 const PROTO = { 'Sec-WebSocket-Protocol': SUBPROTOCOL };
 const rng = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
 const running = (st: RoomState) => !!st.game && st.game.phase !== 'end';
@@ -30,8 +37,27 @@ function seatNames(ms: Member[]) {
 
 export class Room extends DurableObject<Env> {
   private events: GameEvent[] = [];
+  private queue: Promise<unknown> = Promise.resolve();
 
-  private load() { return this.ctx.storage.get<RoomState>('room'); }
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // keep-alives are answered by Cloudflare without waking the room (they'd count against the daily request limit)
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+  }
+
+  /** One change at a time: awaiting D1 or another object lets the next message in, and it would start from the old
+   *  state (two joins at once, one lost). Every entry point goes through here. */
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const p = this.queue.then(fn);
+    this.queue = p.catch(() => {});
+    return p;
+  }
+
+  private async load() {
+    const st = await this.ctx.storage.get<RoomState>('room');
+    if (st) { st.rev ??= 0; st.past ??= []; st.cut ??= 0; st.lastIn ??= {}; st.rec ??= null; }  // rooms saved before these fields
+    return st;
+  }
   private save(st: RoomState) { return this.ctx.storage.put('room', st); }
   private sockets(uid?: string, except?: WebSocket) {
     return this.ctx.getWebSockets(uid).filter(w => w !== except && w.readyState === WebSocket.OPEN);
@@ -40,6 +66,11 @@ export class Room extends DurableObject<Env> {
   private out(ws: WebSocket, msg: RoomOut) { try { ws.send(JSON.stringify(msg)); } catch { /* closing */ } }
   private toUid(uid: string, msg: RoomOut) { for (const w of this.sockets(uid)) this.out(w, msg); }
   private uidOf(ws: WebSocket) { return this.ctx.getTags(ws)[0]; }
+  /** When this socket last showed life: a message, or a "ping" Cloudflare answered for us. */
+  private seen(ws: WebSocket) {
+    const a = ws.deserializeAttachment() as { at: number } | null;
+    return Math.max(a?.at ?? 0, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0);
+  }
 
   /** The host's controls: the host while connected, otherwise the first connected player in join order. */
   private hostOf(st: RoomState, except?: WebSocket) {
@@ -62,17 +93,15 @@ export class Room extends DurableObject<Env> {
   }
 
   /** Everyone gets the room and their own view; game events (minus the private night details) go to all. */
-  private broadcast(st: RoomState, except?: WebSocket) {
-    const room = this.info(st, except), now = Date.now();
-    // the night summary names who the Doctor protected and the Detective checked: only in the history at the end
-    const events = this.events.filter(e => e.t !== 'night'); this.events = [];
+  private broadcast(st: RoomState, events: GameEvent[], except?: WebSocket) {
+    const room = this.info(st, except), now = Date.now(), rev = st.rev;
     for (const ws of this.sockets(undefined, except)) {
       const uid = this.uidOf(ws), m = st.members.find(x => x.uid === uid);
       if (!m) continue;
-      if (events.length) this.out(ws, { t: 'events', events });
-      this.out(ws, { t: 'room', room, me: { uid, cn: m.cn, host: room.members.find(x => x.uid === uid)?.host ?? false } });
+      if (events.length) this.out(ws, { t: 'events', rev, events });
+      this.out(ws, { t: 'room', rev, room, me: { uid, cn: m.cn, host: room.members.find(x => x.uid === uid)?.host ?? false } });
       const seat = st.seats.indexOf(uid);
-      this.out(ws, { t: 'view', view: st.game ? viewFor(st.game, seat >= 0 ? seat : 'table', now) : null });
+      this.out(ws, { t: 'view', rev, view: st.game ? viewFor(st.game, seat >= 0 ? seat : 'table', now) : null });
     }
   }
 
@@ -85,13 +114,16 @@ export class Room extends DurableObject<Env> {
   private async schedule(st: RoomState) {
     const at: number[] = [];
     if (st.game?.phase === 'night' && st.game.night.endsAt) at.push(st.game.night.endsAt);
-    if (!this.sockets().length) at.push(st.lastActive + IDLE_MS);
+    const open = this.sockets();
+    if (!open.length) at.push(st.lastActive + IDLE_MS);
+    else at.push(Math.min(...open.map(w => this.seen(w))) + STALE_MS);  // the next socket that could go stale
     if (at.length) await this.ctx.storage.setAlarm(Math.min(...at)); else await this.ctx.storage.deleteAlarm();
   }
 
   /** Runs an engine action; returns an error code or null. */
   private play(st: RoomState, a: Action) {
-    const r = apply(st.game!, a, { rng, now: Date.now() });
+    st.rec ??= startRecord(st.game!);
+    const r = step(st.rec, st.game!, a, { rng, now: Date.now() });
     if (!r.ok) return r.error;
     st.game = r.state; this.events.push(...r.events);
     return null;
@@ -100,6 +132,13 @@ export class Room extends DurableObject<Env> {
   /** After every change: save, record a finished game, update presence, the alarm, and tell everyone. */
   private async commit(st: RoomState, before: 'lobby' | 'game', except?: WebSocket) {
     if (st.game?.phase === 'end' && !st.gameId) await this.saveGame(st);
+    // the night summary names who the Doctor protected and the Detective checked: only in the history at the end
+    const events = this.events.filter(e => e.t !== 'night'); this.events = [];
+    st.rev++;
+    if (events.length) {
+      st.past.push({ rev: st.rev, events });
+      while (st.past.reduce((n, p) => n + p.events.length, 0) > KEEP_EVENTS) st.cut = st.past.shift()!.rev;
+    }
     await this.save(st);
     const now = statusOf(st);
     if (now !== before) {
@@ -107,14 +146,15 @@ export class Room extends DurableObject<Env> {
       await Promise.all(st.members.filter(m => !m.left).map(m => setRoom(this.env, m.uid, st.code, now)));
     }
     await this.schedule(st);
-    this.broadcast(st, except);
+    this.broadcast(st, events, except);
   }
 
   private async saveGame(st: RoomState) {
     const g = st.game!, id = crypto.randomUUID(), db = this.env.DB;
     await db.batch([
-      db.prepare('INSERT INTO games (id, host_id, winner, days, valid, rules, log, stats, played_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)')
-        .bind(id, st.hostUid, g.winner, g.day, JSON.stringify(g.rules), JSON.stringify(g.log), JSON.stringify(g.stats), Date.now()),
+      db.prepare('INSERT INTO games (id, host_id, winner, days, valid, rules, log, stats, played_at, record) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)')
+        .bind(id, st.hostUid, g.winner, g.day, JSON.stringify(g.rules), JSON.stringify(g.log), JSON.stringify(g.stats), Date.now(),
+          st.rec ? JSON.stringify(st.rec) : null),
       ...g.names.map((name, seat) => db.prepare('INSERT INTO game_players (game_id, seat, user_id, name, role, alive) VALUES (?, ?, (SELECT id FROM users WHERE id = ?), ?, ?, ?)')
         .bind(id, seat, st.seats[seat], name, g.roles[seat], g.alive[seat] ? 1 : 0)),
     ]);
@@ -142,7 +182,8 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- connect
 
-  async fetch(req: Request) {
+  fetch(req: Request) { return this.serial(() => this.join(req)); }
+  private async join(req: Request) {
     const user = JSON.parse(req.headers.get('x-user')!) as UserRow, code = req.headers.get('x-code')!;
     const [client, server] = Object.values(new WebSocketPair());
     const refuse = (error: string) => {
@@ -154,7 +195,8 @@ export class Room extends DurableObject<Env> {
       const row = await this.env.DB.prepare('SELECT host_id FROM rooms WHERE code = ? AND closed_at IS NULL').bind(code).first<{ host_id: string }>();
       if (!row) return refuse('no_room');
       st = { code, hostUid: row.host_id, members: [], kicked: [], nextCn: 1, rules: { ...DEFAULT_RULES }, counts: { mafia: 1, doctor: 1, detective: 0 },
-        buzzMax: 3, deal: 0, game: null, seats: [], ready: [], gameId: null, valid: null, lastActive: Date.now() };
+        buzzMax: 3, deal: 0, game: null, seats: [], ready: [], gameId: null, valid: null, lastActive: Date.now(),
+        rev: 0, past: [], cut: 0, lastIn: {}, rec: null };
     }
     if (st.kicked.includes(user.id)) return refuse('kicked');
     const before = statusOf(st), me = { display: user.display, handle: user.handle, avatar: avatarOf(user) };
@@ -168,6 +210,13 @@ export class Room extends DurableObject<Env> {
     }
     st.lastActive = Date.now();
     this.ctx.acceptWebSocket(server, [user.id]);
+    server.serializeAttachment({ at: Date.now() });
+    // a phone coming back: the events it missed since the last rev it saw (or "missed" if they're gone)
+    const since = Number(new URL(req.url).searchParams.get('rev'));
+    if (Number.isInteger(since) && since > 0 && since <= st.rev) {
+      if (since < st.cut) this.out(server, { t: 'missed' });
+      else for (const p of st.past) if (p.rev > since) this.out(server, { t: 'events', rev: p.rev, events: p.events });
+    }
     await setRoom(this.env, user.id, st.code, statusOf(st));
     await this.commit(st, before);
     const chat = (await this.ctx.storage.get<ChatState>('chat')) ?? newChat(), w = this.who(st);
@@ -175,29 +224,40 @@ export class Room extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client, headers: PROTO });
   }
 
-  async webSocketClose(ws: WebSocket, code: number) {
-    try { ws.close(code === 1005 ? 1000 : code, 'bye'); } catch { /* already closed */ }
-    const st = await this.load(); if (!st) return;
-    st.lastActive = Date.now();
-    await this.save(st);
-    await this.schedule(st);
-    this.broadcast(st, ws);  // online dots and the host's controls may move
+  webSocketClose(ws: WebSocket, code: number) {
+    return this.serial(async () => {
+      try { ws.close(code === 1005 ? 1000 : code, 'bye'); } catch { /* already closed */ }
+      const st = await this.load(); if (!st) return;
+      st.lastActive = Date.now();
+      await this.commit(st, statusOf(st), ws);  // online dots and the host's controls may move
+    });
   }
   async webSocketError(ws: WebSocket) { await this.webSocketClose(ws, 1011); }
 
-  /** The night timer ran out (unfinished turns are skipped), or the room sat empty for 12 hours. */
-  async alarm() {
+  /** The night timer ran out (unfinished turns are skipped), a phone went silent, or the room sat empty for 12 hours. */
+  alarm() { return this.serial(() => this.tick()); }
+  private async tick() {
     const st = await this.load(); if (!st) return;
-    const before = statusOf(st);
-    if (st.game?.phase === 'night' && st.game.night.endsAt) this.play(st, { t: 'skipPending' });
-    if (!this.sockets().length && Date.now() >= st.lastActive + IDLE_MS) return this.close(st, 'closed');
-    await this.commit(st, before);
+    const before = statusOf(st), now = Date.now();
+    let changed = false;
+    if (st.game?.phase === 'night' && st.game.night.endsAt && now >= st.game.night.endsAt) changed = !this.play(st, { t: 'skipPending' });
+    for (const w of this.sockets()) {
+      if (now - this.seen(w) < STALE_MS) continue;
+      try { w.close(4001, 'stale'); } catch { /* gone */ }  // if the phone is still there, it reconnects
+      changed = true;
+    }
+    if (!this.sockets().length && now >= st.lastActive + IDLE_MS) return this.close(st, 'closed');
+    if (changed) await this.commit(st, before); else await this.schedule(st);
   }
 
   // ---------------------------------------------------------------- messages
 
-  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
-    if (raw === 'ping') { ws.send('pong'); return; }
+  webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
+    if (raw === 'ping') { ws.send('pong'); return; }  // normally answered by Cloudflare before it gets here
+    ws.serializeAttachment({ at: Date.now() });
+    return this.serial(() => this.onMessage(ws, raw));
+  }
+  private async onMessage(ws: WebSocket, raw: string | ArrayBuffer) {
     const uid = this.uidOf(ws);
     let parsed; try { parsed = RoomIn.safeParse(JSON.parse(String(raw))); } catch { parsed = null; }
     if (!parsed?.success) { this.out(ws, { t: 'err', error: 'bad_request' }); return; }
@@ -210,6 +270,9 @@ export class Room extends DurableObject<Env> {
     st.lastActive = Date.now();
 
     if (inp.t === 'chat' || inp.t === 'react' || inp.t === 'edit') return this.chat(st, ws, m.cn, inp);
+    // a phone resending its night choice, vote or "ready" after a drop: already applied, nothing to do
+    const key = inp.t === 'night' || inp.t === 'vote' || inp.t === 'ready' ? JSON.stringify(inp) : null;
+    if (key && st.lastIn[uid] === key) return;
 
     const hostOnly = ['setup', 'deal', 'start', 'startDay', 'timer', 'startVote', 'nextNight', 'continue', 'kick', 'unmute', 'ping', 'mark', 'lobby', 'close'];
     if (hostOnly.includes(inp.t) && !isHost) return err('forbidden');
@@ -225,6 +288,7 @@ export class Room extends DurableObject<Env> {
         const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules }, rng, st.deal + 1);
         if (!r.ok) return err(r.error);
         st.deal++; st.game = r.state; st.seats = players.map(x => x.uid); st.ready = []; st.gameId = null; st.valid = null;
+        st.rec = startRecord(r.state); st.lastIn = {};
         st.members = st.members.filter(x => !x.left);
         break;
       }
@@ -274,7 +338,7 @@ export class Room extends DurableObject<Env> {
         break;
       case 'lobby':
         if (g?.phase !== 'end') return err('phase');
-        st.game = null; st.seats = []; st.ready = []; st.gameId = null; st.valid = null;
+        st.game = null; st.seats = []; st.ready = []; st.gameId = null; st.valid = null; st.rec = null; st.lastIn = {};
         break;
       case 'close': return this.close(st, 'closed');
       case 'leave':
@@ -283,6 +347,7 @@ export class Room extends DurableObject<Env> {
         break;
     }
     if (e) return err(e);
+    if (key) st.lastIn[uid] = key;
     await this.commit(st, before);
   }
 
