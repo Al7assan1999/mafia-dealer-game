@@ -78,6 +78,14 @@ files are copied from there only when a phase needs them.
    `347831426258-e0guv95d25aq2adumf8cbvl8grf347qc.apps.googleusercontent.com` (server `GOOGLE_CLIENT_IDS` and the CI
    variable `GOOGLE_SERVER_CLIENT_ID`); Android client `347831426258-b2vm9tov5d7pue2cohlq2jsikth5enah.apps.googleusercontent.com`
    (package + upload-key SHA-1; not used in any setting: tokens are issued for the Web client).
+   Sprint 3 committed and green on CI 2026-11-22 (38fc1be, 09669f0), live with the Google Web client.
+   **Sprint 4, online rooms** (`docs/sprint-4-prd.md`, built 2026-11-22, not committed): `user.room` in `/v1/me`;
+   app: create / join by code, lobby (shared role and rules editors), the game on every phone with host controls,
+   per-phone narration + suspense with a "This phone narrates" switch, the connection bar, reconnect with `?rev=`,
+   taps resent after a drop, invites / join requests / let in, online history. His answers: every phone narrates (with
+   the switch), chat moves to Sprint 5, anyone with the code may join, new order 5 chat + polish / 6 Wi-Fi + approval /
+   7 push + Play readiness. Also at his request: the launcher icon is now the old app's "Fedora over the town", and CI
+   names the APK `MafiaDealer-PartyGame-<version>-b<run>-debug.apk`.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).

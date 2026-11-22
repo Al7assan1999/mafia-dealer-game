@@ -19,6 +19,10 @@ class Prefs extends ChangeNotifier {
   double get sfx => _sp.getDouble('sfx') ?? 1;
   set sfx(double v) { _sp.setDouble('sfx', v); notifyListeners(); }
 
+  /// Online: does this phone narrate? (Off on all but one phone when everyone sits together.)
+  bool get narrate => _sp.getBool('narrate') ?? true;
+  set narrate(bool v) { _sp.setBool('narrate', v); notifyListeners(); }
+
   /// The last setup's names, and recently used names (chips), newest first, at most 30.
   List<String> get players => _sp.getStringList('players') ?? const [];
   set players(List<String> v) => _sp.setStringList('players', v);

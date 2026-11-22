@@ -9,6 +9,7 @@ import 'audio.dart';
 import 'game.dart';
 import 'game_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'online.dart';
 import 'prefs.dart';
 import 'setup.dart';
 import 'ui.dart';
@@ -71,8 +72,12 @@ class Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => _build(context));
 
+  void _room(BuildContext context, String code) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomScreen(account: account, prefs: prefs, audio: audio, code: code)));
+
   Widget _build(BuildContext context) {
     final l = L.of(context), saved = prefs.game != null;
+    account.openRoom = (code) => _room(context, code); // the bell opens invites with it
     return Scaffold(
       body: Stage(children: [
         Row(children: [
@@ -116,7 +121,20 @@ class Home extends StatelessWidget {
           final g = await Navigator.of(context).push<OfflineGame>(MaterialPageRoute(builder: (_) => SetupScreen(prefs: prefs, audio: audio, account: account)));
           if (g != null && context.mounted) _play(context, g);
         }),
-        Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.newGameSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+        Padding(padding: const EdgeInsets.only(top: 8, bottom: 18), child: Text(l.newGameSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+        ListenableBuilder(listenable: account, builder: (context, _) {
+          final room = account.roomCode;
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (room != null) Padding(padding: const EdgeInsets.only(bottom: 10),
+                child: Btn(l.backToRoom(room), key: const Key('backToRoom'), icon: Icons.meeting_room_outlined, onTap: () => _room(context, room))),
+            Btn(l.online, key: const Key('online'), ghost: true, icon: Icons.public, onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => OnlineHome(account: account, prefs: prefs, audio: audio)))),
+            Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.onlineSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+            if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('history'),
+                icon: const Icon(Icons.history, color: C.mute), label: Text(l.historyT, style: const TextStyle(color: C.mute)),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HistoryScreen(account: account))))),
+          ]);
+        }),
       ]),
     );
   }

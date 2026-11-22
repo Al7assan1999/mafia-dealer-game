@@ -68,7 +68,9 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _screen(L l) => switch (g.screen) {
         Screen.dealPass => _pass(l, l.iam(_name(g.who)), () => g.dealOpen(g.who)),
-        Screen.dealCard => _RoleCard(key: ValueKey('card${g.who}'), g: g, l: l),
+        Screen.dealCard => RoleCard(key: ValueKey('card${g.who}'), name: _name(g.who), role: g.s.roles[g.who],
+            mates: [for (final j in g.view(g.who).mates) _name(j)], done: g.who == g.n - 1 ? l.memorizedLast : l.memorized,
+            onDone: () => g.dealDone(g.who)),
         Screen.nightPass => _pass(l, l.open(_name(g.who)), () => g.nightOpen(g.who), color: C.night, top: l.night(g.s.day)),
         Screen.nightPick => _nightPick(l),
         Screen.nightLocked => _nightLocked(l),
@@ -350,15 +352,19 @@ class _NewSetup extends StatelessWidget {
 }
 
 /// The role card: hidden until pressed and held; hidden again on release or when the app goes to the background.
-class _RoleCard extends StatefulWidget {
-  const _RoleCard({super.key, required this.g, required this.l});
-  final OfflineGame g;
-  final L l;
+/// The button waits for one look. Used offline (pass the phone) and online (my own phone).
+class RoleCard extends StatefulWidget {
+  const RoleCard({super.key, required this.name, required this.role, required this.mates, required this.done, required this.onDone, this.extra = const []});
+  final String name, done;
+  final Role role;
+  final List<String> mates;
+  final VoidCallback? onDone;
+  final List<Widget> extra; // more buttons under it (online: the host's Start)
   @override
-  State<_RoleCard> createState() => _RoleCardState();
+  State<RoleCard> createState() => _RoleCardState();
 }
 
-class _RoleCardState extends State<_RoleCard> with WidgetsBindingObserver {
+class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
   bool show = false, seen = false;
 
   @override
@@ -372,12 +378,13 @@ class _RoleCardState extends State<_RoleCard> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final g = widget.g, l = widget.l, seat = g.who, role = g.s.roles[seat], v = g.view(seat), last = seat == g.n - 1;
+    final l = L.of(context), role = widget.role;
     final desc = switch (role) { Role.mafia => l.dMafia, Role.doctor => l.dDoctor, Role.detective => l.dDetective, Role.citizen => l.dCitizen };
     return Stage(bottom: [
-      Btn(last ? l.memorizedLast : l.memorized, key: const Key('memorized'), onTap: seen && !show ? () => g.dealDone(seat) : null),
+      Btn(widget.done, key: const Key('memorized'), onTap: seen && !show ? widget.onDone : null),
+      ...widget.extra,
     ], children: [
-      Text(g.s.names[seat], textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+      Text(widget.name, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
       Text(l.yourRole.toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.dim, letterSpacing: 3)),
       const SizedBox(height: 16),
       Listener(
@@ -402,8 +409,8 @@ class _RoleCardState extends State<_RoleCard> with WidgetsBindingObserver {
                     Text(roleName(l, role), key: const Key('roleName'), style: head.copyWith(fontSize: 34, color: C.altText)),
                     const SizedBox(height: 8),
                     Text(desc, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF5A5248))),
-                    if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
-                        child: Text(l.mates(v.mates.map((j) => g.s.names[j]).join(', ')), textAlign: TextAlign.center, style: const TextStyle(color: C.red, fontWeight: FontWeight.w700))),
+                    if (widget.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
+                        child: Text(l.mates(widget.mates.join(', ')), textAlign: TextAlign.center, style: const TextStyle(color: C.red, fontWeight: FontWeight.w700))),
                   ])
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     const Icon(Icons.visibility_off_outlined, size: 54, color: C.mute),

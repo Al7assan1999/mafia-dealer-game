@@ -84,6 +84,7 @@ class Note {
   String get kind => j['kind'] as String;
   Person get from => Person(Map<String, Object?>.from(j['from'] as Map));
   int get at => j['at'] as int;
+  String? get code => j['code'] as String?;
   bool get read => j['read'] == true;
 }
 
@@ -213,6 +214,21 @@ class Account extends ChangeNotifier {
   Future<void> accept(String id) async { await _try(() => api.post('/v1/friend-requests/$id/accept')); await loadFriends(); }
   Future<void> decline(String id) async { await _try(() => api.delete('/v1/friend-requests/$id')); await loadFriends(); }
   Future<void> unfriend(String id) async { await _try(() => api.delete('/v1/friends/$id')); await loadFriends(); }
+
+  // ---------------------------------------------------------------- online rooms
+  /// The online room I'm in (the server knows it), or null.
+  String? get roomCode => (me?['room'] as Map?)?['code'] as String?;
+  /// Opens a room screen (set by the home screen; the bell uses it for invites).
+  void Function(String code)? openRoom;
+
+  Future<String> createRoom() async => ((await _try(() => api.post('/v1/rooms')))!['code'] as String);
+  Future<void> reloadMe() async { try { _setMe((await _try(() => api.get('/v1/me')))!); } catch (_) {} }
+  Future<void> invite(String userId, String code) => _try(() => api.post('/v1/invites', {'userId': userId, 'code': code}));
+  Future<void> askToJoin(String userId) => _try(() => api.post('/v1/join-requests', {'userId': userId}));
+  Future<List<Map<String, Object?>>> games() async =>
+      ((await _try(() => api.get('/v1/games')))!['games'] as List).map((g) => Map<String, Object?>.from(g as Map)).toList();
+  Future<Map<String, Object?>> game(String id) async => (await _try(() => api.get('/v1/games/$id')))!;
+  Future<void> markGame(String id, bool valid) => _try(() => api.patch('/v1/games/$id', {'valid': valid}));
 
   // ---------------------------------------------------------------- the bell
   Future<void> loadNotes() async {

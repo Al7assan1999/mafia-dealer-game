@@ -66,7 +66,7 @@ Request bodies are checked with the zod schemas in `packages/protocol`.
 | `POST /v1/auth/google {idToken, device}` | | Google sign-in token checked against Google's keys, issuer, audience (`GOOGLE_CLIENT_IDS`), expiry, verified email |
 | `POST /v1/auth/logout` | ✓ | ends this session |
 | `GET /v1/sessions`, `DELETE /v1/sessions/:id` | ✓ | devices signed in; sign one out |
-| `GET /v1/me`, `PATCH /v1/me {handle?, display?, fav?, showOnline?}` | ✓ | `handle_taken` on a clash (ignoring case) |
+| `GET /v1/me`, `PATCH /v1/me {handle?, display?, fav?, showOnline?}` | ✓ | `handle_taken` on a clash (ignoring case). `user.room` = the online room I'm in (`{code, status}` or null) |
 | `PUT /v1/me/avatar {preset} or {image: data URL}` | ✓ | photo ≤ 150 KB, JPEG / PNG / WebP |
 | `DELETE /v1/me {confirm: "delete"}` | ✓ | deletes the account and everything it owns |
 | `GET /v1/avatars/:userId` | | the photo (public, cached a day; the URL carries the version) |

@@ -469,3 +469,17 @@ describe('hub keep-alive (Sprint 3)', () => {
     expect(auto).not.toBeNull();
   });
 });
+
+describe('the room I am in (Sprint 4)', () => {
+  it('GET /v1/me says which room I am in, lobby or game, and nothing once it is closed', async () => {
+    const t = await table(4), [host] = t.players;
+    const me = async () => (await api('GET', '/v1/me', t.accts[1].token)).json.user.room;
+    expect(await me()).toEqual({ code: t.code, status: 'lobby' });
+    await deal(t, { rules: rules(), counts: { mafia: 1, detective: 0 } });
+    expect(await me()).toEqual({ code: t.code, status: 'game' });
+    host.send({ t: 'close' });
+    await t.players[1].until(() => t.players[1].got(m => m.t === 'bye'), 'bye');
+    await sleep(50);
+    expect(await me()).toBeNull();
+  });
+});

@@ -12,6 +12,7 @@ export async function meOf(db: D1Database, u: UserRow): Promise<Me> {
   return {
     id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, showOnline: !!u.show_online,
     emails: [...new Set(results.map(r => r.email))].sort(), google: results.some(r => r.kind === 'google'),
+    room: u.room_code && u.room_status ? { code: u.room_code, status: u.room_status } : null,
   };
 }
 

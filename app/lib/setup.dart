@@ -67,13 +67,10 @@ class _SetupState extends State<SetupScreen> {
     widget.onDealt != null ? widget.onDealt!(r.game!) : Navigator.of(context).pop(r.game);
   }
 
-  void _rule(String k, Object v) => setState(() => rules = rules.merge({k: v}));
-
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective)), err = _error(l, v);
     final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
-    final preset = presetOf(rules);
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [
@@ -116,40 +113,35 @@ class _SetupState extends State<SetupScreen> {
             ],
           ]),
         ),
-        Sec(
-          title: l.deck,
-          child: Column(children: [
-            _count(l.mafia, l.dMafia, Role.mafia, v.counts.mafia, v.counts.mafia > 1 ? () => setState(() => mafia = v.counts.mafia - 1) : null,
-                deckOk(ns.length, v.counts.mafia + 1, v.counts.detective) ? () => setState(() => mafia = v.counts.mafia + 1) : null),
-            _count(l.doctor, '${l.dDoctor} · ${l.docOne}', Role.doctor, 1, null, null),
-            _count(l.detective, v.counts.mafia < 2 ? '${l.dDetective} · ${l.detNeed2}' : l.dDetective, Role.detective, v.counts.detective,
-                v.counts.detective > 0 ? () => setState(() => detective = 0) : null,
-                v.counts.detective == 0 && v.counts.mafia >= 2 && deckOk(ns.length, v.counts.mafia, 1) ? () => setState(() => detective = 1) : null),
-            _count(l.citizen, l.dCitizen, Role.citizen, ns.length - v.counts.mafia - 1 - v.counts.detective, null, null),
-            if (ns.length >= minPlayers) Text(l.recM(recMafia(ns.length)), style: const TextStyle(color: C.dim, fontSize: 12)),
-          ]),
-        ),
-        Sec(
-          title: l.rules,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Wrap(spacing: 8, children: [
-              for (final p in ['classic', 'beginner'])
-                ChoiceChip(label: Text(p == 'classic' ? l.presetClassic : l.presetBeginner), selected: preset == p,
-                    onSelected: (_) => setState(() => rules = rules.merge(presets[p]!))),
-              if (preset == 'custom') ChoiceChip(label: Text(l.presetCustom), selected: true, onSelected: (_) {}),
-            ]),
-            _sw(l.rSkip, l.rSkipD, rules.skip, (x) => _rule('skip', x)),
-            _sw(l.rNorep, l.rNorepD, rules.norep, (x) => _rule('norep', x)),
-            _sw(l.rSaverev, l.rSaverevD, rules.saverev, (x) => _rule('saverev', x)),
-            _sw(l.rDecoy, l.rDecoyD, rules.decoy, (x) => _rule('decoy', x)),
-            _sw(l.rSelf, null, rules.self, (x) => _rule('self', x)),
-            _sw(l.rRep, null, rules.rep, (x) => _rule('rep', x)),
-            _sw(l.rReveal, null, rules.reveal, (x) => _rule('reveal', x)),
-            _sw(l.rSkipVote, l.rSkipVoteD, rules.skipVote, (x) => _rule('skipVote', x)),
-            _pickRow(l.rTimer, null, [60, 120, 180, 240, 300, 420, 600], rules.timer, (s) => l.minutes(s ~/ 60), (x) => _rule('timer', x)),
-            _pickRow(l.rNightT, l.rNightTD, nightTimes, rules.nightT, (s) => s == 0 ? l.off : l.seconds(s), (x) => _rule('nightT', x)),
-          ]),
-        ),
+        DeckEditor(players: ns.length, counts: v.counts, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
+        RulesEditor(rules: rules, onChanged: (r) => setState(() => rules = r)),
+      ]),
+    );
+  }
+}
+
+/// The roles: Mafia and Detective +/- inside the engine's limits for this many players (the offline setup and the
+/// online lobby). Read-only without onChanged.
+class DeckEditor extends StatelessWidget {
+  const DeckEditor({super.key, required this.players, required this.counts, this.onChanged});
+  final int players;
+  final Counts counts;
+  final ValueChanged<Counts>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context), n = players, m = counts.mafia, d = counts.detective, on = onChanged;
+    void set(int mm, int dd) => on?.call(Counts(mm, 1, dd));
+    return Sec(
+      title: l.deck,
+      child: Column(children: [
+        _count(l.mafia, l.dMafia, Role.mafia, m, on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : null,
+            on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : null),
+        _count(l.doctor, '${l.dDoctor} · ${l.docOne}', Role.doctor, 1, null, null),
+        _count(l.detective, m < 2 ? '${l.dDetective} · ${l.detNeed2}' : l.dDetective, Role.detective, d,
+            on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null),
+        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d).clamp(0, 99), null, null),
+        if (n >= minPlayers) Text(l.recM(recMafia(n)), style: const TextStyle(color: C.dim, fontSize: 12)),
       ]),
     );
   }
@@ -168,20 +160,55 @@ class _SetupState extends State<SetupScreen> {
           if (r == Role.mafia || r == Role.detective) IconButton(key: Key('plus_${r.name}'), onPressed: plus, icon: const Icon(Icons.add_circle_outline)),
         ]),
       );
+}
 
-  Widget _sw(String t, String? d, bool v, ValueChanged<bool> on) => SwitchListTile(
+/// The table rules with the presets (the offline setup and the online lobby). Read-only without onChanged.
+class RulesEditor extends StatelessWidget {
+  const RulesEditor({super.key, required this.rules, this.onChanged});
+  final Rules rules;
+  final ValueChanged<Rules>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context), preset = presetOf(rules), on = onChanged;
+    void rule(String k, Object v) => on?.call(rules.merge({k: v}));
+    return Sec(
+      title: l.rules,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Wrap(spacing: 8, children: [
+          for (final p in ['classic', 'beginner'])
+            ChoiceChip(label: Text(p == 'classic' ? l.presetClassic : l.presetBeginner), selected: preset == p,
+                onSelected: on == null ? null : (_) => on(rules.merge(presets[p]!))),
+          if (preset == 'custom') ChoiceChip(label: Text(l.presetCustom), selected: true, onSelected: (_) {}),
+        ]),
+        _sw(l.rSkip, l.rSkipD, rules.skip, on == null ? null : (x) => rule('skip', x)),
+        _sw(l.rNorep, l.rNorepD, rules.norep, on == null ? null : (x) => rule('norep', x)),
+        _sw(l.rSaverev, l.rSaverevD, rules.saverev, on == null ? null : (x) => rule('saverev', x)),
+        _sw(l.rDecoy, l.rDecoyD, rules.decoy, on == null ? null : (x) => rule('decoy', x)),
+        _sw(l.rSelf, null, rules.self, on == null ? null : (x) => rule('self', x)),
+        _sw(l.rRep, null, rules.rep, on == null ? null : (x) => rule('rep', x)),
+        _sw(l.rReveal, null, rules.reveal, on == null ? null : (x) => rule('reveal', x)),
+        _sw(l.rSkipVote, l.rSkipVoteD, rules.skipVote, on == null ? null : (x) => rule('skipVote', x)),
+        _pickRow(l.rTimer, null, [60, 120, 180, 240, 300, 420, 600], rules.timer, (s) => l.minutes(s ~/ 60), on == null ? null : (x) => rule('timer', x)),
+        _pickRow(l.rNightT, l.rNightTD, nightTimes, rules.nightT, (s) => s == 0 ? l.off : l.seconds(s), on == null ? null : (x) => rule('nightT', x)),
+      ]),
+    );
+  }
+
+  Widget _sw(String t, String? d, bool v, ValueChanged<bool>? on) => SwitchListTile(
         contentPadding: EdgeInsets.zero, value: v, onChanged: on, title: Text(t, style: const TextStyle(fontSize: 14)),
         subtitle: d == null ? null : Text(d, style: const TextStyle(color: C.dim, fontSize: 12)),
       );
 
-  Widget _pickRow(String t, String? d, List<int> opts, int v, String Function(int) label, ValueChanged<int> on) => Padding(
+  Widget _pickRow(String t, String? d, List<int> opts, int v, String Function(int) label, ValueChanged<int>? on) => Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(t, style: const TextStyle(fontSize: 14)),
           if (d != null) Text(d, style: const TextStyle(color: C.dim, fontSize: 12)),
           const SizedBox(height: 6),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final o in {...opts, v}.toList()..sort()) ChoiceChip(label: Text(label(o)), selected: o == v, onSelected: (_) => on(o)),
+            for (final o in {...opts, v}.toList()..sort())
+              ChoiceChip(label: Text(label(o)), selected: o == v, onSelected: on == null ? null : (_) => on(o)),
           ]),
         ]),
       );

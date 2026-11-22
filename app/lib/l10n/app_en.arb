@@ -458,5 +458,168 @@
   "eTooBig": "That picture is too large",
   "eAvatar": "That picture could not be used",
   "eSignedOut": "You were signed out. Sign in again.",
-  "eOther": "Something went wrong. Try again."
+  "eOther": "Something went wrong. Try again.",
+  "online": "Online",
+  "onlineSub": "Friends anywhere. Join with a 6-digit room code.",
+  "createRoom": "Create a room",
+  "joinCode": "Join with a code",
+  "codeHint": "6-digit code",
+  "join": "Join",
+  "roomCode": "Room {c}",
+  "@roomCode": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "share": "Share",
+  "copy": "Copy",
+  "copied": "Copied",
+  "shareRoomTxt": "Join my Mafia Dealer room: {c}",
+  "@shareRoomTxt": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "backToRoom": "Back to room {c}",
+  "@backToRoom": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "leaveRoom": "Leave room",
+  "leaveRoomQ": "Leave this room?",
+  "leaveRoomD": "If you are the host, the next player in join order takes over.",
+  "closeRoom": "Close room",
+  "closeRoomQ": "Close the room for everyone?",
+  "closeRoomD": "Everyone leaves and the room is deleted.",
+  "membersN": "Players ({n})",
+  "@membersN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "hostTag": "Host",
+  "readyTag": "ready",
+  "readyBtn": "I'm ready",
+  "readyN": "{n} of {m} ready",
+  "@readyN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "m": {
+        "type": "int"
+      }
+    }
+  },
+  "startNow": "Start now",
+  "inviteFriends": "Invite friends",
+  "invite": "Invite",
+  "invited": "Invited",
+  "askJoin": "Ask to join",
+  "asked": "Asked",
+  "letIn": "Let in",
+  "nInvite": "invites you to room {c}",
+  "@nInvite": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "nLetIn": "let you into room {c}",
+  "@nLetIn": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "nJoinReq": "wants to join your room",
+  "kick": "Remove from room",
+  "kickQ": "Remove {n}?",
+  "@kickQ": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "kickD": "During a game this counts as their elimination, and they can't come back.",
+  "buzz": "Buzz the host",
+  "buzzed": "{n} buzzed you",
+  "@buzzed": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "ping": "Ping everyone",
+  "pinged": "The host pinged everyone",
+  "mutedTag": "muted",
+  "unmute": "Unmute",
+  "continueAnyway": "Continue without offline players",
+  "connLost": "Connection lost · reconnecting…",
+  "connWeak": "Weak connection",
+  "connOther": "{n}'s connection is lost",
+  "@connOther": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "connBack": "Connected again",
+  "waitHost": "Waiting for the host",
+  "youAreOut": "You are out",
+  "youAreOutD": "Stay and watch. You can't act any more.",
+  "lockedWait": "Choice locked. Waiting for the others.",
+  "votedWait": "Vote recorded. Waiting for the others.",
+  "progressN": "{d} of {t}",
+  "@progressN": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      },
+      "t": {
+        "type": "int"
+      }
+    }
+  },
+  "tableVote": "Table vote (everyone sees)",
+  "secretVote": "Secret vote",
+  "valid": "Valid game",
+  "invalid": "Invalid game",
+  "countQ": "Count this game in the records?",
+  "toLobby": "Back to lobby",
+  "historyT": "Game history",
+  "noHistory": "No online games yet.",
+  "youPlayed": "You played {r}",
+  "@youPlayed": {
+    "placeholders": {
+      "r": {
+        "type": "String"
+      }
+    }
+  },
+  "narrateHere": "This phone narrates",
+  "narrateHereD": "Turn it off on all but one phone when you play in the same room.",
+  "eNoRoom": "No room with that code",
+  "eStarted": "That game has already started",
+  "eRoomFull": "The room is full (20 players)",
+  "eKicked": "You were removed from this room",
+  "roomClosed": "The room was closed",
+  "eForbidden": "Only the host can do that",
+  "eNotOpen": "Your friend isn't in an open lobby now",
+  "eNoMembers": "Need at least 4 players in the room",
+  "onlineNeedsAccount": "Sign in to play online."
 }

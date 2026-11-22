@@ -450,6 +450,12 @@ class _FriendsState extends State<FriendsScreen> {
               if (a.offline) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.eOffline, style: const TextStyle(color: C.red2))),
               Expanded(child: TabBarView(children: [
                 _list(l.fNone, [for (final p in a.friends) _row(p, [
+                  if (a.roomCode != null && p.status != 'lobby' && p.status != 'game')
+                    TextButton(onPressed: () => _do(() async { await a.invite(p.id, a.roomCode!); if (context.mounted) toast(context, l.invited); }),
+                        child: Text(l.invite, style: const TextStyle(color: C.red2)))
+                  else if (p.j['op'] == true && a.roomCode == null)
+                    TextButton(key: Key('askJoin_${p.handle}'), onPressed: () => _do(() async { await a.askToJoin(p.id); if (context.mounted) toast(context, l.asked); }),
+                        child: Text(l.askJoin, style: const TextStyle(color: C.red2))),
                   IconButton(tooltip: l.fRemove, icon: const Icon(Icons.person_remove_outlined, color: C.dim), onPressed: () async {
                     if (await ask(context, l.fRemoveQ(p.display), l.fRemoveD, l.fRemove)) _do(() => a.unfriend(p.id));
                   }),
@@ -488,7 +494,7 @@ class _BellState extends State<BellSheet> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: widget.account, builder: (context, _) {
         final l = L.of(context), a = widget.account;
-        final notes = a.notes.where((n) => n.kind == 'friend_request' || n.kind == 'friend_accept').toList();
+        final notes = a.notes;
         return SafeArea(child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .7),
           child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -503,9 +509,20 @@ class _BellState extends State<BellSheet> {
                   key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,
                   leading: AvatarView.of(a.api, n.from, size: 36),
                   title: Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
-                  subtitle: Text(n.kind == 'friend_request' ? l.nReq : l.nAcc, style: const TextStyle(color: C.mute)),
-                  trailing: IconButton(icon: const Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})),
-                  onTap: () { Navigator.of(context).pop(); Navigator.of(context).push(MaterialPageRoute(builder: (_) => FriendsScreen(account: a))); },
+                  subtitle: Text(switch (n.kind) {
+                    'friend_request' => l.nReq, 'friend_accept' => l.nAcc, 'invite' => l.nInvite(n.code ?? ''),
+                    'let_in' => l.nLetIn(n.code ?? ''), _ => l.nJoinReq,
+                  }, style: const TextStyle(color: C.mute)),
+                  trailing: n.kind == 'join_request' && a.roomCode != null
+                      ? TextButton(key: Key('letIn_${n.from.handle}'), onPressed: () async {
+                          try { await a.invite(n.from.id, a.roomCode!); await a.deleteNote(n.id); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                        }, child: Text(l.letIn, style: const TextStyle(color: C.green)))
+                      : IconButton(icon: const Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    if ((n.kind == 'invite' || n.kind == 'let_in') && n.code != null && a.openRoom != null) return a.openRoom!(n.code!);
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => FriendsScreen(account: a)));
+                  },
                 ),
             ])),
           ])),

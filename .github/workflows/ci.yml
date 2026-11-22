@@ -43,8 +43,15 @@ jobs:
       - name: Debug APK
         working-directory: app
         run: flutter build apk --debug --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
+      - name: Name the APK (version and build number)
+        id: apk
+        run: |
+          v=$(grep -E '^version:' app/pubspec.yaml | sed -E 's/version: *([^+]+).*//')
+          n="MafiaDealer-PartyGame-$v-b${{ github.run_number }}-debug.apk"
+          cp app/build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/$n"
+          echo "file=$RUNNER_TEMP/$n" >> "$GITHUB_OUTPUT"; echo "name=${n%.apk}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
-        with: { name: mafia-dealer-debug-apk, path: app/build/app/outputs/flutter-apk/app-debug.apk, retention-days: 14 }
+        with: { name: '${{ steps.apk.outputs.name }}', path: '${{ steps.apk.outputs.file }}', retention-days: 14 }
 
   # On a real Android emulator: a whole offline game, Back and a cold start; accounts and friends against a local
   # Worker (wrangler dev on the runner, reached from the emulator as 10.0.2.2; codes readable in local test mode).

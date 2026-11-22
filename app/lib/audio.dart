@@ -16,6 +16,9 @@ class Audio {
   /// Tests (and phones where audio fails) run silent: no players, but every callback still fires.
   static bool silent = false;
 
+  /// Online with "This phone narrates" off: no voice or sounds; the suspense still opens on the fallback timers.
+  bool muted = false;
+
   final _rand = Random();
   Map<String, String> _alias = {};
   AudioPlayer? _voice;
@@ -34,7 +37,7 @@ class Audio {
 
   // ---------------------------------------------------------------- sound effects
   void sfx(String name, [double delay = 0]) {
-    if (silent || prefs.sfx <= 0) return;
+    if (silent || muted || prefs.sfx <= 0) return;
     Future.delayed(Duration(milliseconds: (delay * 1000).round()), () async {
       try {
         final p = _player();
@@ -51,6 +54,7 @@ class Audio {
   /// at(keys.length) at the end. With the voice off nothing plays and nothing fires (the caller's fallback timer runs).
   Future<void> say(List<String?> keys, {double delay = 0, void Function(int i)? at}) async {
     final my = ++_tok;
+    if (muted) return; // the suspense opens on the caller's fallback timer
     if (silent) { for (var i = 0; i <= keys.length; i++) { at?.call(i); } return; }
     if (prefs.voice <= 0) return;
     await _voice?.stop();

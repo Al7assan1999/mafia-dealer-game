@@ -36,7 +36,8 @@ export interface UserCard {
   // friends only: online, in an online room ('lobby') or game, and whether they can be asked to join (an open lobby)
   on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean;
 }
-export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; emails: string[]; google: boolean }
+export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; emails: string[]; google: boolean;
+  room: { code: string; status: 'lobby' | 'game' } | null }  // the online room I'm in, if any
 export interface AuthAnswer { token: string; user: Me; needsHandle: boolean }
 export interface SessionInfo { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean }
 export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outgoing: UserCard[] }
