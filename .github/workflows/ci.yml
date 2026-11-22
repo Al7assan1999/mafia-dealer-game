@@ -46,7 +46,7 @@ jobs:
       - name: Name the APK (version and build number)
         id: apk
         run: |
-          v=$(grep -E '^version:' app/pubspec.yaml | sed -E 's/version: *([^+]+).*//')
+          v=$(grep -E '^version:' app/pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)  # 0.1.0+1 -> 0.1.0
           n="MafiaDealer-PartyGame-$v-b${{ github.run_number }}-debug.apk"
           cp app/build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/$n"
           echo "file=$RUNNER_TEMP/$n" >> "$GITHUB_OUTPUT"; echo "name=${n%.apk}" >> "$GITHUB_OUTPUT"
