@@ -1,0 +1,46 @@
+name: mafia_dealer
+description: "Mafia Dealer: Party Game. The Mafia party game on one phone, over Wi-Fi or online."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  audioplayers: ^6.8.1
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.3
+  mafia_engine:
+    path: ../packages/engine_dart
+  shared_preferences: ^2.5.6
+  wakelock_plus: ^1.8.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/voice/
+    - assets/sfx/
+    - assets/fonts/
+  fonts:
+    - family: Plex
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
+    - family: Elite
+      fonts:
+        - asset: assets/fonts/SpecialElite-Regular.ttf
+    - family: Messiri
+      fonts:
+        - asset: assets/fonts/ElMessiri-Variable.ttf

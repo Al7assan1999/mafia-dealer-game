@@ -18,6 +18,53 @@ jobs:
       - run: npm run check
       - run: npm test
 
+  # The Flutter app and the Dart engine: the Dart engine must replay the TypeScript engine's shared test games.
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: 21 }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: 3.47.9, channel: stable, cache: true }
+      - name: Dart engine (parity with packages/engine)
+        working-directory: packages/engine_dart
+        run: dart pub get && dart analyze --fatal-infos && dart test
+      - name: Analyze and widget tests
+        working-directory: app
+        run: flutter pub get && flutter analyze && flutter test
+      - name: Debug APK
+        working-directory: app
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@v7
+        with: { name: mafia-dealer-debug-apk, path: app/build/app/outputs/flutter-apk/app-debug.apk, retention-days: 14 }
+
+  # A whole offline game, Back and kill-and-resume on a real Android emulator.
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: 21 }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: 3.47.9, channel: stable, cache: true }
+      - run: flutter pub get
+        working-directory: app
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          working-directory: app
+          script: flutter test integration_test
+
   # main only: apply D1 migrations, then deploy the Worker. Skipped until the Cloudflare secrets and the D1 id are set.
   deploy:
     needs: test

@@ -1,0 +1,10 @@
+name: mafia_engine
+description: The Mafia Dealer rules in Dart, a copy of packages/engine (TypeScript) proven against the shared test games.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.0
+
+dev_dependencies:
+  test: ^1.25.0

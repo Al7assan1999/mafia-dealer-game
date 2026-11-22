@@ -63,6 +63,12 @@ files are copied from there only when a phase needs them.
    after 30 s (Cloudflare answers the 10 s pings itself), `rev` on every room message with catch-up on reconnect
    (`?rev=`, last 200 events, else `missed`), repeated taps ignored, engine game records with `replay` and 60 shared
    test games, `games.record` (migration `0003`). 34 engine + 38 server tests.
-   Next sprints (proposed): 2 Flutter shell + Dart engine + offline play; 3 sign-in and friends; 4 online rooms in the
+   **Sprint 2, the app exists** (`docs/sprint-2-prd.md`, built 2026-11-22, not committed): tools in `C:\Users\WGN\sdk\`
+   (Flutter 3.47.9, Temurin JDK 21, Android SDK 36 + NDK 28.2; licenses accepted with his OK); `packages/engine_dart`
+   (byte-identical records with the TypeScript engine); `app/` (offline play on one phone, Noir look, EN/AR + RTL,
+   the old narrator clips and rendered sounds, resume after a kill, screen kept on); CI jobs `app` and `emulator`.
+   His Sprint 2 answers: recent names on the phone while signed out; Noir look; keep the friends' name clips;
+   tools in `C:\Users\WGN\sdk\`; G7 unchanged.
+   Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).
