@@ -31,7 +31,8 @@ class Prefs extends ChangeNotifier {
 
   /// The offline game in progress, or null.
   Map<String, Object?>? get game => _json('game');
-  set game(Map<String, Object?>? v) { _put('game', v); notifyListeners(); }
+  // told a moment later: the game screen sets this while it closes, when the widget tree can't rebuild
+  set game(Map<String, Object?>? v) { _put('game', v); Future.microtask(notifyListeners); }
 
   Map<String, Object?>? _json(String k) {
     final s = _sp.getString(k);

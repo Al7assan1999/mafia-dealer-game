@@ -12,8 +12,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test/driver.dart';
 
+late Audio audio;
+
+/// The end of a test: the narrator stops and the last sound effects finish, so no player is left running.
+Future<void> settle(WidgetTester t) async {
+  audio.stop();
+  await t.pumpWidget(const SizedBox());
+  await t.pump(const Duration(seconds: 12));
+}
+
 Future<Prefs> start(WidgetTester t) async {
-  final prefs = await Prefs.load(), audio = Audio(prefs);
+  final prefs = await Prefs.load();
+  audio = Audio(prefs);
   await audio.init();
   await t.pumpWidget(App(prefs: prefs, audio: audio));
   await t.pump(const Duration(milliseconds: 500));
@@ -32,6 +42,7 @@ void main() {
     await tapKey(t, 'home');
     await waitFor(t, find.byKey(const Key('newGame')));
     expect(find.byKey(const Key('resume')), findsNothing, reason: 'a finished game is not kept');
+    await settle(t);
   });
 
   testWidgets('Back mid-game keeps the game; a cold start resumes it at the same step', (t) async {
@@ -54,5 +65,6 @@ void main() {
     expect(gameOf(t).screen, screen);
     expect(gameOf(t).who, who);
     await playToEnd(t);
+    await settle(t);
   });
 }

@@ -67,6 +67,10 @@ void main() {
           final screens = await playToEnd(t);
           expect(screens, greaterThan(10));
           expect(gameOf(t).s.phase, Phase.end);
+          await tapKey(t, 'home'); // leaving a finished game (this once threw while the screen closed)
+          await waitFor(t, find.byKey(const Key('newGame')));
+          await t.pump(const Duration(milliseconds: 400));
+          expect(find.byKey(const Key('resume')), findsNothing, reason: 'a finished game is not kept');
         });
       }
     }

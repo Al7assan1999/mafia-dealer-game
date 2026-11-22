@@ -18,6 +18,11 @@ committed, not pushed, so the two new CI jobs have not run yet.**
 1. **A second quick tap on "Confirm decision" or "Cast my vote" crashed the app.** The first tap cleared the choice,
    and the second ran before the screen rebuilt. Found by the double-tap game test, fixed, and pinned by it.
 2. **With 4 players, the Mafia +/- buttons vanished** instead of showing as disabled (found by the setup test).
+4. **Found by the emulator job on the first CI run (330bdb0):** leaving a finished game told the home screen to
+   rebuild while Flutter was closing the game screen, which Flutter forbids. Debug builds show it as an error; release
+   builds would hide it. Fixed by sending the notification a moment later. The widget tests don't reproduce it (I
+   checked with the fix switched off), so the emulator job is the check. The emulator test also now stops the
+   narrator and lets the last sounds finish before it ends (the audio player was still running).
 3. The rule switches drew on a plain colored box that hid their tap ripple (a Flutter warning in the tests). The
    section cards are now proper Material surfaces.
 
