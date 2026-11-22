@@ -29,12 +29,15 @@ class Audio {
 
   String _pick(List<String> a) => a[_rand.nextInt(a.length)];
 
+  /// A player without position tracking (the app never shows playback position; the default asks for every frame).
+  static AudioPlayer _player() => AudioPlayer()..positionUpdater = null;
+
   // ---------------------------------------------------------------- sound effects
   void sfx(String name, [double delay = 0]) {
     if (silent || prefs.sfx <= 0) return;
     Future.delayed(Duration(milliseconds: (delay * 1000).round()), () async {
       try {
-        final p = AudioPlayer();
+        final p = _player();
         p.onPlayerComplete.first.then((_) => p.dispose());
         await p.play(AssetSource('sfx/$name.wav'), volume: prefs.sfx);
       } catch (_) {}
@@ -57,7 +60,7 @@ class Audio {
       at?.call(i);
       if (i == keys.length || keys[i] == null || silent) continue;
       try {
-        final v = _voice ??= AudioPlayer();
+        final v = _voice ??= _player();
         final done = v.onPlayerComplete.first;
         await v.play(AssetSource('voice/${keys[i]}.ogg'), volume: prefs.voice);
         await done.timeout(const Duration(seconds: 10));
