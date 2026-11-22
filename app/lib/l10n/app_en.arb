@@ -621,5 +621,129 @@
   "eForbidden": "Only the host can do that",
   "eNotOpen": "Your friend isn't in an open lobby now",
   "eNoMembers": "Need at least 4 players in the room",
-  "onlineNeedsAccount": "Sign in to play online."
+  "onlineNeedsAccount": "Sign in to play online.",
+  "chatT": "Chat",
+  "everyone": "Everyone",
+  "typeMsg": "Message…",
+  "sending": "Sending…",
+  "notSent": "Not sent · tap to retry",
+  "replyTo": "Reply",
+  "react": "React",
+  "editMsg": "Edit",
+  "edited": "edited",
+  "save": "Save",
+  "outOnlyNote": "You are out: only players who are out see what you write here.",
+  "mentionedYou": "{n} mentioned you",
+  "@mentionedYou": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "noMessages": "No messages yet.",
+  "chatSlow": "Slow down a little",
+  "mention": "Mention",
+  "block": "Block",
+  "blockQ": "Block {n}?",
+  "@blockQ": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "blockD": "You won't see their messages, and they can't message you, add you or invite you. They aren't told.",
+  "blockedToast": "{n} is blocked",
+  "@blockedToast": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "unblock": "Unblock",
+  "blockedList": "Blocked players",
+  "noBlocked": "Nobody is blocked.",
+  "report": "Report",
+  "reportQ": "Report {n}",
+  "@reportQ": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "reportMsg": "This message will be sent with the report.",
+  "reasonSpam": "Spam",
+  "reasonHarassment": "Harassment or bullying",
+  "reasonHate": "Hate speech",
+  "reasonOther": "Something else",
+  "reportNote": "Anything to add? (optional)",
+  "alsoBlock": "Also block them",
+  "sendReport": "Send report",
+  "reportSent": "Thanks. The report was sent.",
+  "accountId": "Account ID",
+  "reportsT": "Reports",
+  "noReports": "No open reports.",
+  "dismiss": "Dismiss",
+  "ban": "Ban",
+  "banQ": "Ban {n}?",
+  "@banQ": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "banD": "They are signed out everywhere and can't sign in again.",
+  "reportedBy": "Reported by {n}",
+  "@reportedBy": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "eBanned": "This account was banned.",
+  "eBlocked": "Unblock them first",
+  "alivePlayers": "Players",
+  "outTag": "out",
+  "howDecide": "How does the town decide?",
+  "decideTogether": "Decide together",
+  "decideTogetherD": "Agree out loud, then pick on this phone.",
+  "secretBallotD": "Pass the phone; everyone votes in secret.",
+  "back": "Back",
+  "secretVoteOnline": "Secret vote (each phone)",
+  "secretVoteOnlineD": "Everyone votes on their own phone; the votes stay hidden until the result.",
+  "tableVoteOnline": "Table vote (everyone sees)",
+  "tableVoteOnlineD": "Everyone sees the votes as they come in.",
+  "playersCount": "{n} players",
+  "@playersCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineDealt": "{n} is offline and would be dealt in",
+  "@offlineDealt": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "howToPlay": "How to play",
+  "newToMafia": "New to Mafia? Learn it in a minute.",
+  "gGoalT": "The goal",
+  "gGoal": "A town hides a few Mafia. The Mafia win when they are as many as everyone else. The town wins when every Mafia is out.",
+  "gRolesT": "The roles",
+  "gNightT": "Night",
+  "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone. Citizens tap anyone, so nobody can tell roles apart.",
+  "gDayT": "Day",
+  "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
+  "gTipsT": "Tips",
+  "gTips": "Keep your role secret. Out players stay quiet. One phone for the table, or each on their own phone online.",
+  "gotIt": "Got it"
 }

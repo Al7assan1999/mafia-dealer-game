@@ -20,6 +20,9 @@ class FakeServer {
   final notes = <Map<String, Object?>>[];
   final saved = <String, Map<String, Object?>>{};
   final calls = <String>[];
+  final blocks = <(String, String)>{}; // (blocker, blocked)
+  final reports = <Map<String, Object?>>[];
+  String? admin;
   var _n = 0;
 
   Api api() => Api(base: 'https://fake', client: MockClient(_handle));
@@ -50,7 +53,7 @@ class FakeServer {
     http.Response ok(Object j) => http.Response(jsonEncode(j), 200, headers: {'content-type': 'application/json; charset=utf-8'});
     http.Response err(int s, String e) => http.Response(jsonEncode({'error': e}), s);
     final tok = r.headers['authorization']?.replaceFirst('Bearer ', ''), me = tok == null ? null : sessions[tok];
-    Map<String, Object?> meOf(String id) => {'user': users[id], 'needsHandle': users[id]!['handle'] == null};
+    Map<String, Object?> meOf(String id) => {'user': {...users[id]!, 'admin': id == admin, 'room': null}, 'needsHandle': users[id]!['handle'] == null};
     String newSession(String id) { final t = 's${++_n}'; sessions[t] = id; return t; }
 
     if (path == '/v1/auth/email/start') {
@@ -146,6 +149,23 @@ class FakeServer {
       friendships.removeWhere((f) => f.$1 == a.$1 && f.$2 == a.$2);
       if (path.endsWith('/accept')) { friends.add(a); return ok({'rel': 'friends'}); }
       return ok({'rel': 'none'});
+    }
+    if (path == '/v1/blocks' && m == 'GET') return ok({'blocked': [for (final b in blocks) if (b.$1 == me) card(b.$2, me)]});
+    if (path == '/v1/blocks' && m == 'POST') {
+      final o = body['userId'] as String;
+      blocks.add((me, o));
+      friends.removeWhere((f) => (f.$1 == me && f.$2 == o) || (f.$2 == me && f.$1 == o));
+      return ok({'ok': true});
+    }
+    if (path.startsWith('/v1/blocks/')) { blocks.remove((me, path.split('/').last)); return ok({'ok': true}); }
+    if (path == '/v1/reports') { reports.add({...body, 'by': me, 'id': 'r${++_n}'}); return ok({'ok': true}); }
+    if (path.startsWith('/v1/admin/')) {
+      if (me != admin) return err(403, 'forbidden');
+      if (m == 'GET') return ok({'reports': [for (final r in reports) {'id': r['id'], 'reason': r['reason'], 'note': r['note'] ?? '', 'display': users[r['userId']]?['display'], 'handle': users[r['userId']]?['handle'], 'reporter': users[r['by']]?['display'], 'message': null}]});
+      final r = reports.firstWhere((x) => x['id'] == path.split('/').last);
+      reports.remove(r);
+      if (body['action'] == 'ban') { users[r['userId']]!['banned'] = true; sessions.removeWhere((_, v) => v == r['userId']); }
+      return ok({'ok': true});
     }
     if (path == '/v1/notifications' && m == 'GET') {
       final l = notes.where((n) => n['to'] == me).toList();

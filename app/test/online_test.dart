@@ -67,7 +67,7 @@ Map<String, Object?> view(int rev, String phase, {String ph = 'table', Map<Strin
     };
 Map<String, Object?> nightOpts = {'key': 'doctor', 'opts': [for (var i = 0; i < 4; i++) {'seat': i, 'disabled': false, 'self': i == 0, 'teammate': false, 'lastTarget': false, 'lastNight': false, 'mateVotes': 0}], 'skip': null};
 
-Future<({FakeRoom room, Prefs prefs})> openRoom(WidgetTester t, {Size size = const Size(393, 851), String lang = 'en', double text = 1, bool narrate = true}) async {
+Future<({FakeRoom room, Prefs prefs, FakeServer server})> openRoom(WidgetTester t, {Size size = const Size(393, 851), String lang = 'en', double text = 1, bool narrate = true}) async {
   t.view.physicalSize = size;
   t.view.devicePixelRatio = 1;
   t.platformDispatcher.textScaleFactorTestValue = text;
@@ -84,10 +84,10 @@ Future<({FakeRoom room, Prefs prefs})> openRoom(WidgetTester t, {Size size = con
   ));
   await t.pump();
   addTearDown(() async { await t.pumpWidget(const SizedBox()); });
-  return (room: room, prefs: prefs);
+  return (room: room, prefs: prefs, server: server);
 }
 
-RoomConn connOf(WidgetTester t) => (t.state(find.byType(RoomScreen)) as dynamic).conn as RoomConn;
+RoomConn connOf(WidgetTester t) => (t.state(find.byType(RoomScreen, skipOffstage: false)) as dynamic).conn as RoomConn;
 Future<void> frames(WidgetTester t, [int n = 5]) async { for (var i = 0; i < n; i++) { await t.pump(const Duration(milliseconds: 100)); } }
 
 void main() {

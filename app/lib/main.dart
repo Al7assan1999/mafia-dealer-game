@@ -7,6 +7,7 @@ import 'account_screens.dart';
 import 'api.dart';
 import 'audio.dart';
 import 'game.dart';
+import 'guide.dart';
 import 'game_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'online.dart';
@@ -98,7 +99,17 @@ class Home extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         Big(l.appName, sub: l.tag, size: 38),
-        const SizedBox(height: 36),
+        const SizedBox(height: 24),
+        if (!prefs.guideSeen)
+          Sec(color: C.card2, child: Row(children: [
+            const Icon(Icons.menu_book_outlined, color: C.gold),
+            const SizedBox(width: 10),
+            Expanded(child: Text(l.newToMafia)),
+            TextButton(key: const Key('openGuide'), onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); },
+                child: Text(l.howToPlay, style: const TextStyle(color: C.red2))),
+            IconButton(key: const Key('dismissGuide'), icon: const Icon(Icons.close, size: 18, color: C.dim), onPressed: () => prefs.guideSeen = true),
+          ])),
+        const SizedBox(height: 12),
         if (saved)
           Sec(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -130,7 +141,10 @@ class Home extends StatelessWidget {
             Btn(l.online, key: const Key('online'), ghost: true, icon: Icons.public, onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => OnlineHome(account: account, prefs: prefs, audio: audio)))),
             Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.onlineSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
-            if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('history'),
+            Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
+                icon: const Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: const TextStyle(color: C.mute)),
+                onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); })),
+            if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 4), child: TextButton.icon(key: const Key('history'),
                 icon: const Icon(Icons.history, color: C.mute), label: Text(l.historyT, style: const TextStyle(color: C.mute)),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HistoryScreen(account: account))))),
           ]);

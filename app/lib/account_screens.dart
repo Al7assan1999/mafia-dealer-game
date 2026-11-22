@@ -10,13 +10,14 @@ import 'package:share_plus/share_plus.dart';
 import 'account.dart';
 import 'api.dart';
 import 'l10n/app_localizations.dart';
+import 'safety.dart';
 import 'ui.dart';
 
 /// A server error as the player reads it.
 String errText(L l, Object e) => switch (e is ApiError ? e.code : '') {
       'offline' => l.eOffline, 'code' => l.eCode, 'slow_down' => l.eSlow, 'handle_taken' => l.eTaken, 'bad_request' => l.eOther,
       'not_found' => l.eNoUser, 'self' => l.eSelf, 'full' => l.eFull, 'mail' => l.eMail, 'google' => l.eGoogle,
-      'too_big' => l.eTooBig, 'auth' => l.eSignedOut, _ => l.eOther,
+      'too_big' => l.eTooBig, 'auth' => l.eSignedOut, 'banned' => l.eBanned, 'blocked' => l.eBlocked, _ => l.eOther,
     };
 
 void toast(BuildContext context, String text) =>
@@ -25,12 +26,12 @@ void toast(BuildContext context, String text) =>
 final _handleRx = RegExp(r'^@?[A-Za-z0-9_.]{3,20}$');
 
 // ---------------------------------------------------------------- avatar
-/// The old app's 10 presets: a color and a picture.
+/// 10 neutral presets (a color and a picture). No role symbols: in a hidden-role game a lobby of "Mafia" avatars misleads.
 const _presets = [
-  (Color(0xFFFF4D7D), Icons.dangerous_outlined), (Color(0xFF3CE0A0), Icons.healing_outlined), (Color(0xFF5AA2FF), Icons.search),
-  (Color(0xFFFFC65A), Icons.person_outline), (Color(0xFFB98BFF), Icons.nightlight_round), (Color(0xFFFF8A3D), Icons.workspace_premium_outlined),
-  (Color(0xFF4DD4E0), Icons.visibility_outlined), (Color(0xFFE05A5A), Icons.mood_bad_outlined), (Color(0xFF9ADF5A), Icons.emoji_events_outlined),
-  (Color(0xFFC9C3D6), Icons.groups_outlined),
+  (Color(0xFFC9C3D6), Icons.theater_comedy_outlined), (Color(0xFFB98BFF), Icons.nightlight_round), (Color(0xFF4DD4E0), Icons.visibility_outlined),
+  (Color(0xFFFFC65A), Icons.workspace_premium_outlined), (Color(0xFFFF8A3D), Icons.key_outlined), (Color(0xFF5AA2FF), Icons.diamond_outlined),
+  (Color(0xFFFF4D7D), Icons.local_florist_outlined), (Color(0xFF3CE0A0), Icons.music_note_outlined), (Color(0xFF9ADF5A), Icons.pets_outlined),
+  (Color(0xFFE05A5A), Icons.casino_outlined),
 ];
 
 class AvatarView extends StatelessWidget {
@@ -85,7 +86,7 @@ class AccountBar extends StatelessWidget {
             child: Row(children: [
               AvatarView.of(a.api, a.card!, size: 34),
               const SizedBox(width: 8),
-              Text(a.handle != null ? '@${a.handle}' : a.display, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(a.handle != null ? atHandle(a.handle) : a.display, style: const TextStyle(fontWeight: FontWeight.w700)),
               if (a.offline) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(l.eOfflineShort, style: const TextStyle(color: C.dim, fontSize: 12))),
             ]),
           ),
@@ -331,6 +332,15 @@ class _ProfileState extends State<ProfileScreen> {
                       }), child: Text(l.aSignOutDevice, style: const TextStyle(color: C.red2))),
                 ]),
             ])),
+            Sec(child: Column(children: [
+              ListTile(key: const Key('blockedList'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.block, color: C.mute), title: Text(l.blockedList),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlockedScreen(account: a)))),
+              if (a.isAdmin) ListTile(key: const Key('reports'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.flag_outlined, color: C.red2), title: Text(l.reportsT),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportsScreen(account: a)))),
+              ListTile(key: const Key('accountId'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.badge_outlined, color: C.mute), title: Text(l.accountId),
+                  subtitle: Text(a.card!.id, style: const TextStyle(color: C.dim, fontSize: 11)), trailing: const Icon(Icons.copy, size: 18, color: C.dim),
+                  onTap: () => copyText(context, a.card!.id)),
+            ])),
             Btn(l.aOut, key: const Key('signOut'), ghost: true, icon: Icons.logout, onTap: () async {
               if (await ask(context, l.aOutQ, l.aOutD, l.aOut)) {
                 await a.logout();
@@ -399,7 +409,7 @@ class _FriendsState extends State<FriendsScreen> {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p.display, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text([if (p.handle != null) '@${p.handle}', ?sub].join(' · '), style: const TextStyle(color: C.mute, fontSize: 12)),
+            Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: const TextStyle(color: C.mute, fontSize: 12)),
           ])),
           ...actions,
         ]),
@@ -456,9 +466,8 @@ class _FriendsState extends State<FriendsScreen> {
                   else if (p.j['op'] == true && a.roomCode == null)
                     TextButton(key: Key('askJoin_${p.handle}'), onPressed: () => _do(() async { await a.askToJoin(p.id); if (context.mounted) toast(context, l.asked); }),
                         child: Text(l.askJoin, style: const TextStyle(color: C.red2))),
-                  IconButton(tooltip: l.fRemove, icon: const Icon(Icons.person_remove_outlined, color: C.dim), onPressed: () async {
-                    if (await ask(context, l.fRemoveQ(p.display), l.fRemoveD, l.fRemove)) _do(() => a.unfriend(p.id));
-                  }),
+                  SafetyMenu(account: a, userId: p.id, name: p.display, extra: [PopupMenuItem(value: 'remove', child: Text(l.fRemove))],
+                      onExtra: (_) async { if (await ask(context, l.fRemoveQ(p.display), l.fRemoveD, l.fRemove)) _do(() => a.unfriend(p.id)); }),
                 ], sub: _status(l, p))]),
                 _list(l.fNoReq, [for (final p in a.incoming) _row(p, [
                   TextButton(key: Key('accept_${p.handle}'), onPressed: () => _do(() => a.accept(p.id)), child: Text(l.fAccept, style: const TextStyle(color: C.green))),

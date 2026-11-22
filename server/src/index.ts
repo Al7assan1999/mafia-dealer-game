@@ -8,6 +8,7 @@ import { auth, googleKeys, googleVerifier, lastCodes, requireUser, resendCode, s
 import { ApiErr, userFromToken, type AppEnv, type Ctx, type Deps, type Env } from './lib.ts';
 import { games, invites, joinRequests, notes, rooms } from './social.ts';
 import { avatars, friends, me, requests, users } from './users.ts';
+import { adminRoutes, blockRoutes, reportRoutes } from './safety.ts';
 
 export { Room } from './room.ts';
 export { Hub } from './hub.ts';
@@ -52,6 +53,7 @@ export function createApp(deps: Deps) {
   app.route('/v1/sessions', sessions);
   app.route('/v1/avatars', avatars);
   const routes = [['/v1/me', me], ['/v1/users', users], ['/v1/friends', friends], ['/v1/friend-requests', requests],
+    ['/v1/blocks', blockRoutes], ['/v1/reports', reportRoutes], ['/v1/admin', adminRoutes],
     ['/v1/rooms', rooms], ['/v1/invites', invites], ['/v1/join-requests', joinRequests], ['/v1/notifications', notes], ['/v1/games', games]] as const;
   for (const [path, r] of routes) { app.use(path, requireUser); app.use(path + '/*', requireUser); app.route(path, r); }
 

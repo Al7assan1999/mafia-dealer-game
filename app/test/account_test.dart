@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:mafia_dealer/account.dart';
 import 'package:mafia_dealer/account_screens.dart';
+import 'package:mafia_dealer/ui.dart';
 
 import 'driver.dart';
 import 'fake_server.dart';
@@ -109,12 +110,12 @@ void main() {
     final s = FakeServer(), tok = s.user('Sami'), tokens = MemoryTokens()..t = tok;
     final app = await launch(t, server: s, tokens: tokens);
     await settleUi(t);
-    expect(find.text('@Sami'), findsOneWidget);
+    expect(find.text(atHandle('Sami')), findsOneWidget);
     // offline at the next start: the cached profile, marked offline; offline play still works
     s.offline = true;
     final again = await launch(t, server: s, tokens: tokens, prefs: app.prefs);
     await settleUi(t);
-    expect(find.text('@Sami'), findsOneWidget);
+    expect(find.text(atHandle('Sami')), findsOneWidget);
     expect(find.text('Offline'), findsOneWidget);
     expect(again.account.signedIn, isTrue);
     await setUpGame(t, ['Dareer', 'Halawy', 'Farouq', 'Sami']);
@@ -192,7 +193,9 @@ void main() {
     await settleUi(t);
     expect(find.text('You and @Dareer are now friends'), findsOneWidget);
     expect(app.account.friends.map((p) => p.handle), ['Dareer']);
-    await t.tap(find.byTooltip('Remove friend'));
+    await tapKey(t, 'safety_Dareer'); // the ⋮ menu: Remove friend, Block, Report
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('Remove friend').last);
     await t.pump(const Duration(milliseconds: 300));
     expect(find.text('Remove Dareer?'), findsOneWidget);
     await t.tap(find.text('Remove friend').last);

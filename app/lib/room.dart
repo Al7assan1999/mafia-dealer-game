@@ -46,6 +46,22 @@ class RoomConn extends ChangeNotifier {
   bool missed = false; // too far behind: no narration of old events
   Link link = Link.ok;
 
+  /// The server's clock minus this phone's (ms), from every `room` message: timers show the server's time.
+  int clockOffset = 0;
+  int get serverNow => DateTime.now().millisecondsSinceEpoch + clockOffset;
+
+  // ---------------------------------------------------------------- chat
+  final chat = <int, Map<String, Object?>>{}; // id -> message, as the server sends them
+  final outbox = <String, Map<String, Object?>>{}; // my messages not confirmed yet (cid -> message + 'failed')
+  final _chatTimers = <Timer>[]; // each message's "not confirmed in 10 s" timer, cancelled with the room
+  final unread = <String, int>{}; // conversation ('all' or the other player's cn) -> unread count
+  String? openConv; // the conversation on screen (its messages don't count as unread)
+  int get myCn => (me?['cn'] as int?) ?? -99;
+  int get unreadTotal => unread.values.fold(0, (a, b) => a + b);
+  static String convOf(Map<String, Object?> m, int me) => m['to'] == -1 ? 'all' : '${m['from'] == me ? m['to'] : m['from']}';
+  List<Map<String, Object?>> messages(String conv) =>
+      (chat.values.where((m) => convOf(m, myCn) == conv).toList()..sort((a, b) => (a['id'] as int) - (b['id'] as int)));
+
   /// Narration: the events of a change with the view after it. After a reconnect: all the missed events at once, with
   /// the current view (the game screen narrates only what still matches it).
   final _narr = StreamController<({List<Map<String, Object?>> events, Map<String, Object?>? view})>.broadcast();
@@ -124,6 +140,8 @@ class RoomConn extends ChangeNotifier {
       case 'room':
         if (r != null && r < rev) return;
         room = Map<String, Object?>.from(m['room'] as Map);
+        final now = m['now'] as int?;
+        if (now != null) { final o = now - DateTime.now().millisecondsSinceEpoch; clockOffset = clockOffset == 0 ? o : (clockOffset * 3 + o) ~/ 4; }
         me = Map<String, Object?>.from(m['me'] as Map);
         if (r != null) rev = max(rev, r);
       case 'view':
@@ -137,7 +155,17 @@ class RoomConn extends ChangeNotifier {
         missed = true;
         _queue.clear();
       case 'err':
+        final ref = m['ref'] as String?;
+        if (ref != null && outbox.containsKey(ref)) { outbox[ref]!['failed'] = true; break; } // a chat message refused (slow down)
         error = m['error'] as String?;
+      case 'chatAll':
+        chat..clear()..addEntries((m['msgs'] as List).map((x) { final c = Map<String, Object?>.from(x as Map); return MapEntry(c['id'] as int, c); }));
+      case 'chat':
+        final c = Map<String, Object?>.from(m['msg'] as Map), fresh = !chat.containsKey(c['id']);
+        chat[c['id'] as int] = c;
+        if (m['cid'] != null) outbox.remove(m['cid']);
+        final conv = convOf(c, myCn);
+        if (fresh && c['from'] != myCn && conv != openConv) unread[conv] = (unread[conv] ?? 0) + 1;
       case 'bye':
         bye = m['why'] as String?;
         _closed = true;
@@ -146,6 +174,22 @@ class RoomConn extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Sends a chat message (to -1 = Everyone, or a player's cn). It shows as "sending" until the server confirms it, and as
+  /// "not sent" if refused or unconfirmed after 10 s.
+  void sendChat(int to, String text, {int? reply, List<int> mentions = const []}) {
+    final cid = '${DateTime.now().microsecondsSinceEpoch}';
+    final msg = {'t': 'chat', 'to': to, 'text': text, 'cid': cid, 'reply': ?reply, if (mentions.isNotEmpty) 'mentions': mentions};
+    outbox[cid] = {...msg, 'at': DateTime.now().millisecondsSinceEpoch};
+    send(msg);
+    _chatTimers.add(Timer(const Duration(seconds: 10), () { if (outbox.containsKey(cid)) { outbox[cid]!['failed'] = true; notifyListeners(); } }));
+    notifyListeners();
+  }
+  void retryChat(String cid) {
+    final m = outbox.remove(cid);
+    if (m != null) sendChat(m['to'] as int, m['text'] as String, reply: m['reply'] as int?, mentions: ((m['mentions'] as List?) ?? const []).cast<int>());
+  }
+  void openConversation(String? conv) { if (_gone) return; openConv = conv; if (conv != null) unread.remove(conv); notifyListeners(); }
 
   /// Sends an action. During a drop it waits and goes out after reconnecting.
   void send(Map<String, Object?> msg) {
@@ -169,12 +213,13 @@ class RoomConn extends ChangeNotifier {
   /// Leaving this screen (the room may go on without me, or I left it).
   void close() {
     _closed = true;
-    for (final t in [_ping, _retry, _downT, _weakT, _backT]) { t?.cancel(); }
+    for (final t in [_ping, _retry, _downT, _weakT, _backT, ..._chatTimers]) { t?.cancel(); }
     _sub?.cancel();
     _ws?.close(1000);
     _ws = null;
   }
 
   @override
-  void dispose() { close(); _narr.close(); _side.close(); super.dispose(); }
+  void dispose() { _gone = true; close(); _narr.close(); _side.close(); super.dispose(); }
+  bool _gone = false;
 }

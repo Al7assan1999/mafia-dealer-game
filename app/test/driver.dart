@@ -93,6 +93,7 @@ Future<int> playToEnd(WidgetTester t) async {
         if (s.day.isOdd) {
           await tapKey(t, 'ballot');
         } else {
+          await tapKey(t, 'decideTogether');
           await tapKey(t, 'opt_${m ?? 'none'}');
           await tapKey(t, 'decide');
         }

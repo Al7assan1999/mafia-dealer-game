@@ -37,7 +37,8 @@ export interface UserCard {
   on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean;
 }
 export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; emails: string[]; google: boolean;
-  room: { code: string; status: 'lobby' | 'game' } | null }  // the online room I'm in, if any
+  room: { code: string; status: 'lobby' | 'game' } | null;  // the online room I'm in, if any
+  admin: boolean }  // may moderate reports
 export interface AuthAnswer { token: string; user: Me; needsHandle: boolean }
 export interface SessionInfo { id: string; device: string; createdAt: number; lastSeenAt: number; current: boolean }
 export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outgoing: UserCard[] }
@@ -45,7 +46,7 @@ export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outg
 export type ApiError =
   | 'bad_request' | 'auth' | 'code' | 'slow_down' | 'google' | 'needs_handle' | 'handle_taken'
   | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big'
-  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names';
+  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names' | 'banned' | 'blocked';
 export * from './live.ts';
 import { RulesIn } from './live.ts';
 
@@ -58,3 +59,11 @@ export const SavedSetup = z.object({
   rules: RulesIn,
 }).strict();
 export type SavedSetup = z.infer<typeof SavedSetup>;
+
+/** Safety (Google Play's user-generated-content rule): block, report, and the admin's answer to a report. */
+export const BlockIn = z.object({ userId: z.string().max(64) }).strict();
+export const ReportIn = z.object({
+  userId: z.string().max(64), reason: z.enum(['spam', 'harassment', 'hate', 'other']), note: z.string().trim().max(300).optional(),
+  room: z.string().regex(/^\d{6}$/).optional(), msgId: z.number().int().min(0).optional(),
+}).strict();
+export const ReportAction = z.object({ action: z.enum(['dismiss', 'ban']) }).strict();

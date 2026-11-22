@@ -133,3 +133,47 @@ describe('saved names and setup (Sprint 3)', () => {
     expect(await t.env.DB.prepare('SELECT COUNT(*) AS n FROM saved').first('n')).toBe(0);
   });
 });
+
+describe('safety: block, report, ban (Sprint 5)', () => {
+  it('block: ends the friendship, hides requests both ways (they are not told), listed and undone', async () => {
+    const t = await setup(), a = await t.user('Sami'), b = await t.user('Hokan');
+    await t.call('POST', '/v1/friend-requests', { token: a.token, body: { handle: 'Hokan' } });
+    await t.call('POST', '/v1/friend-requests', { token: b.token, body: { handle: 'Sami' } });
+    expect((await t.call('GET', '/v1/friends', { token: a.token })).json.friends).toHaveLength(1);
+    expect((await t.call('POST', '/v1/blocks', { token: a.token, body: { userId: b.id } })).json).toEqual({ ok: true });
+    expect((await t.call('GET', '/v1/friends', { token: a.token })).json.friends).toHaveLength(0);
+    // Hokan asks again: he sees "requested", but Sami is never asked
+    expect((await t.call('POST', '/v1/friend-requests', { token: b.token, body: { handle: 'Sami' } })).json.rel).toBe('requested');
+    expect((await t.call('GET', '/v1/friends', { token: a.token })).json.incoming).toHaveLength(0);
+    expect((await t.call('GET', '/v1/notifications', { token: a.token })).json.notifications.filter((n: any) => n.from.id === b.id)).toHaveLength(0);
+    // Sami must unblock before asking Hokan
+    expect((await t.call('POST', '/v1/friend-requests', { token: a.token, body: { handle: 'Hokan' } })).json).toEqual({ error: 'blocked' });
+    expect((await t.call('GET', '/v1/blocks', { token: a.token })).json.blocked.map((x: any) => x.handle)).toEqual(['Hokan']);
+    expect((await t.call('POST', '/v1/blocks', { token: a.token, body: { userId: a.id } })).status).toBe(400);
+    await t.call('DELETE', '/v1/blocks/' + b.id, { token: a.token });
+    expect((await t.call('GET', '/v1/blocks', { token: a.token })).json.blocked).toEqual([]);
+  });
+
+  it('report a player; only the admin sees reports; a ban signs them out and refuses new sign-ins; reports outlive the account', async () => {
+    const t = await setup(), a = await t.user('Sami'), b = await t.user('Hokan'), admin = await t.user('Boss');
+    expect((await t.call('POST', '/v1/reports', { token: a.token, body: { userId: b.id, reason: 'spam', note: 'ads in chat' } })).json).toEqual({ ok: true });
+    expect((await t.call('POST', '/v1/reports', { token: a.token, body: { userId: b.id, reason: 'rude' } })).status).toBe(400);
+    expect((await t.call('GET', '/v1/admin/reports', { token: admin.token })).status).toBe(403);
+    t.env.ADMIN_IDS = admin.id;
+    expect((await t.call('GET', '/v1/me', { token: admin.token })).json.user.admin).toBe(true);
+    expect((await t.call('GET', '/v1/me', { token: a.token })).json.user.admin).toBe(false);
+    const list = (await t.call('GET', '/v1/admin/reports', { token: admin.token })).json.reports;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ reason: 'spam', note: 'ads in chat', display: 'hokan', handle: 'Hokan', reporter: 'sami', message: null });
+    expect((await t.call('POST', '/v1/admin/reports/' + list[0].id, { token: admin.token, body: { action: 'ban' } })).json).toEqual({ ok: true });
+    expect((await t.call('GET', '/v1/me', { token: b.token })).status).toBe(401);
+    await t.call('POST', '/v1/auth/email/start', { body: { email: 'hokan@example.com' } });
+    const code = t.mail.filter(m => m.to === 'hokan@example.com').at(-1)!.code;
+    expect((await t.call('POST', '/v1/auth/email/verify', { body: { email: 'hokan@example.com', code, device: 'x' } })).json).toEqual({ error: 'banned' });
+    expect((await t.call('GET', '/v1/admin/reports', { token: admin.token })).json.reports).toHaveLength(0);
+    // the reporter deletes their account: the report stays (for moderation), without them
+    await t.call('POST', '/v1/reports', { token: a.token, body: { userId: admin.id, reason: 'other' } });
+    await t.call('DELETE', '/v1/me', { token: a.token, body: { confirm: 'delete' } });
+    expect((await t.call('GET', '/v1/admin/reports', { token: admin.token })).json.reports[0]).toMatchObject({ reason: 'other', reporter: null });
+  });
+});

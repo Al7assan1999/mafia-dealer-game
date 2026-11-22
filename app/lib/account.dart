@@ -230,6 +230,19 @@ class Account extends ChangeNotifier {
   Future<Map<String, Object?>> game(String id) async => (await _try(() => api.get('/v1/games/$id')))!;
   Future<void> markGame(String id, bool valid) => _try(() => api.patch('/v1/games/$id', {'valid': valid}));
 
+  // ---------------------------------------------------------------- safety (block, report, moderation)
+  bool get isAdmin => me?['admin'] == true;
+  Future<void> block(String userId) async { await _try(() => api.post('/v1/blocks', {'userId': userId})); await loadFriends().catchError((_) {}); }
+  Future<void> unblock(String userId) => _try(() => api.delete('/v1/blocks/$userId'));
+  Future<List<Person>> blocked() async =>
+      ((await _try(() => api.get('/v1/blocks')))!['blocked'] as List).map((x) => Person(Map<String, Object?>.from(x as Map))).toList();
+  /// Reports a player, or their room message (the room supplies the text).
+  Future<void> report(String userId, String reason, {String? note, String? room, int? msgId}) =>
+      _try(() => api.post('/v1/reports', {'userId': userId, 'reason': reason, if (note != null && note.trim().isNotEmpty) 'note': note.trim(), 'room': ?room, 'msgId': ?msgId}));
+  Future<List<Map<String, Object?>>> openReports() async =>
+      ((await _try(() => api.get('/v1/admin/reports')))!['reports'] as List).map((x) => Map<String, Object?>.from(x as Map)).toList();
+  Future<void> moderate(String reportId, String action) => _try(() => api.post('/v1/admin/reports/$reportId', {'action': action}));
+
   // ---------------------------------------------------------------- the bell
   Future<void> loadNotes() async {
     final r = (await _try(() => api.get('/v1/notifications')))!;

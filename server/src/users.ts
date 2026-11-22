@@ -3,16 +3,18 @@ import { Hono } from 'hono';
 import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, SavedNames, SavedSetup, type FriendsAnswer, type Me, type Rel } from '@mafia/protocol';
 import { deckOk, nameKey } from '@mafia/engine';
 import { notify, pushPresence } from './hub.ts';
+import { blocks, isAdmin } from './safety.ts';
 import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const MAX_FRIENDS = 300;
 
-export async function meOf(db: D1Database, u: UserRow): Promise<Me> {
+export async function meOf(db: D1Database, u: UserRow, env: { ADMIN_IDS?: string }): Promise<Me> {
   const { results } = await db.prepare('SELECT kind, email FROM identities WHERE user_id = ?').bind(u.id).all<{ kind: string; email: string }>();
   return {
     id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, showOnline: !!u.show_online,
     emails: [...new Set(results.map(r => r.email))].sort(), google: results.some(r => r.kind === 'google'),
     room: u.room_code && u.room_status ? { code: u.room_code, status: u.room_status } : null,
+    admin: isAdmin(env, u.id),
   };
 }
 
@@ -25,7 +27,7 @@ const needHandle = (c: Ctx) => { if (!c.var.user.handle) throw new ApiErr(403, '
 
 export const me = new Hono<AppEnv>();
 
-me.get('/', async c => c.json({ user: await meOf(c.env.DB, c.var.user), needsHandle: !c.var.user.handle }));
+me.get('/', async c => c.json({ user: await meOf(c.env.DB, c.var.user, c.env), needsHandle: !c.var.user.handle }));
 
 me.patch('/', async c => {
   const p = await body(c, PatchMe), u = c.var.user;
@@ -38,7 +40,7 @@ me.patch('/', async c => {
   }
   const fresh = (await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(u.id).first<UserRow>())!;
   if (fresh.show_online !== u.show_online) await pushPresence(c.env, u.id);  // "show me as online" switched
-  return c.json({ user: await meOf(c.env.DB, fresh), needsHandle: !fresh.handle });
+  return c.json({ user: await meOf(c.env.DB, fresh, c.env), needsHandle: !fresh.handle });
 });
 
 me.put('/avatar', async c => {
@@ -56,7 +58,7 @@ me.put('/avatar', async c => {
     ]);
   }
   const fresh = (await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>())!;
-  return c.json({ user: await meOf(db, fresh) });
+  return c.json({ user: await meOf(db, fresh, c.env) });
 });
 
 /** The saved player names (the setup's chips), newest first. */
@@ -142,6 +144,8 @@ requests.post('/', async c => {
   const u = await db.prepare('SELECT * FROM users WHERE handle = ?').bind(handle).first<UserRow>();
   if (!u) throw new ApiErr(404, 'not_found');
   if (u.id === me.id) throw new ApiErr(400, 'self');
+  if (await blocks(db, me.id, u.id)) throw new ApiErr(409, 'blocked');  // unblock them first
+  if (await blocks(db, u.id, me.id)) return c.json({ rel: 'requested', user: card(u, 'requested') });  // they blocked me: they aren't asked, I'm not told
   let f = await friendRow(c, u.id);
   if (!f) {
     const n = await db.prepare('SELECT COUNT(*) AS n FROM friendships WHERE a = ?1 OR b = ?1').bind(me.id).first<{ n: number }>();

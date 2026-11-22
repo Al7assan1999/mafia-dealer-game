@@ -10,6 +10,7 @@ export interface Env {
   GOOGLE_CLIENT_IDS: string;   // comma-separated Google OAuth client ids (the sign-in token's audience)
   MAIL_FROM: string;
   RESEND_API_KEY?: string;     // secret
+  ADMIN_IDS?: string;          // secret: comma-separated account ids that moderate reports
   MAIL_LOG?: string;           // local tests only (`wrangler dev --var MAIL_LOG:1`): print codes instead of sending
 }
 export interface GoogleId { sub: string; email: string; name: string }
@@ -22,7 +23,7 @@ export interface Deps {
 export interface UserRow {
   id: string; handle: string | null; display: string; avatar_preset: number; avatar_ver: number;
   fav_role: string; show_online: number; created_at: number;
-  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game';
+  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game'; banned_at?: number | null;
 }
 
 export const avatarOf = (u: UserRow): Avatar => (u.avatar_ver > 0 ? { photo: u.avatar_ver } : { preset: u.avatar_preset });
@@ -43,7 +44,7 @@ export async function userFromToken(db: D1Database, tok: string, now: number): P
   const s = await db.prepare('SELECT id, user_id, last_seen_at FROM sessions WHERE token_hash = ? AND expires_at > ?').bind(await sha256(tok), now)
     .first<{ id: string; user_id: string; last_seen_at: number }>();
   const user = s && await db.prepare('SELECT * FROM users WHERE id = ?').bind(s.user_id).first<UserRow>();
-  if (!s || !user) return null;
+  if (!s || !user || user.banned_at) return null;  // a banned account is signed out everywhere
   if (now - s.last_seen_at > DAY) await db.prepare('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?').bind(now, now + 180 * DAY, s.id).run();
   return { user, sid: s.id };
 }

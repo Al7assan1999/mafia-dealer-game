@@ -483,3 +483,29 @@ describe('the room I am in (Sprint 4)', () => {
     expect(await me()).toBeNull();
   });
 });
+
+describe('safety in the room (Sprint 5)', () => {
+  it('a block stops chat both ways at once (Everyone, DMs, history on rejoin); a reported message is snapshotted from the room', async () => {
+    const t = await table(4), [a, b, c] = t.players;
+    expect(typeof a.got(m => m.t === 'room').now).toBe('number');
+    expect((await api('POST', '/v1/blocks', t.accts[0].token, { userId: t.accts[1].id })).json).toEqual({ ok: true });
+    b.send({ t: 'chat', to: -1, text: 'hello room', cid: 'h1' });
+    await c.until(() => c.got(m => m.t === 'chat' && m.msg.text === 'hello room'), 'C gets it');
+    b.send({ t: 'chat', to: a.me.cn, text: 'psst', cid: 'h2' });
+    await b.until(() => b.got(m => m.t === 'chat' && m.cid === 'h2'), 'B sees it sent');
+    await sleep(100);
+    expect(a.got(m => m.t === 'chat' && m.msg.from === b.me.cn)).toBeUndefined();
+    a.ws.close();
+    const back = await connect(`/v1/rooms/${t.code}/ws`, t.accts[0].token);
+    await back.until(() => back.got(m => m.t === 'chatAll'), 'history');
+    expect(back.got(m => m.t === 'chatAll').msgs.some((m: any) => m.from === b.me.cn)).toBe(false);
+    // C reports B's message: the room supplies the text
+    const id = c.got(m => m.t === 'chat' && m.msg.text === 'hello room').msg.id;
+    expect((await api('POST', '/v1/reports', t.accts[2].token, { userId: t.accts[1].id, reason: 'harassment', room: t.code, msgId: id })).json).toEqual({ ok: true });
+    const snap = JSON.parse((await DB().prepare('SELECT snapshot FROM reports').first<{ snapshot: string }>())!.snapshot);
+    expect(snap.message.text).toBe('hello room');
+    expect(snap.room).toBe(t.code);
+    // a message by someone else can't be pinned on B
+    expect((await api('POST', '/v1/reports', t.accts[2].token, { userId: t.accts[3].id, reason: 'spam', room: t.code, msgId: id })).status).toBe(404);
+  });
+});

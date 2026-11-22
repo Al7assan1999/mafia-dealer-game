@@ -70,6 +70,9 @@ Request bodies are checked with the zod schemas in `packages/protocol`.
 | `PUT /v1/me/avatar {preset} or {image: data URL}` | ✓ | photo ≤ 150 KB, JPEG / PNG / WebP |
 | `DELETE /v1/me {confirm: "delete"}` | ✓ | deletes the account and everything it owns |
 | `GET /v1/avatars/:userId` | | the photo (public, cached a day; the URL carries the version) |
+| `GET /v1/blocks`, `POST /v1/blocks {userId}`, `DELETE /v1/blocks/:userId` | ✓ | block: ends a friendship, hides their room chat / DMs from me, their friend requests stop silently (they aren't told); I must unblock before asking them (`blocked`) |
+| `POST /v1/reports {userId, reason, note?, room?, msgId?}` | ✓ | a report with a snapshot (the room supplies the message text, so it can't be made up); kept after the room or account is gone |
+| `GET /v1/admin/reports`, `POST /v1/admin/reports/:id {action: dismiss \| ban}` | admin | accounts in the `ADMIN_IDS` secret; a ban signs the account out everywhere and refuses new sign-ins (`banned`) |
 | `GET`/`PUT /v1/me/roster {names}` | ✓ | the saved player names (setup chips): at most 30, 1-18 characters, no two the same → `dup_names` |
 | `GET`/`PUT /v1/me/setup {counts, rules}` | ✓ | the last setup, checked with the engine's limits; both are deleted with the account (`0004`) |
 | `GET /v1/users/:handle` | ✓ | a public card with the relationship |

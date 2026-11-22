@@ -28,6 +28,7 @@ class _GameScreenState extends State<GameScreen> {
   OfflineGame get game => g; // for the tests
   Timer? _tick;
   Object? _pick; // the choice being made (night / table decision / ballot)
+  bool _deciding = false; // the day: the town chose "decide together" (the pick list shows)
 
   @override
   void initState() {
@@ -53,7 +54,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _do(VoidCallback f) { f(); _pick = null; }
+  void _do(VoidCallback f) { f(); _pick = null; _deciding = false; }
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -151,7 +152,7 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(width: 8),
         Text(roleName(l, role), style: head.copyWith(color: roleColor(role), fontSize: 18)),
         const Spacer(),
-        Text(_name(seat), style: const TextStyle(color: C.mute)),
+        Text('${_name(seat)} · ${l.night(g.s.day)}', style: const TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
@@ -223,26 +224,46 @@ class _GameScreenState extends State<GameScreen> {
   Widget _day(L l) {
     final left = timerLeft(g.s, OfflineGame.now()), running = g.s.timer.running;
     final clock = '${left ~/ 60}:${(left % 60).toString().padLeft(2, '0')}';
-    return Stage(color: C.day, center: false, bottom: [
-      Btn(l.confirmDay, key: const Key('decide'), onTap: _pick == null ? null : () { final c = _pick; if (c != null) _do(() => g.decide(c)); }),
-      Btn(l.startBallot, key: const Key('ballot'), ghost: true, icon: Icons.how_to_vote_outlined, onTap: () => _do(g.startBallot)),
-    ], children: [
-      Sec(
-        title: l.discussion,
-        child: Column(children: [
-          Text(left == 0 && running ? l.timeUp : clock, key: const Key('clock'), style: head.copyWith(fontSize: 52, color: left == 0 ? C.red2 : C.text)),
-          const SizedBox(height: 10),
-          Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-            OutlinedButton(key: const Key('timerGo'), onPressed: () => g.timer(running ? 'pause' : 'start'), child: Text(running ? l.pause : l.start, style: const TextStyle(color: C.text))),
-            OutlinedButton(key: const Key('timerAdd'), onPressed: () => g.timer('add'), child: Text(l.plusMin, style: const TextStyle(color: C.text))),
-            OutlinedButton(key: const Key('timerReset'), onPressed: () => g.timer('reset'), child: Text(l.reset, style: const TextStyle(color: C.text))),
-          ]),
+    final timer = Sec(
+      title: l.discussion,
+      child: Column(children: [
+        Text(left == 0 && running ? l.timeUp : clock, key: const Key('clock'), style: head.copyWith(fontSize: 52, color: left == 0 ? C.red2 : C.text)),
+        const SizedBox(height: 10),
+        Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(key: const Key('timerGo'), onPressed: () => g.timer(running ? 'pause' : 'start'), child: Text(running ? l.pause : l.start, style: const TextStyle(color: C.text))),
+          OutlinedButton(key: const Key('timerAdd'), onPressed: () => g.timer('add'), child: Text(l.plusMin, style: const TextStyle(color: C.text))),
+          OutlinedButton(key: const Key('timerReset'), onPressed: () => g.timer('reset'), child: Text(l.reset, style: const TextStyle(color: C.text))),
         ]),
-      ),
-      Text(l.whoOut, style: head.copyWith(fontSize: 20)),
-      const SizedBox(height: 10),
-      for (final i in aliveSeats(g.s)) _option(_name(i), i),
-      _option(l.noOne, 'none'),
+      ]),
+    );
+    if (_deciding) {
+      return Stage(color: C.day, center: false, bottom: [
+        Btn(l.confirmDay, key: const Key('decide'), onTap: _pick == null ? null : () { final c = _pick; if (c != null) _do(() => g.decide(c)); }),
+        Btn(l.back, key: const Key('decideBack'), ghost: true, onTap: () => setState(() { _deciding = false; _pick = null; })),
+      ], children: [
+        Text(l.whoOut, style: head.copyWith(fontSize: 20)),
+        const SizedBox(height: 10),
+        for (final i in aliveSeats(g.s)) _option(_name(i), i),
+        _option(l.noOne, 'none'),
+      ]);
+    }
+    return Stage(color: C.day, center: false, bottom: [
+      Text(l.howDecide, textAlign: TextAlign.center, style: head.copyWith(fontSize: 18)),
+      Btn(l.decideTogether, key: const Key('decideTogether'), onTap: () => setState(() => _deciding = true)),
+      Text(l.decideTogetherD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+      Btn(l.startBallot, key: const Key('ballot'), ghost: true, icon: Icons.how_to_vote_outlined, onTap: () => _do(g.startBallot)),
+      Text(l.secretBallotD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+    ], children: [
+      timer,
+      Sec(title: l.alivePlayers, child: Wrap(spacing: 8, runSpacing: 6, children: [
+        for (var i = 0; i < g.n; i++)
+          Chip(
+            key: Key('roster_$i'),
+            label: Text(g.s.alive[i] ? _name(i) : '${_name(i)} · ${g.s.rules.reveal ? roleName(l, g.s.roles[i]) : l.outTag}',
+                style: TextStyle(color: g.s.alive[i] ? C.text : C.dim, decoration: g.s.alive[i] ? null : TextDecoration.lineThrough)),
+            backgroundColor: g.s.alive[i] ? C.card2 : C.bg, side: const BorderSide(color: C.line),
+          ),
+      ])),
     ]);
   }
 

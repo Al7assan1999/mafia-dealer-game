@@ -18,6 +18,7 @@ interface RoomState {
   cut: number;                                  // the newest rev dropped from `past` (a phone behind it missed events)
   lastIn: Record<string, string>;               // each player's last applied night / vote / ready, so a retry is ignored
   rec: GameRecord | null;                       // the running game's record (saved with the game)
+  blocks: Record<string, string[]>;             // who blocks whom among the members (chat isn't delivered across a block)
 }
 
 export const IDLE_MS = 12 * 3600e3, MAX_MEMBERS = 20, KEEP_EVENTS = 200;
@@ -55,7 +56,7 @@ export class Room extends DurableObject<Env> {
 
   private async load() {
     const st = await this.ctx.storage.get<RoomState>('room');
-    if (st) { st.rev ??= 0; st.past ??= []; st.cut ??= 0; st.lastIn ??= {}; st.rec ??= null; }  // rooms saved before these fields
+    if (st) { st.rev ??= 0; st.past ??= []; st.cut ??= 0; st.lastIn ??= {}; st.rec ??= null; st.blocks ??= {}; }  // rooms saved before these fields
     return st;
   }
   private save(st: RoomState) { return this.ctx.storage.put('room', st); }
@@ -99,7 +100,7 @@ export class Room extends DurableObject<Env> {
       const uid = this.uidOf(ws), m = st.members.find(x => x.uid === uid);
       if (!m) continue;
       if (events.length) this.out(ws, { t: 'events', rev, events });
-      this.out(ws, { t: 'room', rev, room, me: { uid, cn: m.cn, host: room.members.find(x => x.uid === uid)?.host ?? false } });
+      this.out(ws, { t: 'room', rev, now, room, me: { uid, cn: m.cn, host: room.members.find(x => x.uid === uid)?.host ?? false } });
       const seat = st.seats.indexOf(uid);
       this.out(ws, { t: 'view', rev, view: st.game ? viewFor(st.game, seat >= 0 ? seat : 'table', now) : null });
     }
@@ -182,7 +183,34 @@ export class Room extends DurableObject<Env> {
 
   // ---------------------------------------------------------------- connect
 
-  fetch(req: Request) { return this.serial(() => this.join(req)); }
+  fetch(req: Request) { return this.serial(() => (req.headers.get('x-op') ? this.op(req) : this.join(req))); }
+
+  /** Internal calls from the Worker: reload the blocks (someone blocked or unblocked), or fetch a message for a report. */
+  private async op(req: Request) {
+    const st = await this.load();
+    if (!st) return Response.json(null, { status: 404 });
+    if (req.headers.get('x-op') === 'blocks') { await this.loadBlocks(st); await this.save(st); return new Response(null, { status: 204 }); }
+    const id = Number(req.headers.get('x-id')), reporter = st.members.find(m => m.uid === req.headers.get('x-uid'));
+    const chat = (await this.ctx.storage.get<ChatState>('chat')) ?? newChat(), msg = chat.msgs.find(m => m.id === id);
+    if (!msg || !reporter || !canSee(msg, reporter.cn, this.who(st))) return Response.json(null, { status: 404 });
+    return Response.json({ text: msg.text, at: msg.at, fromUid: st.members.find(m => m.cn === msg.from)?.uid ?? null });
+  }
+
+  /** Who blocks whom among the members (from D1; refreshed on every join and when someone blocks). */
+  private async loadBlocks(st: RoomState) {
+    const ids = st.members.map(m => m.uid);
+    st.blocks = {};
+    if (ids.length < 2) return;
+    const q = ids.map(() => '?').join(',');
+    const { results } = await this.env.DB.prepare(`SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id IN (${q}) AND blocked_id IN (${q})`)
+      .bind(...ids, ...ids).all<{ blocker_id: string; blocked_id: string }>();
+    for (const r of results) (st.blocks[r.blocker_id] ??= []).push(r.blocked_id);
+  }
+  /** Does the member `viewer` block the sender (by chat number)? Then that message isn't delivered to them. */
+  private hides(st: RoomState, viewer: string, fromCn: number) {
+    const from = st.members.find(m => m.cn === fromCn)?.uid;
+    return !!from && !!st.blocks[viewer]?.includes(from);
+  }
   private async join(req: Request) {
     const user = JSON.parse(req.headers.get('x-user')!) as UserRow, code = req.headers.get('x-code')!;
     const [client, server] = Object.values(new WebSocketPair());
@@ -196,7 +224,7 @@ export class Room extends DurableObject<Env> {
       if (!row) return refuse('no_room');
       st = { code, hostUid: row.host_id, members: [], kicked: [], nextCn: 1, rules: { ...DEFAULT_RULES }, counts: { mafia: 1, doctor: 1, detective: 0 },
         buzzMax: 3, deal: 0, game: null, seats: [], ready: [], gameId: null, valid: null, lastActive: Date.now(),
-        rev: 0, past: [], cut: 0, lastIn: {}, rec: null };
+        rev: 0, past: [], cut: 0, lastIn: {}, rec: null, blocks: {} };
     }
     if (st.kicked.includes(user.id)) return refuse('kicked');
     const before = statusOf(st), me = { display: user.display, handle: user.handle, avatar: avatarOf(user) };
@@ -217,10 +245,11 @@ export class Room extends DurableObject<Env> {
       if (since < st.cut) this.out(server, { t: 'missed' });
       else for (const p of st.past) if (p.rev > since) this.out(server, { t: 'events', rev: p.rev, events: p.events });
     }
+    await this.loadBlocks(st);
     await setRoom(this.env, user.id, st.code, statusOf(st));
     await this.commit(st, before);
     const chat = (await this.ctx.storage.get<ChatState>('chat')) ?? newChat(), w = this.who(st);
-    this.out(server, { t: 'chatAll', msgs: chat.msgs.filter(x => canSee(x, m!.cn, w)) });
+    this.out(server, { t: 'chatAll', msgs: chat.msgs.filter(x => canSee(x, m!.cn, w) && !this.hides(st, user.id, x.from)) });
     return new Response(null, { status: 101, webSocket: client, headers: PROTO });
   }
 
@@ -363,7 +392,7 @@ export class Room extends DurableObject<Env> {
     const msg: ChatMsg = r.msg;
     for (const s of this.sockets()) {
       const m = st.members.find(x => x.uid === this.uidOf(s) && !x.left);
-      if (!m || !canSee(msg, m.cn, w)) continue;
+      if (!m || !canSee(msg, m.cn, w) || this.hides(st, m.uid, msg.from)) continue;  // not across a block
       this.out(s, { t: 'chat', msg, ...(s === ws && inp.t === 'chat' ? { cid: inp.cid } : {}) });
       if (r.mentions.includes(m.cn)) this.out(s, { t: 'mention', id: msg.id, from: me });
     }

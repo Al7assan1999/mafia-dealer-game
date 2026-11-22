@@ -57,7 +57,7 @@ export interface ChatMsg { id: number; from: number; to: number; text: string; a
 /** Everything the room sends a phone. `rev` only grows within a room: reconnect with `?rev=<the last one seen>` to get
  *  the events missed meanwhile (or `missed` when there were too many: just show the current view). */
 export type RoomOut =
-  | { t: 'room'; rev: number; room: RoomInfo; me: { uid: string; cn: number; host: boolean } }
+  | { t: 'room'; rev: number; now: number; room: RoomInfo; me: { uid: string; cn: number; host: boolean } }  // now: the server's clock (ms)
   | { t: 'view'; rev: number; view: SeatView | PublicView | null }
   | { t: 'events'; rev: number; events: GameEvent[] }
   | { t: 'missed' }

@@ -32,6 +32,10 @@ ThemeData noir() {
       trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? C.red : C.card2),
     ),
     sliderTheme: const SliderThemeData(activeTrackColor: C.red, thumbColor: C.red, inactiveTrackColor: C.line),
+    // [QA] Q2: chips were Material's default teal; Noir red when selected
+    chipTheme: const ChipThemeData(selectedColor: C.red, backgroundColor: C.card, checkmarkColor: C.priText, side: BorderSide(color: C.line2),
+        labelStyle: TextStyle(fontFamily: 'Plex', color: C.text), secondaryLabelStyle: TextStyle(fontFamily: 'Plex', color: C.priText),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(3)))),
     dialogTheme: const DialogThemeData(backgroundColor: C.card, shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4)))),
   );
 }
@@ -144,6 +148,19 @@ class Big extends StatelessWidget {
         Text(text, textAlign: TextAlign.center, style: head.copyWith(fontSize: size, color: color, height: 1.25)),
         if (sub != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(sub!, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 15, height: 1.4))),
       ]);
+}
+
+/// "@handle" kept left-to-right inside Arabic text (it would show as "handle@" otherwise). Empty without a handle.
+String atHandle(String? h) => h == null || h.isEmpty ? '' : '\u2066@$h\u2069';
+
+/// The direction of a piece of user text from its first letter ([QA] Q3: an English chat line inside the Arabic UI
+/// put its leading "@" at the end): Arabic / Hebrew → right-to-left, anything else → left-to-right.
+TextDirection dirOf(String s) {
+  for (final r in s.runes) {
+    if ((r >= 0x0590 && r <= 0x08FF) || (r >= 0xFB1D && r <= 0xFEFC)) return TextDirection.rtl;
+    if ((r >= 0x41 && r <= 0x5A) || (r >= 0x61 && r <= 0x7A) || (r >= 0xC0 && r <= 0x24F)) return TextDirection.ltr;
+  }
+  return TextDirection.ltr;
 }
 
 String roleName(L l, Role r) => switch (r) { Role.mafia => l.mafia, Role.doctor => l.doctor, Role.detective => l.detective, Role.citizen => l.citizen };

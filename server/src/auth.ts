@@ -14,9 +14,11 @@ const codeHash = (email: string, code: string) => sha256(email + ':' + code);
 async function account(c: Ctx, kind: 'email' | 'google', subject: string, email: string, name: string): Promise<UserRow> {
   const db = c.env.DB, now = c.var.deps.now();
   const byId = await db.prepare('SELECT u.* FROM identities i JOIN users u ON u.id = i.user_id WHERE i.kind = ? AND i.subject = ?').bind(kind, subject).first<UserRow>();
+  if (byId?.banned_at) throw new ApiErr(403, 'banned');
   if (byId) return byId;
   // the same verified email signed in another way: same account
   let user = await db.prepare('SELECT u.* FROM identities i JOIN users u ON u.id = i.user_id WHERE i.email = ? LIMIT 1').bind(email).first<UserRow>();
+  if (user?.banned_at) throw new ApiErr(403, 'banned');
   const steps: D1PreparedStatement[] = [];
   if (!user) {
     const display = (name || email.split('@')[0]).trim().slice(0, 18).trim() || 'Player';
@@ -32,7 +34,7 @@ async function signIn(c: Ctx, user: UserRow, device: string): Promise<AuthAnswer
   const t = token(), now = c.var.deps.now();
   await c.env.DB.prepare('INSERT INTO sessions (id, token_hash, user_id, device, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(crypto.randomUUID(), await sha256(t), user.id, device, now, now, now + SESSION_TTL).run();
-  return { token: t, user: await meOf(c.env.DB, user), needsHandle: !user.handle };
+  return { token: t, user: await meOf(c.env.DB, user, c.env), needsHandle: !user.handle };
 }
 
 /** Bearer token → c.var.user / c.var.sid, or 401. Renews the session at most once a day. */

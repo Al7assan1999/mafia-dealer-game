@@ -42,8 +42,10 @@ files are copied from there only when a phase needs them.
   length, a daily limit, no duplicates; each player confirms). Requests are kept raw and versioned, the limits live in
   a D1 settings row, and migrations only add, so the rules can change later without losing data.
 - **Groups**: to be redesigned entirely (Alhassan's prompt still to come).
-- Work runs in sprints: BA / PM writes a PRD with acceptance criteria → Alhassan signs off → developer → QA
-  (adversarial tests, green build, Sprint Release Report). PRDs in `docs/`.
+- **Work runs in sprints as three visible personas, every sprint until the end** (his rule, restated 2026-11-22 after
+  I drifted): [BA] audits as a player from screenshots of the real screens, writes the PRD, stops for his sign-off →
+  [Developer] → [QA] adversarial tests plus a hands-on UX pass → [BA] acceptance review → Sprint Release Report.
+  Read `docs/team-workflow.md` before every sprint.
 
 ## Phases
 1. **Engine** (done 2026-11-19, not committed): `packages/engine`, 31 tests (setup limits, one per rule, test7/test9
@@ -86,6 +88,14 @@ files are copied from there only when a phase needs them.
    the switch), chat moves to Sprint 5, anyone with the code may join, new order 5 chat + polish / 6 Wi-Fi + approval /
    7 push + Play readiness. Also at his request: the launcher icon is now the old app's "Fedora over the town", and CI
    names the APK `MafiaDealer-PartyGame-<version>-b<run>-debug.apk`.
+   Sprint 4 committed and green on CI 2026-11-22 (0a57ff2, ecd66cb).
+   **Sprint 5, chat + safety + walkthrough fixes** (`docs/sprint-5-prd.md`, built 2026-11-22, not committed): run as
+   the three personas again after he restated the rule. Room chat in the app; block / report / admin moderation / bans
+   (migration `0005`, `ADMIN_IDS` secret; not set yet: he sends his account ID from Profile); the server clock in
+   `room`; the player walkthrough's fixes W1–W9 (day roster, how the town decides, online vote labels, neutral avatar
+   presets, lobby summary + offline warning, LTR @handles in Arabic, host controls off during a drop, How to play,
+   offline night number). His answers: admin = his account only; keep reports about deleted accounts; no word
+   filter; neutral avatars; guide in this sprint.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).

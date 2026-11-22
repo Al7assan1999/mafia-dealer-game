@@ -23,6 +23,10 @@ class Prefs extends ChangeNotifier {
   bool get narrate => _sp.getBool('narrate') ?? true;
   set narrate(bool v) { _sp.setBool('narrate', v); notifyListeners(); }
 
+  /// Has the first-launch "How to play" offer been seen (opened or dismissed)?
+  bool get guideSeen => _sp.getBool('guideSeen') ?? false;
+  set guideSeen(bool v) { _sp.setBool('guideSeen', v); notifyListeners(); }
+
   /// The last setup's names, and recently used names (chips), newest first, at most 30.
   List<String> get players => _sp.getStringList('players') ?? const [];
   set players(List<String> v) => _sp.setStringList('players', v);
