@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:mafia_dealer/account.dart';
+import 'package:mafia_dealer/api.dart';
 import 'package:mafia_dealer/audio.dart';
 import 'package:mafia_dealer/game_screen.dart';
 import 'package:mafia_dealer/main.dart';
@@ -25,7 +27,7 @@ Future<Prefs> start(WidgetTester t) async {
   final prefs = await Prefs.load();
   audio = Audio(prefs);
   await audio.init();
-  await t.pumpWidget(App(prefs: prefs, audio: audio));
+  await t.pumpWidget(App(prefs: prefs, audio: audio, account: Account(Api(), MemoryTokens(), prefs, live: false)));
   await t.pump(const Duration(milliseconds: 500));
   return prefs;
 }

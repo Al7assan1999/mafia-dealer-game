@@ -117,8 +117,13 @@ export function googleVerifier(keys: JWTVerifyGetKey) {
 }
 export const googleKeys = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
+/** Local test mode only (MAIL_LOG=1): the last code per email, for the emulator test to read. */
+export const lastCodes = new Map<string, string>();
+
 /** Sends the sign-in code through Resend. */
 export async function resendCode(env: Env, to: string, code: string) {
+  // the CI emulator test runs a local Worker: it reads the code from this log line (never set in wrangler.jsonc)
+  if (env.MAIL_LOG === '1') { lastCodes.set(to, code); console.log(`MAIL_LOG code ${to} ${code}`); return; }
   if (!env.RESEND_API_KEY) throw new ApiErr(503, 'mail');
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',

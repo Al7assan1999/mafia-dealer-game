@@ -7,6 +7,12 @@ import { card, presenceOf, type Env, type UserRow } from './lib.ts';
 export const INVITE_TTL = 30 * 60e3, NOTE_TTL = 7 * 24 * 3600e3;
 
 export class Hub extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // keep-alives are answered by Cloudflare without waking the hub (they'd count against the daily request limit)
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+  }
+
   async fetch(req: Request) {
     const uid = req.headers.get('x-uid')!;
     if (req.headers.get('upgrade') === 'websocket') {
@@ -25,7 +31,7 @@ export class Hub extends DurableObject<Env> {
     return new Response(null, { status: 204 });
   }
   async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer) {
-    if (msg === 'ping') ws.send('pong');  // keep-alive from the app
+    if (msg === 'ping') ws.send('pong');  // normally answered by Cloudflare before it gets here
   }
   async webSocketClose(ws: WebSocket, code: number) {
     try { ws.close(code === 1005 ? 1000 : code, 'bye'); } catch { /* already closed */ }

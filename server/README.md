@@ -43,6 +43,12 @@ the private night summary only appears in the saved history), `chatAll` on joini
 **`/v1/hub/ws`**: pushes `presence` (a friend online / in a lobby / in a game; "show me as online" respected),
 `note` (a new bell note) and `unread` on connecting.
 
+The hub's keep-alive `"ping"` (every 10 s) is answered by Cloudflare without waking the hub, as for rooms.
+
+**Local test mode** (the CI emulator test): `npx wrangler dev --var MAIL_LOG:1` prints sign-in codes instead of emailing
+them and answers `GET /v1/test/last-code/:email`. It is never in `wrangler.jsonc`, so deploys don't have it (a test
+pins the 404).
+
 ```bash
 npm run check   # types
 npm test        # vitest inside the Workers runtime, with a real local D1 (the real migrations applied)
@@ -64,6 +70,8 @@ Request bodies are checked with the zod schemas in `packages/protocol`.
 | `PUT /v1/me/avatar {preset} or {image: data URL}` | ✓ | photo ≤ 150 KB, JPEG / PNG / WebP |
 | `DELETE /v1/me {confirm: "delete"}` | ✓ | deletes the account and everything it owns |
 | `GET /v1/avatars/:userId` | | the photo (public, cached a day; the URL carries the version) |
+| `GET`/`PUT /v1/me/roster {names}` | ✓ | the saved player names (setup chips): at most 30, 1-18 characters, no two the same → `dup_names` |
+| `GET`/`PUT /v1/me/setup {counts, rules}` | ✓ | the last setup, checked with the engine's limits; both are deleted with the account (`0004`) |
 | `GET /v1/users/:handle` | ✓ | a public card with the relationship |
 | `GET /v1/friends` | ✓ | `{friends, incoming, outgoing}` |
 | `POST /v1/friend-requests {handle}` | ✓ (needs a handle) | if they already asked me (or ask at the same moment), it becomes `friends` |

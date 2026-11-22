@@ -1,7 +1,7 @@
 # Sprint 2 Release Report: the app exists, and one phone can run a whole game
 
-2026-11-22. Built against `docs/sprint-2-prd.md` (signed off the same day with the recommended answers). **Not
-committed, not pushed, so the two new CI jobs have not run yet.**
+2026-11-22. Built against `docs/sprint-2-prd.md` (signed off the same day with the recommended answers). Pushed as
+330bdb0, 094a1a0 and 689ba99. **CI run 45016153362 is fully green, including the emulator job.**
 
 ## Result: green locally
 - **Dart engine:** 5/5 test groups: the 60 shared games replay; the same seeds give **byte-identical** records to the
@@ -22,7 +22,8 @@ committed, not pushed, so the two new CI jobs have not run yet.**
    rebuild while Flutter was closing the game screen, which Flutter forbids. Debug builds show it as an error; release
    builds would hide it. Fixed by sending the notification a moment later. The widget tests don't reproduce it (I
    checked with the fix switched off), so the emulator job is the check. The emulator test also now stops the
-   narrator and lets the last sounds finish before it ends (the audio player was still running).
+   narrator and lets the last sounds finish before it ends. The players no longer track the playback position: the
+   app never uses it, and the tracking kept requesting frames.
 3. The rule switches drew on a plain colored box that hid their tap ripple (a Flutter warning in the tests). The
    section cards are now proper Material surfaces.
 
@@ -37,7 +38,7 @@ committed, not pushed, so the two new CI jobs have not run yet.**
 | S2-2 AC3 Noir look + fonts | ✅ | The old Noir colors, typewriter headings, hard shadows. The fonts are bundled as TTF from the Google Fonts repository (the old app only had web fonts); their license files sit next to them. ⚠ The fonts aren't on the app's in-app licenses page yet (Sprint 6, with the rest of Play readiness). |
 | S2-2 AC4 Back asks | ✅ | Tested: Back → "Leave this game?"; Cancel stays; Leave keeps the game for Resume. |
 | S2-3 AC1–AC4 Dart engine | ✅ | See above. The engine is written so JSON keys, number formatting and JavaScript's key order and stable sorts match exactly. |
-| S2-3 AC5 CI fails on drift | ✅ written, ⏳ not run | The CI `app` job runs the Dart engine tests against `packages/engine/fixtures/records.json`. |
+| S2-3 AC5 CI fails on drift | ✅ | The CI `app` job runs the Dart engine tests against `packages/engine/fixtures/records.json`. |
 | S2-4 AC1 setup | ✅ | Limits and messages come from the engine; Deal is disabled while there's an error. |
 | S2-4 AC2 deal | ✅ | Hold to see, release to hide; "Got it" stays disabled until the card has been looked at; Mafia see teammates. |
 | S2-4 AC3 night | ✅ | Seat order; only the player's own options; decoys; the Detective's result after confirming; night timer tested. |
@@ -46,9 +47,9 @@ committed, not pushed, so the two new CI jobs have not run yet.**
 | S2-4 AC6 end, nothing saved | ✅ | Winner, roles, MVP, history, Play again, Change players. A finished game is removed from the phone. |
 | S2-4 AC7 resume after a kill | ✅ | The phone keeps the game as its engine record plus the step; a fresh start replays it to the same step and player (tested). |
 | S2-4 AC8 screen stays on | ✅ written | Wake lock during the game screen. Only checkable on a phone. |
-| S2-5 AC1 CI analyze + tests | ✅ written, ⏳ not run | Job `app`. |
-| S2-5 AC2 APK artifact | ✅ written, ⏳ not run | Uploaded by the `app` job (kept 14 days). |
-| S2-5 AC3 emulator game + resume | ✅ written, ⏳ not run | Job `emulator` (Android 14 emulator): a whole game with real audio and storage, then Back and a cold start from the saved data. ⚠ "Kill" there means rebuilding the app from what's stored on the device, not killing the Android process. |
+| S2-5 AC1 CI analyze + tests | ✅ | Job `app`. |
+| S2-5 AC2 APK artifact | ✅ | Uploaded by the `app` job (kept 14 days). |
+| S2-5 AC3 emulator game + resume | ✅ (2/2 on run 45016153362) | Job `emulator` (Android 14 emulator): a whole game with real audio and storage, then Back and a cold start from the saved data. ⚠ "Kill" there means rebuilding the app from what's stored on the device, not killing the Android process. |
 
 ## Decisions I made while building (tell me if you want them different)
 - **Portrait only.** Rotation is locked, so "rotating mid-night" can't break anything.

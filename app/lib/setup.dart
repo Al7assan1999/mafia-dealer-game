@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
+import 'account.dart';
 import 'audio.dart';
 import 'game.dart';
 import 'l10n/app_localizations.dart';
@@ -10,9 +11,10 @@ import 'prefs.dart';
 import 'ui.dart';
 
 class SetupScreen extends StatefulWidget {
-  const SetupScreen({super.key, required this.prefs, required this.audio, this.onDealt});
+  const SetupScreen({super.key, required this.prefs, required this.audio, this.account, this.onDealt});
   final Prefs prefs;
   final Audio audio;
+  final Account? account; // signed in: the chips and the last setup come from the account (decision 2)
   final void Function(OfflineGame)? onDealt; // default: the screen closes with the new game
   @override
   State<SetupScreen> createState() => _SetupState();
@@ -28,11 +30,14 @@ class _SetupState extends State<SetupScreen> {
     super.initState();
     final p = widget.prefs, saved = p.players;
     names = [for (final n in saved.isNotEmpty ? saved : List.filled(6, '')) TextEditingController(text: n)];
-    final s = p.setup;
-    mafia = (s?['mafia'] as int?) ?? 1;
-    detective = (s?['detective'] as int?) ?? 1;
-    try { rules = defaultRules.merge(Map<String, Object?>.from((s?['rules'] as Map?) ?? {})); } catch (_) { rules = defaultRules; }
+    final acc = _acc?.setup, s = p.setup, counts = acc?['counts'] as Map?;
+    mafia = (counts?['mafia'] ?? s?['mafia']) as int? ?? 1;
+    detective = (counts?['detective'] ?? s?['detective']) as int? ?? 1;
+    try { rules = defaultRules.merge(Map<String, Object?>.from(((acc ?? s)?['rules'] as Map?) ?? {})); } catch (_) { rules = defaultRules; }
   }
+
+  Account? get _acc => widget.account?.signedIn == true ? widget.account : null;
+  List<String> get _roster => _acc?.names ?? widget.prefs.roster;
 
   @override
   void dispose() { for (final c in names) { c.dispose(); } super.dispose(); }
@@ -48,8 +53,15 @@ class _SetupState extends State<SetupScreen> {
   void _deal(L l, Counts counts) {
     final ns = _names(l), p = widget.prefs;
     p.players = [for (final c in names) c.text.trim()];
-    p.roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ...p.roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))];
-    p.setup = {'mafia': mafia, 'detective': detective, 'rules': rules.toJson()};
+    final roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ..._roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))].take(30).toList();
+    final saved = {'mafia': counts.mafia, 'detective': counts.detective, 'rules': rules.toJson()};
+    if (_acc != null) {
+      _acc!.saveNames(roster).catchError((_) {}); // offline: the next deal saves them
+      _acc!.saveSetup(saved).catchError((_) {});
+    } else {
+      p.roster = roster;
+    }
+    p.setup = saved;
     final r = OfflineGame.start(p, widget.audio, Setup(ns, counts, rules));
     if (r.game == null) return;
     widget.onDealt != null ? widget.onDealt!(r.game!) : Navigator.of(context).pop(r.game);
@@ -60,7 +72,7 @@ class _SetupState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective)), err = _error(l, v);
-    final inList = ns.map(nameKey).toSet(), chips = widget.prefs.roster.where((r) => !inList.contains(nameKey(r))).toList();
+    final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
     final preset = presetOf(rules);
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.newGame, style: head.copyWith(fontSize: 20))),

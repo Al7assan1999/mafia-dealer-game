@@ -1,3 +1,11 @@
+import java.util.Properties
+
+// The upload key signs every build (debug too), so Google sign-in sees one SHA-1 everywhere. Locally it comes from
+// android/key.properties (git-ignored), in CI from the ANDROID_KEYSTORE_FILE / ANDROID_KEYSTORE_PASSWORD env vars.
+val keyProps = Properties().apply { rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) } }
+val keyFile: String? = keyProps.getProperty("storeFile") ?: System.getenv("ANDROID_KEYSTORE_FILE")
+val keyPass: String? = keyProps.getProperty("password") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -28,11 +36,16 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // Play signing comes in Sprint 6; until then release builds use the debug key.
-            signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        if (keyFile != null && keyPass != null) {
+            create("upload") { storeFile = file(keyFile); storePassword = keyPass; keyAlias = "upload"; keyPassword = keyPass }
         }
+    }
+    val signing = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")  // no key (a fork): debug key
+
+    buildTypes {
+        debug { signingConfig = signing }
+        release { signingConfig = signing }
     }
 }
 

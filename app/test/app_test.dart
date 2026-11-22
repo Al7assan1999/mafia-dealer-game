@@ -3,59 +3,20 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/audio.dart';
 import 'package:mafia_dealer/game.dart';
 import 'package:mafia_dealer/game_screen.dart';
-import 'package:mafia_dealer/main.dart';
 import 'package:mafia_dealer/prefs.dart';
 import 'package:mafia_engine/mafia_engine.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';
+import 'harness.dart';
 
 Map<String, Object?> jsonDecodeRecord(GameRecord r) => jsonDecode(jsJson(r.toJson())) as Map<String, Object?>;
 
 const names6 = ['Dareer', 'Halawy', 'Farouq', 'Sami', 'Hokan', 'Khaddour'];
-var fakeNow = 1_000_000_000;
-
-Future<void> loadFonts() async {
-  for (final (family, files) in [
-    ('Plex', ['IBMPlexSansArabic-Regular.ttf', 'IBMPlexSansArabic-Bold.ttf']),
-    ('Elite', ['SpecialElite-Regular.ttf']),
-    ('Messiri', ['ElMessiri-Variable.ttf']),
-  ]) {
-    final l = FontLoader(family);
-    for (final f in files) { l.addFont(rootBundle.load('assets/fonts/$f')); }
-    await l.load();
-  }
-}
-
-/// The app on a phone of this size, with fresh (or the given) saved data.
-Future<Prefs> launch(WidgetTester t, {Size size = const Size(393, 851), String lang = 'en', double text = 1, Prefs? prefs}) async {
-  t.view.physicalSize = size;
-  t.view.devicePixelRatio = 1;
-  t.platformDispatcher.textScaleFactorTestValue = text;
-  addTearDown(() { t.view.reset(); t.platformDispatcher.clearTextScaleFactorTestValue(); });
-  if (prefs == null) {
-    SharedPreferences.setMockInitialValues({'lang': lang});
-    prefs = await Prefs.load();
-  }
-  final audio = Audio(prefs);
-  await t.runAsync(audio.init);
-  await t.pumpWidget(App(prefs: prefs, audio: audio));
-  await t.pump();
-  return prefs;
-}
-
 void main() {
-  setUpAll(() async {
-    Audio.silent = true;
-    OfflineGame.clock = () => fakeNow;
-    TestWidgetsFlutterBinding.ensureInitialized();
-    await loadFonts();
-  });
+  setUpAll(setUpHarness);
 
   for (final size in const [Size(360, 640), Size(393, 851), Size(412, 915)]) {
     for (final lang in ['en', 'ar']) {
@@ -152,7 +113,7 @@ void main() {
   });
 
   testWidgets('Back asks before leaving; the game is kept and resumes at the same step after the app is killed', (t) async {
-    final prefs = await launch(t);
+    final prefs = (await launch(t)).prefs;
     await setUpGame(t, names6);
     for (var i = 0; i < 6; i++) {
       await tapKey(t, 'open');
@@ -262,7 +223,7 @@ void main() {
   });
 
   testWidgets('the language switch mirrors the layout and is remembered', (t) async {
-    final prefs = await launch(t);
+    final prefs = (await launch(t)).prefs;
     await tapKey(t, 'settings');
     await tapKey(t, 'lang');
     await t.pump(const Duration(milliseconds: 300));

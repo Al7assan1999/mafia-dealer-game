@@ -29,6 +29,10 @@ class Prefs extends ChangeNotifier {
   Map<String, Object?>? get setup => _json('setup');
   set setup(Map<String, Object?>? v) => _put('setup', v);
 
+  /// The signed-in profile as last seen (shown while offline). The session token itself is in secure storage.
+  Map<String, Object?>? get me => _json('me');
+  set me(Map<String, Object?>? v) => _put('me', v);
+
   /// The offline game in progress, or null.
   Map<String, Object?>? get game => _json('game');
   // told a moment later: the game screen sets this while it closes, when the widget tree can't rebuild

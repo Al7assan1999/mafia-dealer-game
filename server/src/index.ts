@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { SUBPROTOCOL } from '@mafia/protocol';
-import { auth, googleKeys, googleVerifier, requireUser, resendCode, sessions } from './auth.ts';
+import { auth, googleKeys, googleVerifier, lastCodes, requireUser, resendCode, sessions } from './auth.ts';
 import { ApiErr, userFromToken, type AppEnv, type Ctx, type Deps, type Env } from './lib.ts';
 import { games, invites, joinRequests, notes, rooms } from './social.ts';
 import { avatars, friends, me, requests, users } from './users.ts';
@@ -35,6 +35,9 @@ export function createApp(deps: Deps) {
 
   app.get('/', c => c.text('mafia-dealer-game'));
   app.get('/v1/health', c => c.json({ ok: true }));
+  // local test mode only (`wrangler dev --var MAIL_LOG:1`, never in wrangler.jsonc): the emulator test reads its code here
+  app.get('/v1/test/last-code/:email', c => (c.env.MAIL_LOG === '1'
+    ? c.json({ code: lastCodes.get(c.req.param('email').toLowerCase()) ?? null }) : c.json({ error: 'not_found' }, 404)));
   app.get('/v1/rooms/:code/ws', async c => {
     const code = c.req.param('code');
     if (!/^\d{6}$/.test(code)) throw new ApiErr(404, 'no_room');

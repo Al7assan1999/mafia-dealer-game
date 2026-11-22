@@ -18,7 +18,13 @@
   "sSfx": "Sound effects",
   "players": "Players",
   "playerN": "Player {n}",
-  "@playerN": {"placeholders": {"n": {"type": "int"}}},
+  "@playerN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "addPlayer": "+ Add",
   "nameHint": "Name",
   "saved": "Saved players",
@@ -35,12 +41,24 @@
   "docOne": "always one",
   "detNeed2": "needs 2+ Mafia",
   "recM": "Recommended for this many players: {n} Mafia",
-  "@recM": {"placeholders": {"n": {"type": "int"}}},
+  "@recM": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "eTooFew": "Need at least 4 players",
   "eTooMany": "At most 20 players",
   "eTooManyRoles": "Too many special roles",
   "eMafiaGap": "Mafia must be at least 2 fewer than everyone else (max {n} Mafia here)",
-  "@eMafiaGap": {"placeholders": {"n": {"type": "int"}}},
+  "@eMafiaGap": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "eBadName": "Every player needs a name (up to 18 characters)",
   "eDupNames": "Two players have the same name",
   "rules": "Rules",
@@ -65,24 +83,60 @@
   "rNightTD": "When it runs out, unfinished night turns are skipped",
   "off": "Off",
   "minutes": "{n} min",
-  "@minutes": {"placeholders": {"n": {"type": "int"}}},
+  "@minutes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "seconds": "{n} s",
-  "@seconds": {"placeholders": {"n": {"type": "int"}}},
+  "@seconds": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "deal": "Shuffle & Deal Roles",
   "passTo": "Pass the phone to",
   "iam": "I am {n} — continue",
-  "@iam": {"placeholders": {"n": {"type": "String"}}},
+  "@iam": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "open": "I am {n} — open my turn",
-  "@open": {"placeholders": {"n": {"type": "String"}}},
+  "@open": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "tiltHint": "Make sure nobody else can see the screen.",
   "yourRole": "Your secret role",
   "holdHint": "Press and hold to see your role",
   "mates": "Your Mafia team: {n}",
-  "@mates": {"placeholders": {"n": {"type": "String"}}},
+  "@mates": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "memorized": "Got it — hide & pass",
   "memorizedLast": "Got it — start Night 1",
   "night": "Night {d}",
-  "@night": {"placeholders": {"d": {"type": "int"}}},
+  "@night": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "nightHint": "Pass the phone in seat order. Everyone takes a secret turn.",
   "aMafia": "Choose a target",
   "aMafiaD": "Pick the player to eliminate tonight.",
@@ -92,7 +146,7 @@
   "aDetectiveD": "You will privately learn if they are Mafia.",
   "aCitizen": "Who do you suspect?",
   "aCitizenD": "Pick anyone. This is only so your turn looks the same as everyone else's.",
-  "aNone": "Nothing to do tonight",
+  "aNone": "None",
   "aNoneD": "Tap Confirm and pass the phone.",
   "you": "you",
   "teammate": "Mafia",
@@ -103,28 +157,61 @@
   "skipLeft": "can only be used once per game",
   "confirm": "Confirm",
   "checkResult": "{n} is {r}",
-  "@checkResult": {"placeholders": {"n": {"type": "String"}, "r": {"type": "String"}}},
+  "@checkResult": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      },
+      "r": {
+        "type": "String"
+      }
+    }
+  },
   "notMafia": "not Mafia",
   "locked": "Choice locked",
   "lockedHint": "Hide the screen and pass the phone to the next player.",
   "done": "Done — hide & pass",
   "doneLast": "Done — finish the night",
   "nightTimeLeft": "Night ends in {s} s",
-  "@nightTimeLeft": {"placeholders": {"s": {"type": "int"}}},
+  "@nightTimeLeft": {
+    "placeholders": {
+      "s": {
+        "type": "int"
+      }
+    }
+  },
   "allDone": "The night is over",
   "allDoneHint": "Put the phone in the middle of the table so everyone can see.",
   "dawn": "Reveal the morning",
   "sunrise": "The sun is rising",
   "skipWait": "Reveal now",
   "morningOf": "Morning of Day {d}",
-  "@morningOf": {"placeholders": {"d": {"type": "int"}}},
+  "@morningOf": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "victimIs": "Last night, the Mafia killed",
   "savedIs": "The Mafia attacked, but the Doctor saved",
   "nobody": "Nobody died last night",
   "wasRole": "They were: {r}",
-  "@wasRole": {"placeholders": {"r": {"type": "String"}}},
+  "@wasRole": {
+    "placeholders": {
+      "r": {
+        "type": "String"
+      }
+    }
+  },
   "startDay": "Start Day {d}",
-  "@startDay": {"placeholders": {"d": {"type": "int"}}},
+  "@startDay": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "discussion": "Discussion",
   "start": "Start",
   "pause": "Pause",
@@ -144,39 +231,102 @@
   "skipped": "Nobody is eliminated",
   "votes": "votes",
   "nextNight": "Go to Night {d}",
-  "@nextNight": {"placeholders": {"d": {"type": "int"}}},
+  "@nextNight": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "gameOver": "The game is over",
   "winMafia": "Mafia wins",
   "winMafiaD": "The Mafia equals or outnumbers everyone else.",
   "winCitizens": "Citizens win",
   "winCitizensD": "Every Mafia member has been eliminated.",
   "rcSub": "{n} players · {d} rounds",
-  "@rcSub": {"placeholders": {"n": {"type": "int"}, "d": {"type": "int"}}},
+  "@rcSub": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "roles": "Who was who",
   "mvpT": "Player of the game",
   "mvpMafia": "Mafia who survived to the end",
   "mvpMafia2": "Led the Mafia to victory",
   "mvpDet": "Found the Mafia ({n}x)",
-  "@mvpDet": {"placeholders": {"n": {"type": "int"}}},
+  "@mvpDet": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "mvpDoc": "Saved a life ({n}x)",
-  "@mvpDoc": {"placeholders": {"n": {"type": "int"}}},
+  "@mvpDoc": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "mvpSurv": "Survived to the end",
   "history": "What happened",
   "hNight": "Night {d}: ",
-  "@hNight": {"placeholders": {"d": {"type": "int"}}},
+  "@hNight": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "hDay": "Day {d}: ",
-  "@hDay": {"placeholders": {"d": {"type": "int"}}},
+  "@hDay": {
+    "placeholders": {
+      "d": {
+        "type": "int"
+      }
+    }
+  },
   "hKill": "Mafia killed {n}",
-  "@hKill": {"placeholders": {"n": {"type": "String"}}},
+  "@hKill": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "hSaved": "Mafia attacked {n}, the Doctor saved them",
-  "@hSaved": {"placeholders": {"n": {"type": "String"}}},
+  "@hSaved": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "hSkip": "Mafia skipped the kill",
   "hNoMafia": "The Mafia did not choose",
   "hOut": "{n} voted out",
-  "@hOut": {"placeholders": {"n": {"type": "String"}}},
+  "@hOut": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "hNone": "nobody voted out",
   "hRemoved": "{n} was removed",
-  "@hRemoved": {"placeholders": {"n": {"type": "String"}}},
+  "@hRemoved": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "playAgain": "Play again",
   "sameNew": "same players, new roles",
   "changePlayers": "Change players",
@@ -184,5 +334,129 @@
   "quitQ": "Leave this game?",
   "quitD": "The game is saved — you can resume it later from the start screen.",
   "quit": "Leave game",
-  "nothingSaved": "Offline games are not saved to any history."
+  "nothingSaved": "Offline games are not saved to any history.",
+  "acctT": "Account",
+  "aIn": "Sign in",
+  "aWhy": "An account is needed for friends and online play. Offline games work without one.",
+  "aGoogle": "Continue with Google",
+  "aGoogleSoon": "Google sign-in is not set up yet",
+  "aOr": "or",
+  "aEmail": "Email",
+  "aEmailGo": "Send me a code",
+  "aCodeSent": "We sent a 6-digit code to {e}",
+  "@aCodeSent": {
+    "placeholders": {
+      "e": {
+        "type": "String"
+      }
+    }
+  },
+  "aCode": "Code",
+  "aVerify": "Sign in",
+  "aResend": "Send a new code",
+  "aResendIn": "New code in {s} s",
+  "@aResendIn": {
+    "placeholders": {
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "aOtherEmail": "Use another email",
+  "aPickHandle": "Choose your @username",
+  "aPickHandleD": "Friends add you with it. 3-20 letters, numbers, _ or .",
+  "aUser": "Username",
+  "aName": "Name shown in games",
+  "aContinue": "Continue",
+  "profT": "My profile",
+  "aAvatar": "Avatar",
+  "aPhoto": "Photo",
+  "aFav": "Favourite role",
+  "aSave": "Save profile",
+  "aSaved": "Profile saved",
+  "fShowOn": "Show me as online",
+  "fShowOnD": "Friends see when your app is open and whether you are in a room.",
+  "aDevices": "Signed-in devices",
+  "aThisDevice": "this phone",
+  "aSignOutDevice": "Sign out",
+  "aOut": "Sign out",
+  "aOutQ": "Sign out?",
+  "aOutD": "You can sign in again with Google or an email code.",
+  "aDel": "Delete account",
+  "aDelQ": "Delete your account?",
+  "aDelD": "Your profile, friends and sign-in are deleted for good. Type delete to confirm.",
+  "aDeleted": "Account deleted",
+  "friendsT": "Friends",
+  "fAdd": "Add a friend by username",
+  "fAddBtn": "Add",
+  "fTabF": "Friends",
+  "fTabR": "Requests",
+  "fTabS": "Sent",
+  "fAccept": "Accept",
+  "fDecline": "Decline",
+  "fCancelReq": "Cancel request",
+  "fRemove": "Remove friend",
+  "fRemoveQ": "Remove {n}?",
+  "@fRemoveQ": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "fRemoveD": "You will no longer be friends. They are not told.",
+  "fReqSent": "Friend request sent to {n}",
+  "@fReqSent": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "fNowFriends": "You and {n} are now friends",
+  "@fNowFriends": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "fNone": "No friends yet. Add one by username above.",
+  "fNoReq": "No friend requests right now.",
+  "fNoSent": "No requests waiting for an answer.",
+  "fOnline": "Online",
+  "fOffline": "Offline",
+  "fInRoom": "In a room",
+  "fInGame": "In a game",
+  "fShareMe": "Share my username",
+  "fShareTxt": "Add me on Mafia Dealer: my username is @{u}.",
+  "@fShareTxt": {
+    "placeholders": {
+      "u": {
+        "type": "String"
+      }
+    }
+  },
+  "fWhy": "Sign in to add friends and invite them to your online rooms.",
+  "notifT": "Notifications",
+  "nReq": "wants to be your friend",
+  "nAcc": "accepted your friend request",
+  "nNone": "Nothing new.",
+  "nClear": "Clear",
+  "eOffline": "No connection. Check the internet and try again.",
+  "eOfflineShort": "Offline",
+  "eCode": "That code is wrong or has expired.",
+  "eSlow": "Too many tries. Wait a little and try again.",
+  "eTaken": "That username is taken",
+  "eHandle": "Username: 3-20 letters, numbers, _ or .",
+  "eEmail": "That doesn't look like an email address",
+  "eNoUser": "No account with that username",
+  "eSelf": "That's you",
+  "eFull": "You have the most friends allowed (300)",
+  "eMail": "Email sign-in isn't available yet. Use Google.",
+  "eGoogle": "Google sign-in didn't work. Try again.",
+  "eTooBig": "That picture is too large",
+  "eAvatar": "That picture could not be used",
+  "eSignedOut": "You were signed out. Sign in again.",
+  "eOther": "Something went wrong. Try again."
 }

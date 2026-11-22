@@ -100,3 +100,36 @@ it('unknown paths and the health check', async () => {
   expect((await t.call('GET', '/v1/health')).json).toEqual({ ok: true });
   expect((await t.call('GET', '/v1/nope')).json).toEqual({ error: 'not_found' });
 });
+
+describe('saved names and setup (Sprint 3)', () => {
+  const rules = { skip: true, norep: false, saverev: false, decoy: true, self: true, rep: false, reveal: true, timer: 180, nightT: 0, ghost: false, skipVote: true };
+
+  it('names: newest first, at most 30, 1-18 characters, no two the same; each account sees only its own', async () => {
+    const t = await setup(), a = await t.user('Sami'), b = await t.user('Hokan');
+    expect((await t.call('GET', '/v1/me/roster', { token: a.token })).json).toEqual({ names: [] });
+    expect((await t.call('PUT', '/v1/me/roster', { token: a.token, body: { names: [' Dareer ', 'حلاوي'] } })).json).toEqual({ names: ['Dareer', 'حلاوي'] });
+    expect((await t.call('GET', '/v1/me/roster', { token: a.token })).json).toEqual({ names: ['Dareer', 'حلاوي'] });
+    expect((await t.call('GET', '/v1/me/roster', { token: b.token })).json).toEqual({ names: [] });
+    expect((await t.call('PUT', '/v1/me/roster', { token: a.token, body: { names: ['Sami', 'sami '] } })).json).toEqual({ error: 'dup_names' });
+    for (const names of [Array.from({ length: 31 }, (_, i) => 'P' + i), ['x'.repeat(19)], ['  ']]) {
+      expect((await t.call('PUT', '/v1/me/roster', { token: a.token, body: { names } })).status).toBe(400);
+    }
+    expect((await t.call('GET', '/v1/me/roster')).status).toBe(401);
+  });
+
+  it('setup: checked with the engine limits; kept with the names; deleted with the account', async () => {
+    const t = await setup(), a = await t.user('Sami');
+    expect((await t.call('GET', '/v1/me/setup', { token: a.token })).json).toEqual({ setup: null });
+    const s = { counts: { mafia: 2, detective: 1 }, rules: { ...rules, nightT: 60 } };
+    expect((await t.call('PUT', '/v1/me/setup', { token: a.token, body: s })).json).toEqual({ setup: s });
+    await t.call('PUT', '/v1/me/roster', { token: a.token, body: { names: ['Dareer'] } });
+    expect((await t.call('GET', '/v1/me/setup', { token: a.token })).json).toEqual({ setup: s });
+    expect((await t.call('GET', '/v1/me/roster', { token: a.token })).json).toEqual({ names: ['Dareer'] });
+    for (const bad of [{ counts: { mafia: 1, detective: 1 }, rules }, { counts: { mafia: 10, detective: 0 }, rules },
+      { counts: { mafia: 1, detective: 0 }, rules: { ...rules, nightT: 50 } }, { counts: { mafia: 1, detective: 0 }, rules: { ...rules, extra: 1 } }]) {
+      expect((await t.call('PUT', '/v1/me/setup', { token: a.token, body: bad })).status).toBe(400);
+    }
+    expect((await t.call('DELETE', '/v1/me', { token: a.token, body: { confirm: 'delete' } })).status).toBe(200);
+    expect(await t.env.DB.prepare('SELECT COUNT(*) AS n FROM saved').first('n')).toBe(0);
+  });
+});

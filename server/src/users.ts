@@ -1,6 +1,7 @@
 // The signed-in user's own account, other accounts' public cards, avatars and friends.
 import { Hono } from 'hono';
-import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, type FriendsAnswer, type Me, type Rel } from '@mafia/protocol';
+import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, SavedNames, SavedSetup, type FriendsAnswer, type Me, type Rel } from '@mafia/protocol';
+import { deckOk, nameKey } from '@mafia/engine';
 import { notify, pushPresence } from './hub.ts';
 import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
@@ -55,6 +56,34 @@ me.put('/avatar', async c => {
   }
   const fresh = (await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>())!;
   return c.json({ user: await meOf(db, fresh) });
+});
+
+/** The saved player names (the setup's chips), newest first. */
+me.get('/roster', async c => {
+  const r = await c.env.DB.prepare('SELECT names FROM saved WHERE user_id = ?').bind(c.var.user.id).first<{ names: string }>();
+  return c.json({ names: r ? JSON.parse(r.names) : [] });
+});
+me.put('/roster', async c => {
+  const { names } = await body(c, SavedNames);
+  if (new Set(names.map(nameKey)).size < names.length) throw new ApiErr(400, 'dup_names');
+  await c.env.DB.prepare(`INSERT INTO saved (user_id, names, updated_at) VALUES (?1, ?2, ?3)
+    ON CONFLICT (user_id) DO UPDATE SET names = ?2, updated_at = ?3`).bind(c.var.user.id, JSON.stringify(names), c.var.deps.now()).run();
+  return c.json({ names });
+});
+
+/** The last setup (role counts and rules), or null. */
+me.get('/setup', async c => {
+  const r = await c.env.DB.prepare('SELECT setup FROM saved WHERE user_id = ?').bind(c.var.user.id).first<{ setup: string | null }>();
+  return c.json({ setup: r?.setup ? JSON.parse(r.setup) : null });
+});
+me.put('/setup', async c => {
+  const setup = await body(c, SavedSetup);
+  // the engine's limits: Detective only with 2+ Mafia, and a deck at least 4 players could deal
+  if (setup.counts.detective && setup.counts.mafia < 2) throw new ApiErr(400, 'bad_request');
+  if (!deckOk(20, setup.counts.mafia, setup.counts.detective)) throw new ApiErr(400, 'bad_request');  // dealable with the most players
+  await c.env.DB.prepare(`INSERT INTO saved (user_id, setup, updated_at) VALUES (?1, ?2, ?3)
+    ON CONFLICT (user_id) DO UPDATE SET setup = ?2, updated_at = ?3`).bind(c.var.user.id, JSON.stringify(setup), c.var.deps.now()).run();
+  return c.json({ setup });
 });
 
 /** Deletes the account and everything that belongs to it (sessions, sign-ins, avatar, friendships). */

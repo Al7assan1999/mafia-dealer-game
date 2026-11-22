@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'account.dart';
+import 'account_screens.dart';
+import 'api.dart';
 import 'audio.dart';
 import 'game.dart';
 import 'game_screen.dart';
@@ -13,15 +16,33 @@ import 'ui.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  final prefs = await Prefs.load(), audio = Audio(prefs);
+  final prefs = await Prefs.load(), audio = Audio(prefs), account = Account(Api(), SecureTokens(), prefs);
   await audio.init();
-  runApp(App(prefs: prefs, audio: audio));
+  account.restore(); // silently, in the background: the app never waits for the network
+  runApp(App(prefs: prefs, audio: audio, account: account));
 }
 
-class App extends StatelessWidget {
-  const App({super.key, required this.prefs, required this.audio});
+class App extends StatefulWidget {
+  const App({super.key, required this.prefs, required this.audio, required this.account});
   final Prefs prefs;
   final Audio audio;
+  final Account account;
+  @override
+  State<App> createState() => _AppState();
+}
+
+class _AppState extends State<App> {
+  // the hub socket only while the app is on screen
+  late final AppLifecycleListener _life;
+  Prefs get prefs => widget.prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _life = AppLifecycleListener(onResume: () => widget.account.foreground(true), onPause: () => widget.account.foreground(false));
+  }
+  @override
+  void dispose() { _life.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -33,18 +54,19 @@ class App extends StatelessWidget {
           locale: Locale(prefs.lang),
           supportedLocales: L.supportedLocales,
           localizationsDelegates: const [L.delegate, GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-          home: Home(prefs: prefs, audio: audio),
+          home: Home(prefs: prefs, audio: widget.audio, account: widget.account),
         ),
       );
 }
 
 class Home extends StatelessWidget {
-  const Home({super.key, required this.prefs, required this.audio});
+  const Home({super.key, required this.prefs, required this.audio, required this.account});
   final Prefs prefs;
   final Audio audio;
+  final Account account;
 
   void _play(BuildContext context, OfflineGame g) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio)));
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio, account: account)));
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => _build(context));
@@ -53,11 +75,11 @@ class Home extends StatelessWidget {
     final l = L.of(context), saved = prefs.game != null;
     return Scaffold(
       body: Stage(children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: const Icon(Icons.settings_outlined, color: C.mute),
+        Row(children: [
+          Expanded(child: AccountBar(account: account)),
+          IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: const Icon(Icons.settings_outlined, color: C.mute),
               onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, builder: (_) => SettingsSheet(prefs: prefs))),
-        ),
+        ]),
         const SizedBox(height: 24),
         Center(
           child: Transform.rotate(
@@ -91,7 +113,7 @@ class Home extends StatelessWidget {
           if (saved && !await ask(context, l.discardQ, l.discardD, l.discard)) return;
           if (!context.mounted) return;
           prefs.game = null;
-          final g = await Navigator.of(context).push<OfflineGame>(MaterialPageRoute(builder: (_) => SetupScreen(prefs: prefs, audio: audio)));
+          final g = await Navigator.of(context).push<OfflineGame>(MaterialPageRoute(builder: (_) => SetupScreen(prefs: prefs, audio: audio, account: account)));
           if (g != null && context.mounted) _play(context, g);
         }),
         Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.newGameSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),

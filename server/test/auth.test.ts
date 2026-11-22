@@ -109,3 +109,10 @@ describe('sessions', () => {
     expect((await t.call('GET', '/v1/me', { token: a.token })).status).toBe(401);
   });
 });
+
+describe('local test mode (Sprint 3)', () => {
+  it('the code-reading route does not exist unless MAIL_LOG is set (never in production)', async () => {
+    const t = await setup();
+    expect((await t.call('GET', '/v1/test/last-code/a@example.com')).status).toBe(404);
+  });
+});

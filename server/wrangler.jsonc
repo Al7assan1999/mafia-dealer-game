@@ -22,7 +22,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Hub"] }],
   "vars": {
     // Google OAuth client ids allowed as the sign-in token's audience (comma-separated; the Web client id)
-    "GOOGLE_CLIENT_IDS": "",
+    "GOOGLE_CLIENT_IDS": "347831426258-e0guv95d25aq2adumf8cbvl8grf347qc.apps.googleusercontent.com",
     "MAIL_FROM": "Mafia Dealer <login@mafiadealer.app>"
   }
   // secrets (wrangler secret put): RESEND_API_KEY

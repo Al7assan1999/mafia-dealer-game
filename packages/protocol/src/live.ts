@@ -10,7 +10,8 @@ export const EVERYONE = -1;
 
 const seat = z.number().int().min(0).max(19);
 const cn = z.number().int().min(EVERYONE).max(999);
-const RulesIn = z.object({
+/** The table rules as a phone sends them (room setup, saved setup). */
+export const RulesIn = z.object({
   skip: z.boolean(), norep: z.boolean(), saverev: z.boolean(), decoy: z.boolean(), self: z.boolean(), rep: z.boolean(),
   reveal: z.boolean(), timer: z.number().int().min(30).max(900), nightT: z.union([z.literal(0), z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.literal(120), z.literal(180)]),
   ghost: z.boolean(), skipVote: z.boolean(),

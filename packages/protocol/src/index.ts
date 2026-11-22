@@ -44,5 +44,16 @@ export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outg
 export type ApiError =
   | 'bad_request' | 'auth' | 'code' | 'slow_down' | 'google' | 'needs_handle' | 'handle_taken'
   | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big'
-  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail';
+  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names';
 export * from './live.ts';
+import { RulesIn } from './live.ts';
+
+/** The account's saved player names (the setup's chips) and last setup. Names: 1-18 characters, at most 30, no two
+ *  the same ignoring case and spacing (checked on the server). */
+export const MAX_SAVED_NAMES = 30;
+export const SavedNames = z.object({ names: z.array(z.string().trim().min(1).max(18)).max(MAX_SAVED_NAMES) }).strict();
+export const SavedSetup = z.object({
+  counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(),
+  rules: RulesIn,
+}).strict();
+export type SavedSetup = z.infer<typeof SavedSetup>;

@@ -69,6 +69,15 @@ files are copied from there only when a phase needs them.
    the old narrator clips and rendered sounds, resume after a kill, screen kept on); CI jobs `app` and `emulator`.
    His Sprint 2 answers: recent names on the phone while signed out; Noir look; keep the friends' name clips;
    tools in `C:\Users\WGN\sdk\`; G7 unchanged.
+   **Sprint 3, accounts and friends** (`docs/sprint-3-prd.md`, built 2026-11-22, not committed): the upload key in
+   `C:/Users/WGN/.android-keys/` and the GitHub secrets (SHA-1 CA:44:FD:43:46:80:A8:17:63:58:38:83:30:C8:1E:6F:0A:8C:FA:AB);
+   app sign-in (Google via Credential Manager, email code), handle, profile + photo, devices, delete account, friends,
+   bell, hub socket, saved names / setup in D1 (`0004`), Hub auto-pong, a local test mode for the emulator. His answers:
+   Google first (email once the domain exists), I generate the key, photos in, local names merged on first sign-in.
+   Google Cloud (project `mafia-dealer-game`, consent screen in Testing): Web client
+   `347831426258-e0guv95d25aq2adumf8cbvl8grf347qc.apps.googleusercontent.com` (server `GOOGLE_CLIENT_IDS` and the CI
+   variable `GOOGLE_SERVER_CLIENT_ID`); Android client `347831426258-b2vm9tov5d7pue2cohlq2jsikth5enah.apps.googleusercontent.com`
+   (package + upload-key SHA-1; not used in any setting: tokens are issued for the Web client).
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).

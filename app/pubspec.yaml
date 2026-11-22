@@ -12,9 +12,15 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  google_sign_in: ^7.2.0
+  http: ^1.6.0
+  image: ^4.13.1
+  image_picker: ^1.2.4
   intl: ^0.20.3
   mafia_engine:
     path: ../packages/engine_dart
+  share_plus: ^13.3.1
   shared_preferences: ^2.5.6
   wakelock_plus: ^1.8.2
 

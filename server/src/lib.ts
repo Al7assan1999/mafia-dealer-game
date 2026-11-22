@@ -10,6 +10,7 @@ export interface Env {
   GOOGLE_CLIENT_IDS: string;   // comma-separated Google OAuth client ids (the sign-in token's audience)
   MAIL_FROM: string;
   RESEND_API_KEY?: string;     // secret
+  MAIL_LOG?: string;           // local tests only (`wrangler dev --var MAIL_LOG:1`): print codes instead of sending
 }
 export interface GoogleId { sub: string; email: string; name: string }
 /** What the outside world gives the app; tests pass fakes. */

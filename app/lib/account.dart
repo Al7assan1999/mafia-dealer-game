@@ -1,0 +1,309 @@
+// The signed-in account: sign-in (Google, email code), profile, devices, friends, the bell, the live hub socket and
+// the saved names / setup. Everything is optional: with no account or no network the app still plays offline.
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import 'api.dart';
+import 'prefs.dart';
+
+/// The Google OAuth "Web" client id (the audience the server checks). Empty until Google Cloud is set up:
+/// --dart-define=GOOGLE_SERVER_CLIENT_ID=...
+const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+
+/// Where the session token lives: Android's encrypted storage on a phone, memory in tests.
+abstract class TokenStore {
+  Future<String?> read();
+  Future<void> write(String? token);
+}
+
+class SecureTokens implements TokenStore {
+  static const _s = FlutterSecureStorage();
+  @override
+  Future<String?> read() async { try { return await _s.read(key: 'session'); } catch (_) { return null; } }
+  @override
+  Future<void> write(String? t) async { try { t == null ? await _s.delete(key: 'session') : await _s.write(key: 'session', value: t); } catch (_) {} }
+}
+
+class MemoryTokens implements TokenStore {
+  String? t;
+  @override
+  Future<String?> read() async => t;
+  @override
+  Future<void> write(String? v) async => t = v;
+}
+
+/// Google sign-in through Android's Credential Manager; returns an ID token, or throws ApiError ('cancel', 'google').
+abstract class GoogleAuth {
+  bool get available;
+  Future<String> idToken();
+}
+
+class CredentialManagerGoogle implements GoogleAuth {
+  bool _init = false;
+  @override
+  bool get available => googleServerClientId.isNotEmpty;
+  @override
+  Future<String> idToken() async {
+    try {
+      if (!_init) { await GoogleSignIn.instance.initialize(serverClientId: googleServerClientId); _init = true; }
+      final a = await GoogleSignIn.instance.authenticate();
+      final t = a.authentication.idToken;
+      if (t == null) throw ApiError('google');
+      return t;
+    } on GoogleSignInException catch (e) {
+      throw ApiError(e.code == GoogleSignInExceptionCode.canceled ? 'cancel' : 'google');
+    }
+  }
+}
+
+/// Another account as the server shows it (never an email).
+class Person {
+  Person(this.j);
+  final Map<String, Object?> j;
+  String get id => j['id'] as String;
+  String? get handle => j['handle'] as String?;
+  String get display => j['display'] as String;
+  int? get preset => (j['avatar'] as Map?)?['preset'] as int?;
+  int? get photo => (j['avatar'] as Map?)?['photo'] as int?;
+  String get fav => (j['fav'] as String?) ?? '';
+  String get rel => (j['rel'] as String?) ?? 'none';
+  bool get online => j['on'] == true;
+  String get status => (j['st'] as String?) ?? '';
+}
+
+class Note {
+  Note(this.j);
+  final Map<String, Object?> j;
+  String get id => j['id'] as String;
+  String get kind => j['kind'] as String;
+  Person get from => Person(Map<String, Object?>.from(j['from'] as Map));
+  int get at => j['at'] as int;
+  bool get read => j['read'] == true;
+}
+
+class Account extends ChangeNotifier {
+  Account(this.api, this.tokens, this.prefs, {GoogleAuth? google, this.live = true}) : google = google ?? CredentialManagerGoogle();
+  final Api api;
+  final TokenStore tokens;
+  final Prefs prefs;
+  final GoogleAuth google;
+  final bool live; // false in widget tests: no hub socket
+
+  Map<String, Object?>? me; // the server's Me
+  bool needsHandle = false;
+  bool offline = false; // the last call found no network
+  List<Person> friends = [], incoming = [], outgoing = [];
+  List<Note> notes = [];
+  int unread = 0;
+  List<String>? names; // the account's saved names (null until loaded / signed out)
+  Map<String, Object?>? setup;
+
+  bool get signedIn => me != null;
+  String? get handle => me?['handle'] as String?;
+  String get display => (me?['display'] as String?) ?? '';
+  Person? get card => me == null ? null : Person({...me!, 'rel': 'me'});
+
+  static const device = 'Android phone';
+
+  Future<T?> _try<T>(Future<T> Function() f) async {
+    try {
+      final r = await f();
+      if (offline) { offline = false; notifyListeners(); }
+      return r;
+    } on ApiError catch (e) {
+      if (e.code == 'offline') { offline = true; notifyListeners(); }
+      if (e.code == 'auth' && signedIn) await _signedOut();
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------- session
+  /// On start: a saved session signs in silently. Offline, the cached profile is shown until the network is back.
+  Future<void> restore() async {
+    final t = await tokens.read();
+    if (t == null) return;
+    api.token = t;
+    me = prefs.me;
+    notifyListeners();
+    try { await refresh(); } catch (_) {}
+  }
+
+  /// Reloads the profile, friends, bell and saved names, and (re)connects the hub.
+  Future<void> refresh() async {
+    final r = await _try(() => api.get('/v1/me'));
+    _setMe(r!);
+    await Future.wait([loadFriends(), loadNotes(), _syncSaved()].map((f) => f.catchError((_) {})));
+    _hubStart();
+  }
+
+  void _setMe(Map<String, Object?> r) {
+    me = Map<String, Object?>.from(r['user'] as Map);
+    needsHandle = r['needsHandle'] == true;
+    prefs.me = me;
+    notifyListeners();
+  }
+
+  Future<void> _signedIn(Map<String, Object?> r) async {
+    api.token = r['token'] as String;
+    await tokens.write(api.token);
+    _setMe(r);
+    await refresh().catchError((_) {});
+  }
+
+  Future<void> _signedOut() async {
+    _hubStop();
+    api.token = null;
+    await tokens.write(null);
+    me = null; needsHandle = false; friends = []; incoming = []; outgoing = []; notes = []; unread = 0; names = null; setup = null;
+    prefs.me = null;
+    notifyListeners();
+  }
+
+  Future<void> emailStart(String email) => _try(() => api.post('/v1/auth/email/start', {'email': email}));
+  Future<void> emailVerify(String email, String code) async =>
+      _signedIn((await _try(() => api.post('/v1/auth/email/verify', {'email': email, 'code': code, 'device': device})))!);
+  Future<void> signInGoogle() async {
+    final t = await google.idToken();
+    await _signedIn((await _try(() => api.post('/v1/auth/google', {'idToken': t, 'device': device})))!);
+  }
+
+  Future<void> logout() async { try { await api.post('/v1/auth/logout'); } catch (_) {} await _signedOut(); }
+
+  Future<List<Map<String, Object?>>> sessions() async =>
+      ((await _try(() => api.get('/v1/sessions')))!['sessions'] as List).map((x) => Map<String, Object?>.from(x as Map)).toList();
+  Future<void> endSession(String id, {bool current = false}) async {
+    await _try(() => api.delete('/v1/sessions/$id'));
+    if (current) await _signedOut();
+  }
+
+  /// Deletes the account on the server, then everything about it on this phone. Offline play stays.
+  Future<void> deleteAccount() async {
+    await _try(() => api.delete('/v1/me', {'confirm': 'delete'}));
+    await _signedOut();
+  }
+
+  // ---------------------------------------------------------------- profile
+  Future<void> patch(Map<String, Object?> fields) async => _setMe((await _try(() => api.patch('/v1/me', fields)))!);
+  Future<void> avatarPreset(int i) async => _setMe({...(await _try(() => api.put('/v1/me/avatar', {'preset': i})))!, 'needsHandle': needsHandle});
+  /// A JPEG, already cropped and at most 150 KB.
+  Future<void> avatarPhoto(Uint8List jpeg) async =>
+      _setMe({...(await _try(() => api.put('/v1/me/avatar', {'image': 'data:image/jpeg;base64,${base64Encode(jpeg)}'})))!, 'needsHandle': needsHandle});
+
+  // ---------------------------------------------------------------- friends
+  Future<void> loadFriends() async {
+    final r = (await _try(() => api.get('/v1/friends')))!;
+    List<Person> l(String k) => (r[k] as List).map((x) => Person(Map<String, Object?>.from(x as Map))).toList();
+    friends = l('friends'); incoming = l('incoming'); outgoing = l('outgoing');
+    notifyListeners();
+  }
+
+  Future<Person> find(String handle) async =>
+      Person(Map<String, Object?>.from((await _try(() => api.get('/v1/users/${Uri.encodeComponent(handle.trim().replaceFirst('@', ''))}')))!['user'] as Map));
+  Future<String> request(String handle) async {
+    final r = (await _try(() => api.post('/v1/friend-requests', {'handle': handle.trim()})))!;
+    await loadFriends();
+    return r['rel'] as String;
+  }
+  Future<void> accept(String id) async { await _try(() => api.post('/v1/friend-requests/$id/accept')); await loadFriends(); }
+  Future<void> decline(String id) async { await _try(() => api.delete('/v1/friend-requests/$id')); await loadFriends(); }
+  Future<void> unfriend(String id) async { await _try(() => api.delete('/v1/friends/$id')); await loadFriends(); }
+
+  // ---------------------------------------------------------------- the bell
+  Future<void> loadNotes() async {
+    final r = (await _try(() => api.get('/v1/notifications')))!;
+    notes = (r['notifications'] as List).map((x) => Note(Map<String, Object?>.from(x as Map))).toList();
+    unread = r['unread'] as int? ?? 0;
+    notifyListeners();
+  }
+  Future<void> readAll() async { if (unread == 0) return; await _try(() => api.post('/v1/notifications/read')); await loadNotes(); }
+  Future<void> deleteNote(String? id) async { await _try(() => api.delete(id == null ? '/v1/notifications' : '/v1/notifications/$id')); await loadNotes(); }
+
+  // ---------------------------------------------------------------- saved names and setup (decision 2)
+  /// Loads them; the first time on this phone, its recent names join the account and leave the phone.
+  Future<void> _syncSaved() async {
+    final r = (await _try(() => api.get('/v1/me/roster')))!, s = (await _try(() => api.get('/v1/me/setup')))!;
+    var server = (r['names'] as List).cast<String>();
+    final local = prefs.roster;
+    if (local.isNotEmpty) {
+      final keys = <String>{}, merged = <String>[];
+      for (final n in [...local, ...server]) { if (keys.add(n.trim().toLowerCase())) merged.add(n.trim()); }
+      server = merged.take(30).toList();
+      await saveNames(server);
+      prefs.roster = [];
+    }
+    names = server;
+    setup = s['setup'] == null ? null : Map<String, Object?>.from(s['setup'] as Map);
+    if (setup == null && prefs.setup != null) await saveSetup(prefs.setup!).catchError((_) {});
+    notifyListeners();
+  }
+  Future<void> saveNames(List<String> n) async { names = n; await _try(() => api.put('/v1/me/roster', {'names': n})); }
+  Future<void> saveSetup(Map<String, Object?> s) async {
+    final r = s['rules'], c = {'mafia': s['mafia'] ?? (s['counts'] as Map?)?['mafia'], 'detective': s['detective'] ?? (s['counts'] as Map?)?['detective']};
+    setup = {'counts': c, 'rules': r};
+    await _try(() => api.put('/v1/me/setup', setup!));
+  }
+
+  // ---------------------------------------------------------------- the hub socket (presence, live notes)
+  WebSocket? _ws;
+  Timer? _ping, _retry;
+  int _backoff = 1;
+  bool _want = false;
+
+  /// The app came to the foreground (or went away): the hub socket follows it.
+  void foreground(bool on) { on ? (signedIn ? _hubStart() : null) : _hubStop(); }
+
+  void _hubStart() {
+    if (!live || !signedIn || api.token == null) return;
+    _want = true;
+    if (_ws != null || _retry != null) return;
+    WebSocket.connect(api.socket('/v1/hub/ws').toString(), protocols: ['mafia.v1', api.token!]).then((ws) {
+      if (!_want) { ws.close(1000); return; }
+      _ws = ws;
+      _backoff = 1;
+      _ping = Timer.periodic(const Duration(seconds: 10), (_) { try { ws.add('ping'); } catch (_) {} });
+      ws.listen(_onHub, onDone: _hubLost, onError: (_) => _hubLost(), cancelOnError: true);
+    }, onError: (_) => _hubLost());
+  }
+
+  void _hubLost() {
+    _ping?.cancel();
+    _ws = null;
+    if (!_want || !signedIn) return;
+    _retry = Timer(Duration(seconds: _backoff), () { _retry = null; _hubStart(); });
+    _backoff = min(_backoff * 2, 30);
+  }
+
+  void _hubStop() {
+    _want = false;
+    _retry?.cancel(); _retry = null;
+    _ping?.cancel();
+    _ws?.close(1000);
+    _ws = null;
+  }
+
+  void _onHub(dynamic raw) {
+    if (raw == 'pong') return;
+    final m = jsonDecode(raw as String) as Map<String, Object?>;
+    switch (m['t']) {
+      case 'unread': unread = m['n'] as int? ?? 0;
+      case 'note':
+        notes = [Note(Map<String, Object?>.from(m['note'] as Map)), ...notes];
+        unread++;
+        loadFriends().catchError((_) {}); // a request or an accept changes the lists
+      case 'presence':
+        for (final f in friends) {
+          if (f.id == m['uid']) { f.j['on'] = m['on']; f.j['st'] = m['st']; f.j['op'] = m['op']; }
+        }
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() { _hubStop(); super.dispose(); }
+}

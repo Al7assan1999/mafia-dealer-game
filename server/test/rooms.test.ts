@@ -1,4 +1,4 @@
-import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
+import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, replay } from '@mafia/engine';
 import { STALE_MS } from '../src/room.ts';
@@ -454,4 +454,18 @@ describe('resilience (Sprint 1)', () => {
     expect(v.msgs.filter(m => m.t === 'err').slice(before).map(m => m.error)).toEqual(['stale']);
     await host.until(() => host.view.progress?.done === 1, 'one vote counted');
   }, 30_000);
+});
+
+describe('hub keep-alive (Sprint 3)', () => {
+  it('pings are answered by Cloudflare without waking the hub', async () => {
+    const a = await account('Ha' + Math.random().toString(36).slice(2, 6));
+    const h = await connect('/v1/hub/ws', a.token);
+    await h.until(() => h.got(m => m.t === 'unread'), 'unread');
+    h.ws.send('ping');
+    await h.until(() => h.pongs === 1, 'pong');
+    const ns = (env as unknown as { HUB: DurableObjectNamespace }).HUB;
+    const auto = await runInDurableObject(ns.get(ns.idFromName(a.id)), (_o, state) =>
+      state.getWebSocketAutoResponseTimestamp(state.getWebSockets()[0])?.getTime() ?? null);
+    expect(auto).not.toBeNull();
+  });
 });

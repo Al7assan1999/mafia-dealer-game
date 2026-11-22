@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'account.dart';
 import 'audio.dart';
 import 'game.dart';
 import 'l10n/app_localizations.dart';
@@ -13,10 +14,11 @@ import 'setup.dart';
 import 'ui.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, required this.game, required this.prefs, required this.audio});
+  const GameScreen({super.key, required this.game, required this.prefs, required this.audio, this.account});
   final OfflineGame game;
   final Prefs prefs;
   final Audio audio;
+  final Account? account;
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
@@ -288,7 +290,7 @@ class _GameScreenState extends State<GameScreen> {
       Row(children: [
         Expanded(child: Btn(l.changePlayers, ghost: true, onTap: () {
           g.close();
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => _NewSetup(prefs: widget.prefs, audio: widget.audio)));
+          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => _NewSetup(prefs: widget.prefs, audio: widget.audio, account: widget.account)));
         })),
         const SizedBox(width: 10),
         Expanded(child: Btn(l.home, key: const Key('home'), ghost: true, onTap: () => Navigator.of(context).pop())),
@@ -338,12 +340,13 @@ class _GameScreenState extends State<GameScreen> {
 
 /// "Change players": back to the setup, then straight into the new game.
 class _NewSetup extends StatelessWidget {
-  const _NewSetup({required this.prefs, required this.audio});
+  const _NewSetup({required this.prefs, required this.audio, this.account});
   final Prefs prefs;
   final Audio audio;
+  final Account? account;
   @override
-  Widget build(BuildContext context) => SetupScreen(prefs: prefs, audio: audio, onDealt: (g) =>
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio))));
+  Widget build(BuildContext context) => SetupScreen(prefs: prefs, audio: audio, account: account, onDealt: (g) =>
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio, account: account))));
 }
 
 /// The role card: hidden until pressed and held; hidden again on release or when the app goes to the background.

@@ -1,7 +1,13 @@
 # Mafia Dealer: Party Game (Flutter app)
 
-Android app `com.mafiadealer.game`. Sprint 2: offline play on one phone (no account, nothing logged), judged by the
-Dart engine in `../packages/engine_dart` (the copy of `packages/engine`, proven by the shared test games).
+Android app `com.mafiadealer.game`. Offline play on one phone (no account, nothing logged), judged by the Dart engine
+in `../packages/engine_dart`; accounts, friends and the bell against the Cloudflare server (Sprint 3).
+
+Build settings (`--dart-define`): `API_BASE` (default: the live Worker; the emulator test uses `http://10.0.2.2:8787`),
+`GOOGLE_SERVER_CLIENT_ID` (the Google OAuth Web client; empty = the Google button says it isn't set up). Every build is
+signed with the upload key (local: `android/key.properties`, git-ignored; CI: the `ANDROID_KEYSTORE_B64` /
+`ANDROID_KEYSTORE_PASSWORD` secrets), so Google sign-in sees one SHA-1 everywhere. `lib/api.dart`, `lib/account.dart`
+and `lib/account_screens.dart` are the account side.
 
 ```bash
 flutter pub get        # also generates the strings (lib/l10n/*.arb -> app_localizations.dart)
