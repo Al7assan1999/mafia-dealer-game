@@ -71,6 +71,8 @@ void main() {
     // the request reaches A live, through the hub socket
     for (var i = 0; i < 100 && account.unread == 0; i++) { await t.pump(const Duration(milliseconds: 100)); }
     expect(account.unread, 1);
+    // the note makes the app reload the friend lists: give that a moment
+    for (var i = 0; i < 50 && account.incoming.isEmpty; i++) { await t.pump(const Duration(milliseconds: 100)); }
     expect(account.incoming.map((p) => p.handle), ['b_$run']);
     await tapKey(t, 'friends');
     await tapKey(t, 'tabRequests');
