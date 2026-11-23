@@ -74,6 +74,8 @@ void main() {
     // the note makes the app reload the friend lists: give that a moment
     for (var i = 0; i < 50 && account.incoming.isEmpty; i++) { await t.pump(const Duration(milliseconds: 100)); }
     expect(account.incoming.map((p) => p.handle), ['b_$run']);
+    // the live request also popped the N5 banner over the top icons for 6 s: close it, as a person would
+    if (find.byKey(const Key('bannerClose')).evaluate().isNotEmpty) await tapKey(t, 'bannerClose');
     await tapKey(t, 'friends');
     await tapKey(t, 'tabRequests');
     await tapKey(t, 'accept_b_$run');
