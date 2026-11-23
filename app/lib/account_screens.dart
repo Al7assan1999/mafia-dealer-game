@@ -105,7 +105,7 @@ class AccountBar extends StatelessWidget {
           const Spacer(),
           IconButton(key: const Key('friends'), tooltip: l.friendsT, onPressed: () => go(FriendsScreen(account: a)),
               icon: Badge(isLabelVisible: a.incoming.isNotEmpty, label: Text('${a.incoming.length}'), child: Icon(Icons.group_outlined, color: C.mute))),
-          IconButton(key: const Key('bell'), tooltip: l.notifT, onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: a)),
+          IconButton(key: const Key('bell'), tooltip: l.notifT, onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true, builder: (_) => BellSheet(account: a)),
               icon: Badge(isLabelVisible: a.unread > 0, label: Text('${a.unread}'), child: Icon(Icons.notifications_none, color: C.mute))),
         ]);
       });
@@ -694,7 +694,7 @@ class _NoteBannerState extends State<NoteBanner> {
         case 'friend_request':
           await a.accept(n.from.id).catchError((_) {});
         default:
-          if (nav != null && nav.mounted) showModalBottomSheet(context: nav, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: a));
+          if (nav != null && nav.mounted) showModalBottomSheet(context: nav, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true, builder: (_) => BellSheet(account: a));
       }
     }
     final label = switch (n.kind) { 'invite' || 'let_in' => l.bJoin, 'join_request' => l.letIn, 'friend_request' => l.fAccept, _ => l.bOpen };

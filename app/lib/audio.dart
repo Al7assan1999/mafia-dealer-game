@@ -36,8 +36,9 @@ class Audio {
   static AudioPlayer _player() => AudioPlayer()..positionUpdater = null;
 
   // ---------------------------------------------------------------- sound effects
-  void sfx(String name, [double delay = 0]) {
-    if (silent || muted || prefs.sfx <= 0) return;
+  /// `always`: also when this phone's narration is off (a buzz or a ping, R7).
+  void sfx(String name, [double delay = 0, bool always = false]) {
+    if (silent || (muted && !always) || prefs.sfx <= 0) return;
     Future.delayed(Duration(milliseconds: (delay * 1000).round()), () async {
       try {
         final p = _player();

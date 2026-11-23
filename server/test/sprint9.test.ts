@@ -60,9 +60,9 @@ describe('bell history (Sprint 10 N8: 30 days, at most 200, read state of its ow
     await DB().prepare("INSERT INTO notifications (id, user_id, from_id, kind, room_code, created_at, expires_at) VALUES ('i1', ?, ?, 'invite', '123456', ?, ?)")
       .bind(a.id, a.id, t.clock.t - 3600e3, t.clock.t - 1800e3).run();
     expect((await t.call('GET', '/v1/notifications', { token: a.token })).json.notifications[0]).toMatchObject({ kind: 'invite', result: 'expired' });
-    expect((await t.call('POST', '/v1/me/push/test', { token: a.token })).json).toEqual({ devices: 0, thisPhone: false });
+    expect((await t.call('POST', '/v1/me/push/test', { token: a.token })).json).toEqual({ devices: 0, thisPhone: false, canSend: false });
     await t.call('PUT', '/v1/me/push', { token: a.token, body: { token: 'x'.repeat(30), lang: 'en' } });
-    expect((await t.call('POST', '/v1/me/push/test', { token: a.token })).json).toEqual({ devices: 1, thisPhone: true });
+    expect((await t.call('POST', '/v1/me/push/test', { token: a.token })).json).toEqual({ devices: 1, thisPhone: true, canSend: false });
     expect(t.pushes.at(-1)).toMatchObject({ body: 'Notifications work on this phone ✓', channel: 'friends' });
   });
 });

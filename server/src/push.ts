@@ -104,7 +104,7 @@ pushRoutes.post('/test', async c => {
   const n = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM push_tokens WHERE user_id = ?').bind(c.var.user.id).first<{ n: number }>();
   const mine = await c.env.DB.prepare('SELECT 1 FROM push_tokens WHERE session_id = ?').bind(c.var.sid).first();
   await sendPush(c.env, c.var.deps, c.var.user.id, 'test', { tag: 'test', data: {} });
-  return c.json({ devices: n?.n ?? 0, thisPhone: !!mine });
+  return c.json({ devices: n?.n ?? 0, thisPhone: !!mine, canSend: !!c.env.FCM_SERVICE_ACCOUNT });  // [R6] no key: nothing goes out
 });
 pushRoutes.delete('/', async c => {
   await c.env.DB.prepare('DELETE FROM push_tokens WHERE session_id = ?').bind(c.var.sid).run();

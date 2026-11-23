@@ -17,6 +17,8 @@ abstract class PushService {
   Future<Map<String, String>?> initial();
   /// Notifications tapped while the app was in the background.
   Stream<Map<String, String>> get opened;
+  /// [R6] Pushes that arrive while the app is open: Android doesn't show those, the app gets them here.
+  Stream<Map<String, String>> get received;
   /// Follows (or stops following) a topic: `updates` for new versions, no account needed.
   Future<void> topic(String name, bool on);
 }
@@ -42,6 +44,8 @@ class FcmPush implements PushService {
   Future<Map<String, String>?> initial() async => (await _m.getInitialMessage())?.data.map((k, v) => MapEntry(k, '$v'));
   @override
   Stream<Map<String, String>> get opened => FirebaseMessaging.onMessageOpenedApp.map((m) => m.data.map((k, v) => MapEntry(k, '$v')));
+  @override
+  Stream<Map<String, String>> get received => FirebaseMessaging.onMessage.map((m) => m.data.map((k, v) => MapEntry(k, '$v')));
   @override
   Future<void> topic(String name, bool on) async { try { on ? await _m.subscribeToTopic(name) : await _m.unsubscribeFromTopic(name); } catch (_) {} }
 }

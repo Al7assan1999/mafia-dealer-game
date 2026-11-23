@@ -86,6 +86,27 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 }
 
+// ---------------------------------------------------------------- buzz and ping (R7)
+/// Bumped by every buzz / ping that arrives: [BuzzFlash] flashes the screen red.
+final buzzFlash = ValueNotifier<int>(0);
+/// A buzz or a ping arriving, as the old app's buzzFx: a double vibration, the hit sound (even with narration off on this
+/// phone) and a red flash.
+void buzzFx(Audio? audio) {
+  const MethodChannel('mafia/keep').invokeMethod('vibrate').catchError((_) { HapticFeedback.heavyImpact(); return null; });
+  audio?.sfx('hit_good', 0, true);
+  buzzFlash.value++;
+}
+
+/// The red flash over every screen (MaterialApp.builder).
+class BuzzFlash extends StatelessWidget {
+  const BuzzFlash({super.key});
+  @override
+  Widget build(BuildContext context) => IgnorePointer(child: ValueListenableBuilder(valueListenable: buzzFlash, builder: (context, n, _) => n == 0
+      ? const SizedBox.shrink()
+      : TweenAnimationBuilder<double>(key: ValueKey(n), tween: Tween(begin: .35, end: 0), duration: const Duration(milliseconds: 450),
+          builder: (context, o, _) => ColoredBox(color: C.red.withValues(alpha: o), child: const SizedBox.expand()))));
+}
+
 // ---------------------------------------------------------------- minimize (S9-1)
 /// The room this phone stays in while it goes Home from the lobby: the connection outlives the room screen. The room bar
 /// leads back; dealing the roles pulls the player back; a kick or a closed room is told on whatever screen is open.
@@ -100,11 +121,21 @@ class ActiveRoom extends ChangeNotifier {
   bool lanHost = false, lan = false;
   RoomScreen Function(RoomConn c)? _reopen; // the same room screen again, on the same connection
   VoidCallback? _onLeave; // Wi-Fi host: stop the server when the room is left for good
+  StreamSubscription<Map<String, Object?>>? _side;
   bool get minimized => conn != null;
 
-  void hold(RoomConn c, String code, RoomScreen Function(RoomConn c) reopen, {bool lanHost = false, bool lan = false, VoidCallback? onLeave}) {
+  void hold(RoomConn c, String code, RoomScreen Function(RoomConn c) reopen, {bool lanHost = false, bool lan = false, VoidCallback? onLeave, Audio? audio}) {
     conn = c; this.code = code; this.lanHost = lanHost; this.lan = lan; _reopen = reopen; _onLeave = onLeave;
     c.addListener(_watch);
+    // [R7] a buzz or a ping reaches me on Home too (the old app's minimized room did the same)
+    _side = c.side.listen((m) {
+      final ctx = navigatorKey.currentContext;
+      if (m['t'] != 'buzz' && m['t'] != 'ping') return;
+      if (ctx == null || !ctx.mounted) return;
+      final l = L.of(ctx), who = c.members.where((x) => x['uid'] == m['from']).firstOrNull?['display'] as String?;
+      buzzFx(audio);
+      messengerKey.currentState?.showSnackBar(SnackBar(content: Text(m['t'] == 'buzz' ? l.buzzed(who ?? '?') : l.pingedYou)));
+    });
     notifyListeners();
   }
 
@@ -149,6 +180,7 @@ class ActiveRoom extends ChangeNotifier {
   void _drop({required bool dispose}) {
     final c = conn;
     c?.removeListener(_watch);
+    _side?.cancel(); _side = null;
     conn = null; _reopen = null; _onLeave = null;
     if (dispose) Future.delayed(const Duration(milliseconds: 300), () => c?.dispose()); // the goodbye goes out first
     notifyListeners();
@@ -174,9 +206,8 @@ Future<bool> leaveRoomFirst(BuildContext context) async {
 
 /// The room bar on every screen while minimized (MaterialApp.builder puts it above the pages).
 class RoomBarFrame extends StatelessWidget {
-  const RoomBarFrame({super.key, required this.child, this.onLongPress, this.account});
+  const RoomBarFrame({super.key, required this.child, this.onLongPress});
   final Widget child;
-  final Account? account; // the chat button (N7)
   final void Function(BuildContext context)? onLongPress; // P4: the friends drawer with Invite ready
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: ActiveRoom.instance, builder: (context, _) {
@@ -192,16 +223,33 @@ class RoomBarFrame extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(child: Text(mine ? l.roomBarHost(n) : l.roomBarIn((host?['display'] as String?) ?? '?', n),
                   style: TextStyle(color: C.priText, fontWeight: FontWeight.w700))),
-              // [N7] the room chat straight from Home, without going back to the room
-              if (account != null) IconButton(key: const Key('barChat'), visualDensity: VisualDensity.compact,
-                  icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.priText, size: 20)),
-                  onPressed: () => ActiveRoom.navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: account!, out: false, safety: !a.lan)))),
               const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: C.priText),
             ])),
           ))),
           Expanded(child: MediaQuery.removePadding(context: context, removeTop: true, child: child)),
         ]);
+      });
+}
+
+/// [R1] The minimized room's chat on Home, under the friends tab (it was on the red bar at the top, N7), with the unread
+/// count. Shown signed out too (a guest minimized in a Wi-Fi room).
+class RoomChatButton extends StatelessWidget {
+  const RoomChatButton({super.key, required this.account});
+  final Account account;
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: ActiveRoom.instance, builder: (context, _) {
+        final a = ActiveRoom.instance, c = a.conn;
+        if (c == null || !a.minimized) return const SizedBox.shrink();
+        return ListenableBuilder(listenable: c, builder: (context, _) => Material(
+          color: C.card2, elevation: 6,
+          shape: RoundedRectangleBorder(side: BorderSide(color: C.red),
+              borderRadius: BorderRadiusDirectional.horizontal(start: Radius.circular(C.neon ? 18 : 6)).resolve(Directionality.of(context))),
+          child: InkWell(key: const Key('barChat'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: account, out: false, safety: !a.lan))),
+            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10), child: Semantics(label: L.of(context).chatT, child: Badge(
+                isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.text, size: 22)))))),
+        );
       });
 }
 
@@ -273,7 +321,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _minimized = true;
     final w = widget;
     ActiveRoom.instance.hold(c, w.code, (conn) => RoomScreen(account: w.account, prefs: w.prefs, audio: w.audio, code: w.code, connect: w.connect,
-        api: w.api, lan: w.lan, lanHost: w.lanHost, relocate: w.relocate, onClose: w.onClose, existing: conn), lanHost: w.lanHost, lan: w.lan, onLeave: w.onClose);
+        api: w.api, lan: w.lan, lanHost: w.lanHost, relocate: w.relocate, onClose: w.onClose, existing: conn), lanHost: w.lanHost, lan: w.lan, onLeave: w.onClose, audio: w.audio);
     Navigator.of(context).pop();
   }
 
@@ -311,7 +359,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (m['t'] == 'buzz') {
       final who = c.members.where((x) => x['uid'] == m['from']).firstOrNull;
       toast(context, l.buzzed((who?['display'] as String?) ?? '?'));
-      HapticFeedback.heavyImpact();
+      buzzFx(audio); // R7
     } else if (m['t'] == 'record' && widget.lan) {
       // a Wi-Fi game ended: this phone keeps it (History → Wi-Fi)
       final seats = (m['seats'] as List).cast<String>();
@@ -323,8 +371,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       toast(context, l.mentionedYou(c.members.where((x) => x['cn'] == m['from']).firstOrNull?['display'] as String? ?? '?'));
       HapticFeedback.mediumImpact();
     } else if (m['t'] == 'ping') {
-      toast(context, l.pinged);
-      HapticFeedback.mediumImpact();
+      toast(context, l.pingedYou);
+      buzzFx(audio); // R7
     }
   }
 
@@ -424,8 +472,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   if (!widget.lan) widget.prefs.narrate = !audio.muted; // online: remembered; Wi-Fi: this room only
                   if (audio.muted) audio.stop();
                 })),
-            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'buzz'}))),
-            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'ping'}))),
+            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'buzz'}); toast(context, l.buzzSent); })),
+            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })),
             if (c.room != null && c.view == null && c.bye == null)
               IconButton(key: const Key('minimize'), tooltip: l.minimize, icon: Icon(Icons.home_outlined, color: C.mute), onPressed: _minimize),
             IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: Icon(Icons.logout, color: C.mute), onPressed: _leave),
@@ -517,8 +565,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             if (await ask(context, l.closeRoomQ, l.closeRoomD, l.closeRoom)) c.send({'t': 'close'});
           })),
         ]),
-      ] else
+      ] else ...[
         Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
+        const SizedBox(height: 10),
+        // [R7] the old app's "Buzz the host" while waiting; muted at the host's limit
+        if (c.members.any((m) => m['uid'] == c.myUid && m['muted'] == true))
+          Text(l.buzzMutedMe, key: const Key('buzzMuted'), textAlign: TextAlign.center, style: TextStyle(color: C.dim))
+        else
+          Btn(l.buzz, key: const Key('buzzHost'), icon: Icons.campaign_outlined, onTap: _h(() { c.send({'t': 'buzz'}); toast(context, l.buzzSent); })),
+      ],
     ], children: [
       Sec(child: Column(children: [
         Text(widget.code, key: const Key('code'), style: head.copyWith(fontSize: 44, letterSpacing: 10, color: C.gold)),
@@ -532,7 +587,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           }),
         ]),
       ])),
-      Sec(title: l.membersN(ms.length), child: Column(children: [for (final m in ms) _member(l, m, host)])),
+      // [R7] the old app's "Ping everyone" on the player list's title row
+      Sec(title: l.membersN(ms.length), action: host && ms.length > 1 ? TextButton.icon(key: const Key('pingAll'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
+            onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })) : null,
+          child: Column(children: [for (final m in ms) _member(l, m, host)])),
       DeckEditor(players: ms.length, counts: v.counts, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
     ]);

@@ -12,6 +12,7 @@ export interface Env {
   RESEND_API_KEY?: string;     // secret
   ADMIN_IDS?: string;          // secret: comma-separated account ids that moderate reports
   FCM_SERVICE_ACCOUNT?: string; // secret: the Google service account JSON that sends pushes (none: no pushes)
+  OLD_RELAY?: Fetcher;         // service binding to the old app's relay (read only: its Group history, S8-3 / R4)
   MAIL_LOG?: string;           // local tests only (`wrangler dev --var MAIL_LOG:1`): print codes instead of sending
 }
 export interface GoogleId { sub: string; email: string; name: string }

@@ -35,6 +35,18 @@ persona's work is labeled with its name, and the roles hold each other to accoun
 - **Exploratory session** on the emulator when one is available: drive the real app like a tester (taps, back,
   rotation off, airplane mode, app killed), with screenshots, beyond the scripted paths.
 - Run the whole suite and the build; fix regressions until everything is green; block the release otherwise.
+- **The QA checklist** (added 2026-11-23 after his two-phone playtest found R2, R4, R6, R7 that every test had passed):
+  - **Anything that talks to the outside world is tried for real at least once**, not only against a fake: a real push
+    on the emulator (app open *and* closed), the old-relay import against the deployed Worker, sign-in. A fake proves
+    our code; it can't prove Cloudflare, Firebase or Android behave the way the fake does.
+  - **Every sheet and screen at real phone insets** (status bar, notch, gesture bar), not only the test's bare
+    rectangle; the emulator screenshot is the judge.
+  - **Old-app parity per screen:** before passing a screen, list what the old app had on it (`../mafia-dealer`) and
+    check each item is there and reachable where the old app had it (buzz in the lobby, not hidden in a game bar).
+  - **Two phones:** every social feature (friends, invites, chat, buzz, push) is tried app-to-app on the emulator with a
+    scripted second player, from both sides.
+  - **Feel is tested on a compiled build** (profile or release), never judged on a debug build.
+  - The report says plainly which items were tried for real and which only against fakes.
 
 ## 4. [BA] acceptance review, then the Sprint Release Report
 - The BA checks the result against each acceptance criterion (accepted, or sent back with a reason).

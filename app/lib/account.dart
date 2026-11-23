@@ -312,8 +312,11 @@ class Account extends ChangeNotifier {
     _tokenSub = p?.tokenRefresh.listen((_) => _pushRegister());
     p?.initial().then((d) { if (d != null) pushOpened(d); });
     p?.opened.listen(pushOpened);
+    p?.received.listen((d) => pushReceived.value = d);
     _pushRegister();
   }
+  /// [R6] The last push that arrived while the app was open (Settings' test notification waits for it).
+  final pushReceived = ValueNotifier<Map<String, String>?>(null);
   /// The home screen opens what a tapped notification is about; one tapped before it was ready waits for it.
   set onPushOpen(void Function(Map<String, String> data)? f) {
     _onOpen = f;

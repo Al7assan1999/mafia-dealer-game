@@ -57,6 +57,19 @@ jobs:
           echo "file=$RUNNER_TEMP/$n" >> "$GITHUB_OUTPUT"; echo "name=${n%.apk}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with: { name: '${{ steps.apk.outputs.name }}', path: '${{ steps.apk.outputs.file }}', retention-days: 14 }
+      # [R9] the same build as a release APK for arm64 phones (every phone of the last years): ≈25 MB and full speed, to
+      # judge smoothness. The debug APK above (≈200 MB, every processor, slow on purpose) stays for debugging.
+      - name: Release APK (arm64)
+        id: rel
+        working-directory: app
+        run: |
+          v=$(grep -E '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)
+          flutter build apk --release --split-per-abi --target-platform android-arm64 --build-number=${{ github.run_number }}             --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID" --dart-define=VERSION="$v" --dart-define=BUILD=${{ github.run_number }}
+          n="MafiaDealer-PartyGame-$v-b${{ github.run_number }}-release-arm64.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$RUNNER_TEMP/$n"
+          echo "file=$RUNNER_TEMP/$n" >> "$GITHUB_OUTPUT"; echo "name=${n%.apk}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with: { name: '${{ steps.rel.outputs.name }}', path: '${{ steps.rel.outputs.file }}', retention-days: 14 }
 
   # On a real Android emulator: a whole offline game, Back and a cold start; accounts and friends against a local
   # Worker (wrangler dev on the runner, reached from the emulator as 10.0.2.2; codes readable in local test mode).

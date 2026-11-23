@@ -10,8 +10,11 @@ import { oldNameOwners } from './stats.ts';
 export const OLD_RELAY = 'https://mafia-relay.mafiadealer.workers.dev';
 /** Reads an old group: { exists, games }. Tests pass a fake. */
 export type OldGroupReader = (env: Env, code: string) => Promise<{ exists: boolean; games: unknown[] }>;
-export const relayReader: OldGroupReader = async (_env, code) => {
-  const r = await fetch(`${OLD_RELAY}/g/${code}`, { headers: { 'user-agent': 'mafia-dealer-game-import' } });
+// [R4] Cloudflare refuses a fetch from one Worker to another on the same account's workers.dev (error 1042), so in
+// production the old relay is reached through the service binding OLD_RELAY; local dev (no binding) uses the URL.
+export const relayReader: OldGroupReader = async (env, code) => {
+  const req = new Request(`${OLD_RELAY}/g/${code}`, { headers: { 'user-agent': 'mafia-dealer-game-import' } });
+  const r = await (env.OLD_RELAY ? env.OLD_RELAY.fetch(req) : fetch(req));
   if (!r.ok) throw new Error('old relay ' + r.status);
   return await r.json() as { exists: boolean; games: unknown[] };
 };

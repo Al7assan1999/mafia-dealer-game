@@ -11,6 +11,7 @@ import 'account.dart';
 import 'account_screens.dart';
 import 'api.dart';
 import 'l10n/app_localizations.dart';
+import 'online.dart' show onlineLobby;
 import 'ui.dart';
 
 String _pct(num w, num g) => g == 0 ? '–' : '${(w / g * 100).round()}%';
@@ -220,21 +221,76 @@ class _PlayerState extends State<PlayerScreen> {
     );
   }
 
-  /// A player with no counted games: their card and "No games yet".
+  /// [R3] Who this is, live from my friends list when they're a friend (a lobby passes a bare card), and how we're related.
+  Person? get _who {
+    final f = widget.person, a = widget.account;
+    if (f == null) return null;
+    return a.friends.where((x) => x.id == f.id).firstOrNull ?? a.incoming.where((x) => x.id == f.id).firstOrNull ?? a.outgoing.where((x) => x.id == f.id).firstOrNull ?? f;
+  }
+  String _rel(Person f) {
+    final a = widget.account;
+    if (f.id == a.me?['id']) return 'me';
+    if (a.friends.any((x) => x.id == f.id)) return 'friends';
+    if (a.outgoing.any((x) => x.id == f.id)) return 'requested';
+    if (a.incoming.any((x) => x.id == f.id)) return 'incoming';
+    return f.rel == 'me' ? 'me' : 'none';
+  }
+
+  Future<void> _act(Future<void> Function() f, String done) async {
+    final l = L.of(context);
+    try { await f(); if (mounted) { toast(context, done); setState(() {}); } } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
+  }
+
+  /// [R3] A player with no counted games still gets a whole profile: who, status, friendship, what I can do, and the
+  /// stat tiles empty ("–") so it reads as their page, not an empty one.
   Widget _nobody(L l) {
-    final f = widget.person;
+    final f = _who;
+    Widget tile(String k) => Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(k.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
+            Text('–', style: head.copyWith(fontSize: 19, color: C.dim)),
+            Text(l.winsShort(0, 0), style: TextStyle(color: C.dim, fontSize: 12)),
+          ]),
+        );
     return ListView(padding: const EdgeInsets.all(16), children: [
-      if (f != null) Row(children: [
-        AvatarView.of(widget.account.api, f, size: 56, online: f.rel == 'friends' ? f.online : null),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(f.display, style: head.copyWith(fontSize: 22)),
-          if (f.handle != null) Text(atHandle(f.handle), style: TextStyle(color: C.mute)),
-          if (f.fav.isNotEmpty) Text(roleName(l, Role.values.byName(f.fav)), style: TextStyle(color: roleColor(Role.values.byName(f.fav)))),
-        ])),
-      ]),
-      Padding(padding: const EdgeInsets.symmetric(vertical: 40), child: Text(l.noGamesYet, key: const Key('noGamesYet'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
+      if (f != null) ..._header(l, f),
+      const SizedBox(height: 18),
+      tile(l.winRate),
+      const SizedBox(height: 8),
+      _pairs([tile(l.bestRole), tile(l.asMafiaT), tile(l.asTownT)]),
+      Padding(padding: const EdgeInsets.only(top: 24), child: Text(l.noGamesYet, key: const Key('noGamesYet'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 18, color: C.mute))),
+      Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.pNoGamesD, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
     ]);
+  }
+
+  List<Widget> _header(L l, Person f) {
+    final a = widget.account, rel = _rel(f), friend = rel == 'friends', lobby = onlineLobby();
+    final status = !friend ? null : !f.online ? l.fOffline : f.status == 'game' ? l.fInGame : f.status == 'lobby' ? l.fInRoom : l.fOnline;
+    final statusColor = !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green;
+    final fav = f.fav.isEmpty ? null : Role.values.byName(f.fav);
+    return [
+      Center(child: AvatarView.of(a.api, f, size: 96, online: friend ? f.online : null)),
+      const SizedBox(height: 12),
+      Text(f.display, key: const Key('profileName'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 26)),
+      if (f.handle != null) Text(atHandle(f.handle), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
+      const SizedBox(height: 10),
+      Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 6, children: [
+        if (status != null) Chip(key: const Key('profileStatus'), avatar: Icon(Icons.circle, size: 10, color: statusColor), label: Text(status), visualDensity: VisualDensity.compact),
+        if (friend) Chip(avatar: Icon(Icons.people_alt_outlined, size: 16, color: C.green), label: Text(l.friendsT), visualDensity: VisualDensity.compact),
+        if (fav != null) Chip(avatar: Icon(roleIcon(fav), size: 16, color: roleColor(fav)), label: Text(roleName(l, fav)), visualDensity: VisualDensity.compact),
+      ]),
+      const SizedBox(height: 12),
+      if (rel == 'none' && f.handle != null)
+        Btn(l.pAddFriend, key: const Key('profileAdd'), icon: Icons.person_add_alt, onTap: () => _act(() async { await a.request(f.handle!); }, l.fReqSent(atHandle(f.handle)))),
+      if (rel == 'requested') Text(l.pRequested, key: const Key('profileRequested'), textAlign: TextAlign.center, style: TextStyle(color: C.gold)),
+      if (rel == 'incoming') Btn(l.fAccept, key: const Key('profileAccept'), icon: Icons.check, onTap: () => _act(() => a.accept(f.id), l.fNowFriends(f.display))),
+      if (friend && lobby != null && !lobby.members.any((m) => m['uid'] == f.id))
+        Btn(l.invite, key: const Key('profileInvite'), ghost: true, icon: Icons.mail_outline, onTap: () => _act(() => a.invite(f.id, lobby.code), l.invited)),
+      if (friend && lobby == null && f.online && f.status == 'lobby' && f.j['op'] == true && a.roomCode == null)
+        Btn(l.askJoin, key: const Key('profileAsk'), ghost: true, icon: Icons.login, onTap: () => _act(() => a.askToJoin(f.id), l.asked)),
+    ];
   }
 
   /// The shareable part: who, the win rate and the four headline numbers.

@@ -20,6 +20,8 @@
   },
   // the free plan needs SQLite-backed Durable Objects
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "Hub"] }],
+  // [R4] the old app's relay, read once per import (a fetch to another workers.dev Worker of this account is refused)
+  "services": [{ "binding": "OLD_RELAY", "service": "mafia-relay" }],
   // hourly: expire Wi-Fi requests nobody finished confirming (src/wifi.ts)
   "triggers": { "crons": ["23 * * * *"] },
   "vars": {

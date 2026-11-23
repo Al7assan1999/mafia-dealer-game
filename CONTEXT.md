@@ -152,4 +152,22 @@ files are copied from there only when a phase needs them.
    Next: Sprint 10 (the intro), groups, Play last.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
+   **Sprint 10, the intro + playtest fixes N1–N8** committed a835b23, released **v0.3.0** (build 100002). The CI
+   emulator failure after it was the N5 banner catching a test's "close the sheet" tap, not the intro
+   (`docs/sprint-10-report.md`).
+   **Sprint 11, his two-phone notes R1–R12** (`docs/sprint-11-prd.md`, approved in advance; built 2026-11-23, not
+   committed): chat button under the friends tab (R1); sheets clear of the status bar (R2); a whole profile with no
+   games (R3); the old-history import through the **service binding `OLD_RELAY` → `mafia-relay`** (Cloudflare refuses
+   Worker-to-Worker fetches on one account's workers.dev, error 1042) (R4); Telegram-style swipe (R5); pushes caught
+   while the app is open + the server's `canSend` (R6); buzz / ping in the lobby as the old app, with vibration, sound
+   and flash, also minimized (R7); CI uploads debug + release-arm64 APKs, Releases ship one APK per processor and the
+   updater picks by `Abi` (R9); a QA checklist in `docs/team-workflow.md` (R10). Answers on chat storage (R8) and
+   Cloudflare usage (R11) in `docs/sprint-11-report.md`. QA runs **profile builds** on the emulator (the profile
+   manifest allows `10.0.2.2`, as debug does). To confirm after a deploy: R4 with a real old code, R6 with a real push.
 5. Play readiness. 6. Migration of old users (optional).
+
+## Later (his list, 2026-11-23)
+- **New roles and game flows, only after the old app is fully revamped:** the Sniper, the Good Son, the Chief of
+  Mafia (when there's more than one Mafia), the Joker (wins with either side; his biggest win is being voted out),
+  and more.
+- Groups (his prompt). Old players' history once his friends sign up (names → @handles). Google Play last.

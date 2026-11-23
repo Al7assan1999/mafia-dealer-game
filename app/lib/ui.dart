@@ -152,8 +152,9 @@ class Btn extends StatelessWidget {
 
 /// A card section with an optional title.
 class Sec extends StatelessWidget {
-  const Sec({super.key, this.title, required this.child, this.color});
+  const Sec({super.key, this.title, required this.child, this.color, this.action});
   final String? title;
+  final Widget? action; // on the title's row, at its end (R7: Ping everyone)
   final Widget child;
   final Color? color;
 
@@ -166,8 +167,10 @@ class Sec extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              if (title != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(C.neon ? title! : title!.toUpperCase(),
-                  style: head.copyWith(fontSize: 14, color: C.mute, letterSpacing: C.neon ? 1 : 2))),
+              if (title != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [
+                Expanded(child: Text(C.neon ? title! : title!.toUpperCase(), style: head.copyWith(fontSize: 14, color: C.mute, letterSpacing: C.neon ? 1 : 2))),
+                ?action,
+              ])),
               child,
             ]),
           ),

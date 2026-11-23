@@ -19,7 +19,7 @@ class FriendsTab extends StatefulWidget {
   final Prefs prefs;
   final Audio audio;
   final RoomConn? room; // the online lobby on screen (null on Home: the minimized room, if any, is used)
-  final Widget? extra; // the room's chat button, in the same column
+  final Widget? extra; // [R1] the minimized room's chat button, under the tab (shown signed out too)
   @override
   State<FriendsTab> createState() => _FriendsTabState();
 }
@@ -30,7 +30,7 @@ class _FriendsTabState extends State<FriendsTab> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: widget.account, builder: (context, _) {
         final a = widget.account;
-        if (!a.signedIn) return const SizedBox.shrink();
+        if (!a.signedIn && widget.extra == null) return const SizedBox.shrink();
         final online = a.friends.where((f) => f.online).toList(), reqs = a.incoming.length;
         return LayoutBuilder(builder: (context, box) {
           // [QA] S9 #3: never over the top icon row; by default right under it, clear of the first Home button (the old v2.9.2 fix)
@@ -38,7 +38,7 @@ class _FriendsTabState extends State<FriendsTab> {
           final top = above + (box.maxHeight - above - 160) * y.clamp(0, 1);
           return Stack(children: [
             PositionedDirectional(end: 0, top: top, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              GestureDetector(
+              if (a.signedIn) GestureDetector(
                 key: const Key('friendsTab'),
                 onTap: () => openFriendsDrawer(context, account: a, prefs: widget.prefs, audio: widget.audio, room: widget.room),
                 onHorizontalDragEnd: (d) {
@@ -59,7 +59,7 @@ class _FriendsTabState extends State<FriendsTab> {
                   ]),
                 ),
               ),
-              if (widget.extra != null) Padding(padding: const EdgeInsets.only(top: 8), child: widget.extra!),
+              if (widget.extra != null) Padding(padding: EdgeInsets.only(top: a.signedIn ? 8 : 0), child: widget.extra!),
             ])),
           ]);
         });

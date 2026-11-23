@@ -553,7 +553,7 @@
       }
     }
   },
-  "kickD": "During a game this counts as their elimination, and they can't come back.",
+  "kickD": "During a game this counts as their elimination. They can't come back in with the code; inviting them again lets them back into the lobby.",
   "buzz": "Buzz the host",
   "buzzed": "{n} buzzed you",
   "@buzzed": {
@@ -718,7 +718,7 @@
   "secretVoteOnlineD": "Everyone votes on their own phone; the votes stay hidden until the result.",
   "tableVoteOnline": "Table vote (everyone sees)",
   "tableVoteOnlineD": "Everyone sees the votes as they come in.",
-  "playersCount": "{n} players",
+  "playersCount": "{n, plural, =1{1 player} other{{n} players}}",
   "@playersCount": {
     "placeholders": {
       "n": {
@@ -1142,7 +1142,7 @@
   "ok": "OK",
   "retry": "Try again",
   "minimize": "Go Home (stay in the room)",
-  "roomBarHost": "Your room · {n} players",
+  "roomBarHost": "Your room · {n, plural, =1{1 player} other{{n} players}}",
   "@roomBarHost": {
     "placeholders": {
       "n": {
@@ -1195,7 +1195,7 @@
   "noGamesYet": "No games yet",
   "markAllRead": "Mark all as read",
   "sTestPush": "Send me a test notification",
-  "testSent": "Sent. It should arrive in a few seconds (with the app closed or open).",
+  "testSent": "Sent. Waiting for it to arrive on this phone…",
   "testNotHere": "This phone isn't registered for notifications yet. Allow notifications for Mafia Dealer, then open the app again.",
   "bJoin": "Join",
   "bOpen": "Open",
@@ -1218,5 +1218,15 @@
   "iSoundOff": "Sound off",
   "sIntro": "Show the intro at start",
   "sIntroD": "The short story before Home, every time the app opens.",
-  "sWatchIntro": "Watch the intro"
+  "sWatchIntro": "Watch the intro",
+  "testArrived": "Arrived on this phone ✓ Notifications work. With the app closed they show in the notification bar.",
+  "testNoArrive": "Nothing arrived in 15 seconds. Check that notifications for Mafia Dealer are allowed (Notification settings below), then try again.",
+  "buzzSent": "Buzz sent",
+  "buzzMutedMe": "The host muted your buzzes.",
+  "pingedYou": "The host pinged you!",
+  "pingSent": "Everyone was pinged",
+  "pAddFriend": "Add friend",
+  "pRequested": "Friend request sent",
+  "pNoGamesD": "Their record starts with your first game together.",
+  "testNoServer": "The server can't send notifications right now (it isn't set up for them). This phone is ready."
 }

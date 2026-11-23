@@ -115,7 +115,9 @@ void main() {
     await t.pump(const Duration(milliseconds: 500));
     final notes = (await friend.api.get('/v1/notifications'))['notifications'] as List;
     expect(notes.cast<Map>().any((n) => n['kind'] == 'invite' && n['code'] == code), isTrue, reason: 'the invite reached the friend');
-    await t.tapAt(const Offset(200, 60)); // close the sheet
+    // close the sheet on the dimmed area, below the top: the friend request above pops the N5 banner there, and a tap
+    // at y 60 hit the banner (the sheet stayed over Deal: the CI failure after v0.3.0)
+    await t.tapAt(const Offset(200, 200));
     await friend.join(code);
     bots.add(friend);
     await waitUntil(t, () => conn.members.length == 4, '4 players');

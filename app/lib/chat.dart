@@ -1,6 +1,7 @@
 // The room chat: Everyone and 1:1 conversations, sending with "sending / not sent · retry", replies (swipe or long press),
 // the old app's 30 reactions (quick six first), edits for 15 minutes, @mentions, and block / report from a message.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'account.dart';
 import 'l10n/app_localizations.dart';
@@ -172,12 +173,58 @@ class _ChatState extends State<ChatScreen> {
       onTap: failed ? () => c.retryChat(cid) : null,
       child: bubble,
     );
-    // [N3] swipe anywhere on the message's line, either direction, to reply (like Telegram and the old v2.19.1)
-    return GestureDetector(
+    // [N3] swipe anywhere on the message's line, either direction, to reply; [R5] the message follows the finger (Telegram)
+    return SwipeReply(
       key: Key('row_${m['id'] ?? cid}'),
+      onReply: cid == null ? () => setState(() => replyTo = m) : null,
+      child: Align(alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: w),
+    );
+  }
+}
+
+/// [R5] A message line that slides with a horizontal drag (at most [max] px), a reply arrow fading in behind it; past
+/// [at] px it ticks, and letting go there replies. It springs back either way.
+class SwipeReply extends StatefulWidget {
+  const SwipeReply({super.key, required this.child, this.onReply});
+  final Widget child;
+  final VoidCallback? onReply; // null: not swipeable (a message still sending)
+  static const at = 56.0, max = 72.0;
+  @override
+  State<SwipeReply> createState() => _SwipeReplyState();
+}
+
+class _SwipeReplyState extends State<SwipeReply> {
+  double dx = 0;
+  bool dragging = false;
+
+  void _end() {
+    if (dx.abs() >= SwipeReply.at) widget.onReply?.call();
+    setState(() { dx = 0; dragging = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = (dx.abs() / SwipeReply.at).clamp(0.0, 1.0);
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onHorizontalDragEnd: cid == null ? (d) { if ((d.primaryVelocity ?? 0).abs() > 200) setState(() => replyTo = m); } : null,
-      child: SizedBox(width: double.infinity, child: Align(alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: w)),
+      onHorizontalDragStart: widget.onReply == null ? null : (_) => setState(() => dragging = true),
+      onHorizontalDragUpdate: widget.onReply == null ? null : (d) {
+        final was = dx.abs() >= SwipeReply.at;
+        setState(() => dx = (dx + d.delta.dx).clamp(-SwipeReply.max, SwipeReply.max));
+        if (!was && dx.abs() >= SwipeReply.at) HapticFeedback.selectionClick();
+      },
+      onHorizontalDragEnd: widget.onReply == null ? null : (_) => _end(),
+      onHorizontalDragCancel: widget.onReply == null ? null : _end,
+      child: Stack(alignment: Alignment.center, children: [
+        if (dx != 0) Positioned.fill(child: Align(
+          alignment: dx < 0 ? Alignment.centerRight : Alignment.centerLeft,
+          child: Opacity(opacity: p, child: Transform.scale(scale: .6 + .4 * p, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: CircleAvatar(radius: 15, backgroundColor: C.card2, child: Icon(Icons.reply, size: 18, color: p >= 1 ? C.red2 : C.mute))))))),
+        AnimatedContainer(
+          duration: dragging ? Duration.zero : const Duration(milliseconds: 180), curve: Curves.easeOutBack,
+          transform: Matrix4.translationValues(dx, 0, 0),
+          child: SizedBox(width: double.infinity, child: widget.child)),
+      ]),
     );
   }
 }

@@ -30,6 +30,9 @@ class FakePush implements PushService {
   Future<Map<String, String>?> initial() async => first;
   @override
   Stream<Map<String, String>> get opened => taps.stream;
+  final inApp = StreamController<Map<String, String>>.broadcast();
+  @override
+  Stream<Map<String, String>> get received => inApp.stream;
   final topics = <String, bool>{};
   @override
   Future<void> topic(String name, bool on) async => topics[name] = on;

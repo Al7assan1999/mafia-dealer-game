@@ -4,6 +4,7 @@
 // "Updated to vX" once afterwards, and a push on every release (FCM topic `updates`). Off in the Play build.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -54,6 +55,19 @@ class Release {
   final List<String> notes;
 }
 
+/// [R9] The phone's processor as Android names it in an APK split (Dart's own Abi; no plugin).
+String phoneAbi() => switch (Abi.current()) { Abi.androidArm64 => 'arm64-v8a', Abi.androidArm => 'armeabi-v7a', Abi.androidX64 => 'x86_64', _ => '' };
+
+/// [R9] The release's APK for this processor (`…-arm64-v8a.apk`); else one without a processor in its name (an older
+/// release, one APK for all); else the first. Releases list arm64 first, so 0.3.0 phones (which took the first) get it.
+Map? pickApk(List<Map> assets, String abi) {
+  final apks = assets.where((a) => (a['name'] as String? ?? '').endsWith('.apk')).toList();
+  const abis = ['arm64-v8a', 'armeabi-v7a', 'x86_64'];
+  return apks.where((a) => abi.isNotEmpty && (a['name'] as String).endsWith('-$abi.apk')).firstOrNull
+      ?? apks.where((a) => !abis.any((x) => (a['name'] as String).endsWith('-$x.apk'))).firstOrNull
+      ?? apks.firstOrNull;
+}
+
 class Updater extends ChangeNotifier {
   Updater(this.prefs, {http.Client? client, Installer? installer, int Function()? clock})
       : _http = client ?? http.Client(), installer = installer ?? AndroidInstaller(), _now = clock ?? (() => DateTime.now().millisecondsSinceEpoch) {
@@ -84,6 +98,8 @@ class Updater extends ChangeNotifier {
   }
   Future<void> setAlerts(bool on) async { prefs.updAlerts = on; notifyListeners(); await _topic(); }
 
+  String? abi; // tests set the phone's processor
+
   /// The latest release, if newer than this build. Quiet when offline or rate-limited.
   Future<void> check({bool force = false}) async {
     if (!selfUpdate || appBuild == 0) return; // local builds have no build number to compare
@@ -93,7 +109,7 @@ class Updater extends ChangeNotifier {
       final r = await _http.get(Uri.parse('https://api.github.com/repos/$repo/releases/latest'), headers: {'accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) return;
       final j = jsonDecode(r.body) as Map<String, Object?>, m = RegExp(r'^v?([\d.]+)-b(\d+)$').firstMatch(j['tag_name'] as String? ?? ''); // v0.2.0-b100003
-      final apk = (j['assets'] as List? ?? const []).cast<Map>().where((a) => (a['name'] as String? ?? '').endsWith('.apk')).firstOrNull;
+      final apk = pickApk((j['assets'] as List? ?? const []).cast<Map>(), abi ?? phoneAbi());
       if (m == null || apk == null) return;
       final build = int.parse(m.group(2)!);
       latest = build > appBuild ? Release(m.group(1)!, build, apk['browser_download_url'] as String, j['html_url'] as String? ?? 'https://github.com/$repo/releases',
@@ -182,7 +198,7 @@ class UpdateCard extends StatelessWidget {
 }
 
 Future<void> notesSheet(BuildContext context, String title, List<String> notes) => showModalBottomSheet(
-      context: context, backgroundColor: C.card, isScrollControlled: true,
+      context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true,
       builder: (_) => SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(title, style: head.copyWith(fontSize: 20)),
         const SizedBox(height: 10),

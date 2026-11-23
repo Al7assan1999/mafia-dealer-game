@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -68,11 +70,12 @@ class _AppState extends State<App> {
           scaffoldMessengerKey: ActiveRoom.messengerKey,
           // the room bar while minimized; a long-press opens the friends drawer with Invite ready (P4)
           builder: (context, child) => Stack(children: [
-            RoomBarFrame(account: widget.account, child: child!, onLongPress: (_) {
+            RoomBarFrame(child: child!, onLongPress: (_) {
               final ctx = ActiveRoom.navigatorKey.currentContext;
               if (ctx != null) openFriendsDrawer(ctx, account: widget.account, prefs: prefs, audio: widget.audio);
             }),
             NoteBanner(account: widget.account), // N5: an invite or a request pops up while the app is open
+            const Positioned.fill(child: BuzzFlash()), // R7
           ]),
           theme: noir(),
           locale: Locale(prefs.lang),
@@ -171,7 +174,7 @@ class _HomeBody extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
-    showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: account));
+    showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true, builder: (_) => BellSheet(account: account));
   }
 
   Widget _build(BuildContext context) {
@@ -188,7 +191,7 @@ class _HomeBody extends StatelessWidget {
         Row(children: [
           Expanded(child: AccountBar(account: account)),
           IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: Icon(Icons.settings_outlined, color: C.mute),
-              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account))),
+              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account))),
         ]),
         const SizedBox(height: 24),
         Center(
@@ -278,7 +281,7 @@ class _HomeBody extends StatelessWidget {
           ]);
         }),
       ]),
-      Positioned.fill(child: SafeArea(child: FriendsTab(account: account, prefs: prefs, audio: audio))), // S9-2
+      Positioned.fill(child: SafeArea(child: FriendsTab(account: account, prefs: prefs, audio: audio, extra: RoomChatButton(account: account)))), // S9-2, R1
       ]),
     ));
   }
@@ -297,13 +300,26 @@ class _SettingsState extends State<SettingsSheet> {
   Prefs get prefs => widget.prefs;
   Updater? get updater => widget.updater;
   String? _checked; // the answer to "Check for updates", shown in the sheet ([QA] S8 #7)
+  String? _pushed; // the answer to the test notification (P5), under its own row ([QA] S10)
+  Timer? _pushWait;
+  // [R6] the test push, with the app open, arrives here instead of the notification bar
+  void _arrived() {
+    if (_pushWait == null || widget.account?.pushReceived.value?['kind'] != 'test' || !mounted) return;
+    _pushWait!.cancel(); _pushWait = null;
+    setState(() => _pushed = L.of(context).testArrived);
+  }
+  @override
+  void initState() { super.initState(); widget.account?.pushReceived.addListener(_arrived); }
+  @override
+  void dispose() { widget.account?.pushReceived.removeListener(_arrived); _pushWait?.cancel(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: prefs,
         builder: (context, _) {
           final l = L.of(context);
-          return SafeArea(
+          // [R2] the switch and link rows in the same text size as the other rows (they were a size bigger)
+          return ListTileTheme(data: ListTileThemeData(titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(color: C.text)), child: SafeArea(
             child: SingleChildScrollView( // [QA] S7: with the Notifications row it outgrew a 640 px phone's sheet
               padding: const EdgeInsets.all(16),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -352,12 +368,18 @@ class _SettingsState extends State<SettingsSheet> {
                       style: SegmentedButton.styleFrom(selectedBackgroundColor: C.red, selectedForegroundColor: C.priText, side: BorderSide(color: C.line2)))),
                 const SizedBox(height: 6),
                 if (widget.account?.signedIn == true) ListTile(key: const Key('testPush'), contentPadding: EdgeInsets.zero, title: Text(l.sTestPush),
+                    subtitle: _pushed == null ? null : Text(_pushed!, key: const Key('testPushResult'), style: TextStyle(color: C.gold, fontSize: 12)),
                     trailing: Icon(Icons.send_outlined, color: C.mute, size: 18),
                     onTap: () async {
                       try {
+                        widget.account!.pushReceived.value = null;
                         final r = await widget.account!.testPush();
-                        if (mounted) setState(() => _checked = r['thisPhone'] == true ? l.testSent : l.testNotHere);
-                      } catch (e) { if (mounted) setState(() => _checked = errText(l, e)); }
+                        if (!mounted) return;
+                        final here = r['thisPhone'] == true, server = r['canSend'] != false;
+                        setState(() => _pushed = !here ? l.testNotHere : !server ? l.testNoServer : l.testSent);
+                        _pushWait?.cancel();
+                        _pushWait = here && server ? Timer(const Duration(seconds: 15), () { _pushWait = null; if (mounted) setState(() => _pushed = l.testNoArrive); }) : null;
+                      } catch (e) { if (mounted) setState(() => _pushed = errText(l, e)); }
                     }),
                 ListTile(key: const Key('notifSettings'), contentPadding: EdgeInsets.zero, title: Text(l.sNotif),
                     subtitle: Text(l.sNotifD, style: TextStyle(color: C.dim, fontSize: 12)),
@@ -378,7 +400,7 @@ class _SettingsState extends State<SettingsSheet> {
                 Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sVersion(appVersion, appBuild), key: const Key('version'), style: TextStyle(color: C.dim, fontSize: 12))),
               ]),
             ),
-          );
+          ));
         },
       );
 }

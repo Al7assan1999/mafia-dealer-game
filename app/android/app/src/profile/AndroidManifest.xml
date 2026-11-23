@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- QA: a profile build (compiled like release, never shipped) talks to the local worker at 10.0.2.2, as debug does -->
+    <application android:networkSecurityConfig="@xml/network_security_config"/>
 </manifest>

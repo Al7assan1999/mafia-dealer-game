@@ -184,3 +184,14 @@ describe('importing the old app\'s history', () => {
     expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ZZZZ2345' } })).status).toBe(429);
   });
 });
+
+// [R4] production reached the old relay with a plain fetch, which Cloudflare refuses between Workers of one account
+describe('the old relay reader', () => {
+  it('goes through the OLD_RELAY service binding when there is one', async () => {
+    const { relayReader } = await import('../src/legacy.ts');
+    const urls: string[] = [];
+    const env = { OLD_RELAY: { fetch: async (r: Request) => { urls.push(r.url); return Response.json({ exists: true, games: [] }); } } } as never;
+    expect(await relayReader(env, 'ABCD2345')).toEqual({ exists: true, games: [] });
+    expect(urls).toEqual(['https://mafia-relay.mafiadealer.workers.dev/g/ABCD2345']);
+  });
+});
