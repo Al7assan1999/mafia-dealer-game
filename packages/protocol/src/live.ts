@@ -73,7 +73,7 @@ export type RoomOut =
 
 /** What the hub (one per account, while the app is open) pushes. */
 export type HubOut =
-  | { t: 'presence'; uid: string; on: boolean; st: '' | 'lobby' | 'game'; op: boolean }
+  | { t: 'presence'; uid: string; on: boolean; st: '' | 'lobby' | 'game'; op: boolean; n: number }
   | { t: 'note'; note: Notification }
   | { t: 'unread'; n: number };
 

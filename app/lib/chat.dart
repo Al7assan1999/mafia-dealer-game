@@ -127,7 +127,8 @@ class _ChatState extends State<ChatScreen> {
               IconButton(key: const Key('mentionBtn'), tooltip: l.mention, icon: Icon(Icons.alternate_email, color: C.mute), onPressed: _pickMention),
               Expanded(child: TextField(key: const Key('chatText'), controller: text, maxLength: 200, minLines: 1, maxLines: 4,
                   textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: InputDecoration(hintText: l.typeMsg))),
-              IconButton(key: const Key('chatSend'), icon: Icon(editing != null ? Icons.check : Icons.send, color: C.red2), onPressed: _send),
+              ListenableBuilder(listenable: text, builder: (context, _) => IconButton(key: const Key('chatSend'), // S12-6: dimmed while empty
+                  icon: Icon(editing != null ? Icons.check : Icons.send, color: text.text.trim().isEmpty ? C.dim : C.red2), onPressed: text.text.trim().isEmpty ? null : _send)),
             ]))),
           ]),
         );
@@ -170,7 +171,7 @@ class _ChatState extends State<ChatScreen> {
     final w = GestureDetector(
       key: Key('msg_${m['id'] ?? cid}'),
       onLongPress: cid == null ? () => _menu(m) : null,
-      onTap: failed ? () => c.retryChat(cid) : null,
+      onTap: failed ? () => c.retryChat(cid) : cid == null ? () => _menu(m) : null, // S12-6: a tap opens the menu (Telegram)
       child: bubble,
     );
     // [N3] swipe anywhere on the message's line, either direction, to reply; [R5] the message follows the finger (Telegram)

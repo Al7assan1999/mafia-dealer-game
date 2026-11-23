@@ -11,7 +11,7 @@ import { avatarOf, type Env, type UserRow } from './lib.ts';
 
 interface Member { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; buzz: number; left?: true; v?: number }  // v: the app's build
 interface RoomState {
-  code: string; hostUid: string; members: Member[]; kicked: string[]; nextCn: number;
+  code: string; hostUid: string; members: Member[]; kicked: string[]; nextCn: number; sizeSent?: number;
   rules: Rules; counts: Counts; buzzMax: number; kick?: 'lobby' | 'any';  // kick: S9-4 (missing in older rooms = lobby only)
   deal: number; game: GameState | null; seats: string[]; ready: string[]; gameId: string | null; valid: boolean | null;
   lastActive: number;
@@ -143,10 +143,12 @@ export class Room extends DurableObject<Env> {
       while (st.past.reduce((n, p) => n + p.events.length, 0) > KEEP_EVENTS) st.cut = st.past.shift()!.rev;
     }
     await this.save(st);
-    const now = statusOf(st);
-    if (now !== before) {
-      await this.env.DB.prepare('UPDATE rooms SET status = ? WHERE code = ? AND closed_at IS NULL').bind(now, st.code).run();
-      await Promise.all(st.members.filter(m => !m.left).map(m => setRoom(this.env, m.uid, st.code, now)));
+    const now = statusOf(st), size = st.members.filter(m => !m.left).length;
+    if (now !== before) await this.env.DB.prepare('UPDATE rooms SET status = ? WHERE code = ? AND closed_at IS NULL').bind(now, st.code).run();
+    if (now !== before || st.sizeSent !== size) {  // P3: friends see how many are in the room
+      st.sizeSent = size;
+      await this.save(st);
+      await Promise.all(st.members.filter(m => !m.left).map(m => setRoom(this.env, m.uid, st.code, now, size)));
     }
     await this.schedule(st);
     this.broadcast(st, events, except);
@@ -254,7 +256,7 @@ export class Room extends DurableObject<Env> {
       else for (const p of st.past) if (p.rev > since) this.out(server, { t: 'events', rev: p.rev, events: p.events });
     }
     await this.loadBlocks(st);
-    await setRoom(this.env, user.id, st.code, statusOf(st));
+    await setRoom(this.env, user.id, st.code, statusOf(st), st.members.filter(x => !x.left).length);
     await this.commit(st, before);
     const chat = (await this.ctx.storage.get<ChatState>('chat')) ?? newChat(), w = this.who(st);
     this.out(server, { t: 'chatAll', msgs: chat.msgs.filter(x => canSee(x, m!.cn, w) && !this.hides(st, user.id, x.from)) });

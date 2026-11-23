@@ -36,6 +36,9 @@ jobs:
       - name: Analyze and widget tests
         working-directory: app
         run: flutter pub get && flutter analyze && flutter test
+      - name: Click map (every control on every screen, tapped once; none may crash)
+        working-directory: app
+        run: flutter test tool/click_map_test.dart
       - name: Signing key (the upload key, so every APK has the same SHA-1)
         env: { KEY_B64: '${{ secrets.ANDROID_KEYSTORE_B64 }}' }
         run: |

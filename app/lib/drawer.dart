@@ -14,7 +14,8 @@ import 'room.dart';
 import 'ui.dart';
 
 class FriendsTab extends StatefulWidget {
-  const FriendsTab({super.key, required this.account, required this.prefs, required this.audio, this.room, this.extra});
+  const FriendsTab({super.key, required this.account, required this.prefs, required this.audio, this.room, this.extra, this.above = 56});
+  final double above; // the tab never goes higher (Home: the icon row; a lobby: the room-code card)
   final Account account;
   final Prefs prefs;
   final Audio audio;
@@ -34,7 +35,7 @@ class _FriendsTabState extends State<FriendsTab> {
         final online = a.friends.where((f) => f.online).toList(), reqs = a.incoming.length;
         return LayoutBuilder(builder: (context, box) {
           // [QA] S9 #3: never over the top icon row; by default right under it, clear of the first Home button (the old v2.9.2 fix)
-          const above = 56.0;
+          final above = widget.above;
           final top = above + (box.maxHeight - above - 160) * y.clamp(0, 1);
           return Stack(children: [
             PositionedDirectional(end: 0, top: top, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -153,7 +154,7 @@ class _DrawerState extends State<_Drawer> {
                   onTap: () { Navigator.of(context).pop(); openProfile(context, a, f); }, // N2
                   leading: AvatarView.of(a.api, f, size: 36, online: f.online),
                   title: Text(f.display, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(!f.online ? l.fOffline : f.status == 'game' ? l.fInGame : f.status == 'lobby' ? l.fInRoom : l.fOnline,
+                  subtitle: Text(friendStatus(l, f), // P3
                       style: TextStyle(color: !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green, fontSize: 12)),
                   trailing: action(f)),
             ])),

@@ -27,7 +27,7 @@ export interface Deps {
 export interface UserRow {
   id: string; handle: string | null; display: string; avatar_preset: number; avatar_ver: number;
   fav_role: string; show_online: number; created_at: number;
-  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game'; banned_at?: number | null; on_board?: number;
+  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game'; room_size?: number; banned_at?: number | null; on_board?: number;
 }
 
 export const avatarOf = (u: UserRow): Avatar => (u.avatar_ver > 0 ? { photo: u.avatar_ver } : { preset: u.avatar_preset });
@@ -39,7 +39,7 @@ export function card(u: UserRow, rel: Rel): UserCard {
 }
 export function presenceOf(u: UserRow) {
   const on = !!u.online && !!u.show_online, st: '' | 'lobby' | 'game' = on ? u.room_status || '' : '';
-  return { on, st, op: st === 'lobby' };
+  return { on, st, op: st === 'lobby', n: st ? u.room_size ?? 0 : 0 };  // n: players in that room (P3)
 }
 
 /** The account behind a session token, or null (expired or unknown). Renews the session at most once a day. */

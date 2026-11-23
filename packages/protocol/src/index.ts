@@ -35,7 +35,7 @@ export type Avatar = { preset: number } | { photo: number };
 export interface UserCard {
   id: string; handle: string | null; display: string; avatar: Avatar; fav: string; rel: Rel;
   // friends only: online, in an online room ('lobby') or game, and whether they can be asked to join (an open lobby)
-  on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean;
+  on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean; n?: number;  // n: players in their room (P3)
 }
 export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; onBoard: boolean; emails: string[]; google: boolean;
   room: { code: string; status: 'lobby' | 'game' } | null;  // the online room I'm in, if any

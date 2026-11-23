@@ -295,7 +295,7 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(height: 22),
         Sec(child: Column(children: [
           for (final t in v.tally!)
-            Row(children: [Expanded(child: Text(t.k == 'none' ? l.noOne : _name(t.k as int))), Text('${t.n} ${l.votes}', style: TextStyle(color: C.mute))]),
+            Row(children: [Expanded(child: Text(t.k == 'none' ? l.noOne : _name(t.k as int))), Text(l.votesN(t.n), style: TextStyle(color: C.mute))]),
         ])),
       ],
     ]);
@@ -408,7 +408,8 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
       Text(widget.name, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
       Text(l.yourRole.toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.dim, letterSpacing: 3)),
       const SizedBox(height: 16),
-      Listener(
+      // [S12-6] TalkBack: "double-tap and hold" reveals (and again hides) the role; touch keeps press-and-hold
+      Semantics(button: true, label: show ? roleName(l, role) : l.holdHint, onLongPress: () => _hold(!show), child: Listener(
         key: const Key('roleCard'),
         onPointerDown: (_) => _hold(true),
         onPointerUp: (_) => _hold(false),
@@ -440,7 +441,7 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
                   ]),
           ),
         ),
-      ),
+      )),
     ]);
   }
 }

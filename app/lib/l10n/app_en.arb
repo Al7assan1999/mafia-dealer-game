@@ -766,7 +766,7 @@
     }
   },
   "noWifi": "This phone isn't on a Wi-Fi network or hotspot.",
-  "roomPlayers": "{n} players · {s}",
+  "roomPlayers": "{n, plural, =1{1 player} other{{n} players}} · {s}",
   "@roomPlayers": {
     "placeholders": {
       "n": {
@@ -849,7 +849,7 @@
   "wrOld": "the game is too old",
   "wrDup": "it was already sent",
   "wrLimit": "too many requests today, try tomorrow",
-  "nWifiAsk": "asks to add the Wi-Fi game of {date} to online history: {n} players, {winner}.",
+  "nWifiAsk": "asks to add the Wi-Fi game of {date} to online history: {n, plural, =1{1 player} other{{n} players}}, {winner}.",
   "@nWifiAsk": {
     "placeholders": {
       "date": {
@@ -967,7 +967,7 @@
       }
     }
   },
-  "needN": "Needs {n} games",
+  "needN": "{n, plural, =1{Needs 1 game} other{Needs {n} games}}",
   "@needN": {
     "placeholders": {
       "n": {
@@ -1062,20 +1062,6 @@
   "importS3": "Only games between the real players come in; test games are left out.",
   "importCode": "Group code",
   "importBtn": "Import",
-  "importDone": "{i} games imported, {d} already here, {s} skipped (test or unknown players).",
-  "@importDone": {
-    "placeholders": {
-      "i": {
-        "type": "int"
-      },
-      "d": {
-        "type": "int"
-      },
-      "s": {
-        "type": "int"
-      }
-    }
-  },
   "importNotFound": "No group with this code",
   "importDown": "The old server didn't answer, try again",
   "whoWereYou": "Which one were you?",
@@ -1228,5 +1214,77 @@
   "pAddFriend": "Add friend",
   "pRequested": "Friend request sent",
   "pNoGamesD": "Their record starts with your first game together.",
-  "testNoServer": "The server can't send notifications right now (it isn't set up for them). This phone is ready."
+  "testNoServer": "The server can't send notifications right now (it isn't set up for them). This phone is ready.",
+  "importFound": "{found, plural, =1{1 game found} other{{found} games found}}: {added} new, {dup} already here.",
+  "@importFound": {
+    "placeholders": {
+      "found": {
+        "type": "int"
+      },
+      "added": {
+        "type": "int"
+      },
+      "dup": {
+        "type": "int"
+      }
+    }
+  },
+  "importWaiting": "{n, plural, =1{1 game waits until its players are confirmed, then it counts in stats.} other{{n} games wait until their players are confirmed, then they count in stats.}}",
+  "@importWaiting": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "importBroken": "{n, plural, =1{1 entry couldn't be read.} other{{n} entries couldn't be read.}}",
+  "@importBroken": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "oldPlayersT": "Old players",
+  "oldPlayersD": "Every name found in the imported games. Mark the real players (link their @username if they have one); a game counts once all its players are real. Test names never count.",
+  "opReal": "Real",
+  "opTest": "Test",
+  "opUnknown": "Not sure",
+  "opGames": "{n, plural, =1{in 1 game} other{in {n} games}}",
+  "@opGames": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "opLink": "Link @username",
+  "opNone": "No imported games yet. Import a group from Profile first.",
+  "oldWaiting": "waiting for player names",
+  "oldTestGame": "test game · not counted",
+  "code6": "Type all 6 digits",
+  "votesN": "{n, plural, =1{1 vote} other{{n} votes}}",
+  "@votesN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fInRoomN": "In a room · {n, plural, =1{1 player} other{{n} players}}",
+  "@fInRoomN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fInGameN": "In a game · {n, plural, =1{1 player} other{{n} players}}",
+  "@fInGameN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  }
 }

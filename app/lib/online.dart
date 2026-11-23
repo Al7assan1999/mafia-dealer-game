@@ -51,6 +51,24 @@ class _OnlineHomeState extends State<OnlineHome> {
       builder: (_) => RoomScreen(account: widget.account, prefs: widget.prefs, audio: widget.audio, code: c)));
 
   @override
+  void initState() { super.initState(); code.addListener(() { if (mounted) setState(() => error = null); }); }
+  @override
+  void dispose() { code.dispose(); super.dispose(); }
+
+  /// [S12-2] A code with no open room is answered here, not by opening an empty room screen.
+  Future<void> _join() async {
+    final l = L.of(context), c = code.text;
+    setState(() { busy = true; error = null; });
+    try {
+      await widget.account.api.get('/v1/rooms/$c');
+      if (mounted) _open(c);
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError && e.code == 'no_room' ? l.eNoRoom : errText(l, e));
+    }
+    if (mounted) setState(() => busy = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = L.of(context), a = widget.account;
     return Scaffold(
@@ -73,11 +91,12 @@ class _OnlineHomeState extends State<OnlineHome> {
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: TextField(key: const Key('roomCode'), controller: code, maxLength: 6, keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: InputDecoration(hintText: l.codeHint, counterText: ''),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(hintText: l.codeHint, counterText: '', helperText: code.text.isNotEmpty && code.text.length < 6 ? l.code6 : null),
                 style: head.copyWith(fontSize: 22, letterSpacing: 6))),
             const SizedBox(width: 10),
             FilledButton(key: const Key('joinRoom'), style: FilledButton.styleFrom(backgroundColor: C.red),
-                onPressed: () { if (code.text.length == 6) _open(code.text); }, child: Text(l.join)),
+                onPressed: code.text.length == 6 && !busy ? _join : null, child: Text(l.join)), // S12-2: off until 6 digits
           ]),
         ],
         if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
@@ -459,13 +478,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: C.bg,
-          title: Text(l.roomCode(widget.code), style: head.copyWith(fontSize: 20)),
+          // [QA] S12: in Neon's wider font "Room 438689" was cut to "Room 4386…"; it shrinks to fit instead
+          title: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Text(l.roomCode(widget.code), style: head.copyWith(fontSize: 20))),
           actions: [
-            if (c.room != null) IconButton(key: const Key('chat'), tooltip: l.chatT,
+            if (c.room != null && c.bye == null) IconButton(key: const Key('chat'), tooltip: l.chatT,
                 icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.mute)),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
                     out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))),
-            IconButton(key: const Key('narrate'), tooltip: l.narrateHere,
+            if (c.bye == null) IconButton(key: const Key('narrate'), tooltip: l.narrateHere,
                 icon: Icon(!audio.muted ? Icons.volume_up_outlined : Icons.volume_off_outlined, color: C.mute),
                 onPressed: () => setState(() {
                   audio.muted = !audio.muted;
@@ -476,7 +496,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })),
             if (c.room != null && c.view == null && c.bye == null)
               IconButton(key: const Key('minimize'), tooltip: l.minimize, icon: Icon(Icons.home_outlined, color: C.mute), onPressed: _minimize),
-            IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: Icon(Icons.logout, color: C.mute), onPressed: _leave),
+            if (c.bye == null) IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: Icon(Icons.logout, color: C.mute), onPressed: _leave),
           ],
         ),
         body: Column(children: [
@@ -484,7 +504,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           Expanded(child: Stack(children: [
             Positioned.fill(child: KeyedSubtree(key: ValueKey('${v?['phase']}/${v?['ph']}/${v?['day']}/$revealed'), child: _screen(l))),
             // S9-2: the friends tab in an online lobby (never in a game, never in a Wi-Fi room)
-            if (!widget.lan && c.room != null && v == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c)),
+            // [S12-6] never over the room-code card (it starts below it); gone once the room is closed
+            if (!widget.lan && c.room != null && v == null && c.bye == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c, above: 200)),
           ])),
         ]),
       ),
@@ -888,7 +909,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         const SizedBox(height: 22),
         Sec(child: Column(children: [
           for (final t in tally.cast<Map>())
-            Row(children: [Expanded(child: Text(t['k'] == 'none' ? l.noOne : _name(t['k'] as int))), Text('${t['n']} ${l.votes}', style: TextStyle(color: C.mute))]),
+            Row(children: [Expanded(child: Text(t['k'] == 'none' ? l.noOne : _name(t['k'] as int))), Text(l.votesN(t['n'] as int), style: TextStyle(color: C.mute))]),
         ])),
       ],
     ]);

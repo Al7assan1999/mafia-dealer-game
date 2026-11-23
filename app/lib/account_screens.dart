@@ -337,6 +337,9 @@ class _ProfileState extends State<ProfileScreen> {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${a.card!.id}')))),
               ListTile(key: const Key('importOldHistory'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.history_edu_outlined, color: C.mute), title: Text(l.importT),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ImportScreen(account: a)))),
+              // [S12-1] the admin marks the names found in imported games (replaces "send me the list")
+              if (a.isAdmin) ListTile(key: const Key('oldPlayers'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.how_to_reg_outlined, color: C.gold), title: Text(l.oldPlayersT),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OldPlayersScreen(account: a)))),
               SwitchListTile(key: const Key('onBoard'), contentPadding: EdgeInsets.zero, value: a.me?['onBoard'] != false,
                   onChanged: busy ? null : (v) => _do(() => a.patch({'onBoard': v})),
                   title: Text(l.onBoardT), subtitle: Text(l.onBoardD, style: TextStyle(color: C.dim, fontSize: 12))),
@@ -421,7 +424,7 @@ class _FriendsState extends State<FriendsScreen> {
     if (mounted) setState(() => busy = false);
   }
 
-  String _status(L l, Person p) => !p.online ? l.fOffline : p.status == 'game' ? l.fInGame : p.status == 'lobby' ? l.fInRoom : l.fOnline;
+  String _status(L l, Person p) => friendStatus(l, p);
 
   // [N2] the whole row (avatar included) opens the friend's profile
   Widget _row(Person p, List<Widget> actions, {String? sub}) => InkWell(
@@ -698,7 +701,10 @@ class _NoteBannerState extends State<NoteBanner> {
       }
     }
     final label = switch (n.kind) { 'invite' || 'let_in' => l.bJoin, 'join_request' => l.letIn, 'friend_request' => l.fAccept, _ => l.bOpen };
-    return Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: Padding(padding: const EdgeInsets.all(10), child: Material(
+    // [S12-5] below the top bar (it covered Friends, the bell and Settings for 6 s), and swiped away up or sideways
+    return Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(10, 68, 10, 10), child: Dismissible(
+      key: ValueKey('banner_${n.id}'), direction: DismissDirection.up, onDismissed: (_) => _close(), child: Dismissible(
+      key: ValueKey('bannerX_${n.id}'), direction: DismissDirection.horizontal, onDismissed: (_) => _close(), child: Material(
       key: const Key('noteBanner'), color: C.card2, elevation: 8,
       shape: RoundedRectangleBorder(side: BorderSide(color: C.red), borderRadius: BorderRadius.circular(C.neon ? 16 : 6)),
       child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 4, 8), child: Row(children: [
@@ -711,6 +717,11 @@ class _NoteBannerState extends State<NoteBanner> {
         TextButton(key: const Key('bannerAct'), onPressed: act, child: Text(label, style: TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
         IconButton(key: const Key('bannerClose'), icon: Icon(Icons.close, color: C.dim, size: 18), onPressed: _close),
       ])),
-    ))));
+    ))))));
   }
 }
+
+/// A friend's status line: Offline / Online / In a room · 3 players / In a game · 5 players (P3: the count).
+String friendStatus(L l, Person f) => !f.online ? l.fOffline
+    : f.status == 'game' ? (f.roomSize > 0 ? l.fInGameN(f.roomSize) : l.fInGame)
+    : f.status == 'lobby' ? (f.roomSize > 0 ? l.fInRoomN(f.roomSize) : l.fInRoom) : l.fOnline;

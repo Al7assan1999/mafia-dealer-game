@@ -267,7 +267,7 @@ class _PlayerState extends State<PlayerScreen> {
 
   List<Widget> _header(L l, Person f) {
     final a = widget.account, rel = _rel(f), friend = rel == 'friends', lobby = onlineLobby();
-    final status = !friend ? null : !f.online ? l.fOffline : f.status == 'game' ? l.fInGame : f.status == 'lobby' ? l.fInRoom : l.fOnline;
+    final status = !friend ? null : friendStatus(l, f);
     final statusColor = !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green;
     final fav = f.fav.isEmpty ? null : Role.values.byName(f.fav);
     return [
@@ -384,7 +384,11 @@ class _ImportState extends State<ImportScreen> {
     setState(() { busy = true; result = null; });
     try {
       final r = await widget.account.importOld(code.text);
-      if (mounted) setState(() => result = l.importDone(r['imported'] as int, r['duplicates'] as int, r['skipped'] as int));
+      // [S12-1] every game is kept; say what waits for names and what couldn't be read
+      final waiting = r['waiting'] as int? ?? 0, broken = r['broken'] as int? ?? 0;
+      final line = [l.importFound(r['found'] as int? ?? 0, r['imported'] as int, r['duplicates'] as int),
+        if (waiting > 0) l.importWaiting(waiting), if (broken > 0) l.importBroken(broken)].join(' ');
+      if (mounted) setState(() => result = line);
     } catch (e) {
       if (mounted) setState(() => result = e is ApiError && e.code == 'not_found' ? l.importNotFound : e is ApiError && e.code == 'busy' ? l.importDown : errText(l, e));
     }
@@ -459,7 +463,9 @@ class _OldGamesState extends State<OldGamesTab> {
             if (x['seat'] != null) l.youPlayed(roleName(l, Role.values.byName((x['roles'] as List)[x['seat'] as int] as String))),
             l.rcSub((x['names'] as List).length, x['days'] as int),
             if (x['valid'] != true) l.invalid,
-          ].join(' · '), style: TextStyle(color: C.mute)),
+            if (x['status'] == 'waiting') l.oldWaiting, // S12-1
+            if (x['status'] == 'test') l.oldTestGame,
+          ].join(' · '), style: TextStyle(color: x['status'] == 'counted' || x['status'] == null ? C.mute : C.gold)),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _OldDetail(g: x))),
         )),
     ]);
@@ -488,6 +494,75 @@ class _OldDetail extends StatelessWidget {
           for (final h in (g['hist'] as List).cast<String>()) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(h, style: TextStyle(color: C.mute))),
         ])),
       ]),
+    );
+  }
+}
+
+/// [S12-1] Settings → Old players (admin): every name found in the imported games, marked Real (with an optional
+/// @username), Test, or Not sure. A game counts once all its names are Real; a Test name keeps it out.
+class OldPlayersScreen extends StatefulWidget {
+  const OldPlayersScreen({super.key, required this.account});
+  final Account account;
+  @override
+  State<OldPlayersScreen> createState() => _OldPlayersState();
+}
+
+class _OldPlayersState extends State<OldPlayersScreen> {
+  List<Map<String, Object?>>? players;
+  String? error;
+
+  @override
+  void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
+    try { final p = await widget.account.oldPlayers(); if (mounted) setState(() => players = p); } catch (e) { if (mounted) setState(() => error = errText(L.of(context), e)); }
+  }
+
+  Future<void> _mark(Map<String, Object?> p, String mark, {String? link}) async {
+    final l = L.of(context);
+    try {
+      final r = await widget.account.markOldPlayer(p['name'] as String, mark, link: link);
+      if (mounted) setState(() { p['mark'] = r['mark']; p['link'] = r['link']; });
+    } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
+  }
+
+  Future<void> _link(Map<String, Object?> p) async {
+    final l = L.of(context), c = TextEditingController(text: (p['link'] as String?) ?? '@');
+    final h = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(p['name'] as String),
+      content: TextField(key: const Key('opLinkField'), controller: c, autofocus: true, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: l.opLink)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l.cancel)),
+        TextButton(key: const Key('opLinkSave'), onPressed: () => Navigator.pop(ctx, c.text.trim()), child: Text(l.save)),
+      ],
+    ));
+    if (h != null && h.replaceAll('@', '').isNotEmpty) await _mark(p, 'real', link: h);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context), ps = players;
+    return Scaffold(
+      appBar: AppBar(backgroundColor: C.bg, title: Text(l.oldPlayersT, style: head.copyWith(fontSize: 20))),
+      body: error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
+          : ps == null ? Center(child: CircularProgressIndicator(color: C.red2))
+          : ListView(padding: const EdgeInsets.all(16), children: [
+              Text(l.oldPlayersD, style: TextStyle(color: C.mute)),
+              const SizedBox(height: 12),
+              if (ps.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text(l.opNone, key: const Key('opNone'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
+              for (final p in ps) Sec(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(p['name'] as String, key: Key('op_${p['name']}'), style: const TextStyle(fontWeight: FontWeight.w700))),
+                  Text(l.opGames(p['games'] as int), style: TextStyle(color: C.dim, fontSize: 12)),
+                ]),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  for (final (m, t) in [('real', l.opReal), ('test', l.opTest), ('unknown', l.opUnknown)])
+                    ChoiceChip(key: Key('op_${p['name']}_$m'), label: Text(t), selected: p['mark'] == m, onSelected: (_) => _mark(p, m)),
+                  if (p['mark'] == 'real') TextButton.icon(key: Key('op_${p['name']}_link'), onPressed: () => _link(p),
+                      icon: const Icon(Icons.link, size: 18), label: Text((p['link'] as String?) ?? l.opLink, textDirection: TextDirection.ltr)),
+                ]),
+              ])),
+            ]),
     );
   }
 }

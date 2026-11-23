@@ -76,6 +76,7 @@ class Person {
   String get rel => (j['rel'] as String?) ?? 'none';
   bool get online => j['on'] == true;
   String get status => (j['st'] as String?) ?? '';
+  int get roomSize => (j['n'] as num?)?.toInt() ?? 0; // P3: players in their room
 }
 
 class Note {
@@ -137,8 +138,11 @@ class Account extends ChangeNotifier {
   // ---------------------------------------------------------------- session
   /// On start: a saved session signs in silently. Offline, the cached profile is shown until the network is back.
   Future<void> restore() async {
+    // [S12-4] the saved account at once: reading the session (Android's secure storage) takes seconds on a cold start,
+    // and Home showed "Sign in" meanwhile
+    if (me == null && prefs.me != null) { me = prefs.me; notifyListeners(); }
     final t = await tokens.read();
-    if (t == null) return;
+    if (t == null) { if (me != null) { me = null; notifyListeners(); } return; }
     api.token = t;
     me = prefs.me;
     notifyListeners();
@@ -367,6 +371,11 @@ class Account extends ChangeNotifier {
   Future<Map<String, Object?>> oldNames() async => (await _try(() => api.get('/v1/legacy/names')))!;
   Future<void> claimOldName(String name) => _try(() => api.post('/v1/legacy/claim', {'name': name}));
   Future<Map<String, Object?>> importOld(String code) async => (await _try(() => api.post('/v1/legacy/import', {'code': code})))!;
+  /// [S12-1] Admin: every name found in imported games, and marking one real (optionally linked) / test / unknown.
+  Future<List<Map<String, Object?>>> oldPlayers() async =>
+      ((await _try(() => api.get('/v1/legacy/players')))!['players'] as List).map((p) => Map<String, Object?>.from(p as Map)).toList();
+  Future<Map<String, Object?>> markOldPlayer(String name, String mark, {String? link}) async =>
+      (await _try(() => api.put('/v1/legacy/players', {'name': name, 'mark': mark, 'link': ?link})))!;
   Future<List<Map<String, Object?>>> oldGames() async =>
       ((await _try(() => api.get('/v1/legacy/games')))!['games'] as List).map((g) => Map<String, Object?>.from(g as Map)).toList();
 
@@ -421,7 +430,7 @@ class Account extends ChangeNotifier {
         loadFriends().catchError((_) {}); // a request or an accept changes the lists
       case 'presence':
         for (final f in friends) {
-          if (f.id == m['uid']) { f.j['on'] = m['on']; f.j['st'] = m['st']; f.j['op'] = m['op']; }
+          if (f.id == m['uid']) { f.j['on'] = m['on']; f.j['st'] = m['st']; f.j['op'] = m['op']; f.j['n'] = m['n']; }
         }
     }
     notifyListeners();

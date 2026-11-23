@@ -146,7 +146,7 @@ void main() {
 
   group('the old history', () {
     testWidgets('Profile → Import: the guide, no list yet, a result line, a wrong code, the old server down', (t) async {
-      final s = FakeServer()..importAnswer = {'imported': 42, 'duplicates': 3, 'skipped': 17};
+      final s = FakeServer()..importAnswer = {'found': 119, 'imported': 116, 'duplicates': 3, 'broken': 2, 'waiting': 119};
       await signedIn(t, s);
       await tapKey(t, 'profile');
       await frames(t, 3);
@@ -157,7 +157,8 @@ void main() {
       await t.enterText(find.byKey(const Key('oldCode')), 'abcd2345');
       await tapKey(t, 'importOld');
       await frames(t);
-      expect(find.text('42 games imported, 3 already here, 17 skipped (test or unknown players).'), findsOneWidget);
+      // [S12-1] his real import (2026-11-23): everything kept, and the line says what waits for names
+      expect(find.text("119 games found: 116 new, 3 already here. 119 games wait until their players are confirmed, then they count in stats. 2 entries couldn't be read."), findsOneWidget);
       s.importAnswer = 'not_found';
       await tapKey(t, 'importOld');
       await frames(t);

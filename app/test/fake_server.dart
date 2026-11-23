@@ -35,7 +35,8 @@ class FakeServer {
   Map<String, Object?>? playerAnswer;
   final statsAsked = <String>[]; // the query strings
   Map<String, Object?> oldNamesAnswer = {'names': [], 'mine': null};
-  Object importAnswer = {'imported': 0, 'duplicates': 0, 'skipped': 0}; // or an error code string
+  Object importAnswer = {'found': 0, 'imported': 0, 'duplicates': 0, 'broken': 0, 'waiting': 0}; // or an error code string
+  List<Map<String, Object?>> oldPlayers = []; // [S12-1] GET /v1/legacy/players (the admin's Old players)
   List<Map<String, Object?>> oldGamesAnswer = [];
   final claims = <String>[];
   var _n = 0;
@@ -58,7 +59,7 @@ class FakeServer {
     final pend = friendships.where((f) => f.$1 == a.$1 && f.$2 == a.$2).firstOrNull;
     final rel = friends.contains(a) ? 'friends' : pend == null ? 'none' : pend.$3 == me ? 'requested' : 'incoming';
     return {'id': id, 'handle': u['handle'], 'display': u['display'], 'avatar': u['avatar'], 'fav': u['fav'], 'rel': id == me ? 'me' : rel,
-      if (rel == 'friends') ...{'on': true, 'st': u['st'] ?? '', 'op': u['op'] ?? false}};
+      if (rel == 'friends') ...{'on': true, 'st': u['st'] ?? '', 'op': u['op'] ?? false, 'n': u['n'] ?? 0}};
   }
 
   Future<http.Response> _handle(http.Request r) async {
@@ -199,6 +200,15 @@ class FakeServer {
     if (path == '/v1/stats/player') return playerAnswer == null ? err(404, 'not_found') : ok(playerAnswer!);
     if (path == '/v1/legacy/names') return ok(oldNamesAnswer);
     if (path == '/v1/legacy/claim') { claims.add(body['name'] as String); oldNamesAnswer = {...oldNamesAnswer, 'mine': body['name']}; return ok({'ok': true, 'name': body['name']}); }
+    if (path == '/v1/legacy/players' && m == 'GET') return admin == me ? ok({'players': oldPlayers}) : err(403, 'forbidden');
+    if (path == '/v1/legacy/players' && m == 'PUT') {
+      if (admin != me) return err(403, 'forbidden');
+      final link = body['link'] as String?;
+      if (link != null && !users.values.any((u) => (u['handle'] as String?)?.toLowerCase() == link.replaceAll('@', '').toLowerCase())) return err(404, 'not_found');
+      final p = oldPlayers.firstWhere((x) => x['name'] == body['name']);
+      p['mark'] = body['mark']; p['link'] = body['mark'] == 'real' && link != null ? '@${link.replaceAll('@', '')}' : null;
+      return ok({'ok': true, 'name': p['name'], 'mark': p['mark'], 'link': p['link']});
+    }
     if (path == '/v1/legacy/import') { final a = importAnswer; return a is String ? err(a == 'busy' ? 502 : 404, a) : ok(a); }
     if (path == '/v1/legacy/games') return ok({'games': oldGamesAnswer});
     if (path.startsWith('/v1/rooms/') && m == 'GET') return openRooms.contains(path.split('/').last) ? ok({'open': true, 'status': 'lobby', 'host': 'x'}) : err(404, 'no_room');

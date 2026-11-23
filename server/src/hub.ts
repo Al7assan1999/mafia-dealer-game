@@ -88,10 +88,11 @@ export async function setOnline(env: Env, uid: string, on: boolean) {
   await env.DB.prepare('UPDATE users SET online = ? WHERE id = ?').bind(on ? 1 : 0, uid).run();
   await pushPresence(env, uid);
 }
-/** In an online room (lobby or game), or out of it (code null). */
-export async function setRoom(env: Env, uid: string, code: string | null, status: '' | 'lobby' | 'game') {
-  const r = await env.DB.prepare('UPDATE users SET room_code = ?, room_status = ? WHERE id = ? AND (room_code IS NOT ? OR room_status <> ?)')
-    .bind(code, code ? status : '', uid, code, code ? status : '').run();
+/** In an online room (lobby or game) of `size` players, or out of it (code null). */
+export async function setRoom(env: Env, uid: string, code: string | null, status: '' | 'lobby' | 'game', size = 0) {
+  const n = code ? size : 0;
+  const r = await env.DB.prepare('UPDATE users SET room_code = ?, room_status = ?, room_size = ? WHERE id = ? AND (room_code IS NOT ? OR room_status <> ? OR room_size <> ?)')
+    .bind(code, code ? status : '', n, uid, code, code ? status : '', n).run();
   if (r.meta.changes) await pushPresence(env, uid);
 }
 

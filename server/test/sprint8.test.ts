@@ -133,23 +133,51 @@ describe('importing the old app\'s history', () => {
   const old = (id: number, names: string[], o: Record<string, unknown> = {}) => ({ id, names, roles: ['mafia', 'doctor', 'citizen', 'citizen'].slice(0, names.length), alive: names.map(() => true),
     winner: 'mafia', days: 2, valid: true, hist: ['Night 1: …'], ev: { first: 2, saves: [], caught: [], kills: [2], outs: [] }, acc: null, ...o });
   const real = ['Alhassan', 'Dareer', 'Halawy', 'Sami'];
-  const setList = (names: Record<string, string | null>) => DB().prepare("UPDATE settings SET value = ? WHERE key = 'old_players'").bind(JSON.stringify({ version: 1, names })).run();
+  const setList = (names: Record<string, string | null>, tests: string[] = []) => DB().prepare("UPDATE settings SET value = ? WHERE key = 'old_players'").bind(JSON.stringify({ version: 2, names, tests })).run();
 
-  it('with no list yet nothing is kept; with the list only real games come in; duplicates and broken entries are counted', async () => {
+  it('[S12-1] every valid game is kept with no list yet; marking names decides what counts; duplicates and broken entries are counted', async () => {
     const t = await setup(), a = await t.user('Hassan');
     try {
       t.oldGroups.ABCD2345 = { exists: true, games: [old(1_790_000_000_000, real), old(1_790_000_100_000, ['Player 1', 'Player 2', 'Player 3', 'Player 4']),
         old(1_790_000_200_000, ['Alhassan', 'Dareer', 'Halawy', 'Stranger']), { id: 'bad' }, old(1_790_000_300_000, real, { roles: ['mafia'] })] };
-      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'abcd-2345' } })).json).toEqual({ imported: 0, duplicates: 0, skipped: 5 });
-      await setList({ Alhassan: null, Dareer: null, Halawy: null, Sami: null });
-      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ABCD2345' } })).json).toEqual({ imported: 1, duplicates: 0, skipped: 4 });
-      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ABCD2345' } })).json).toEqual({ imported: 0, duplicates: 1, skipped: 4 });
+      // the list is empty (his playtest, 2026-11-23): the games are kept, all waiting for names
+      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'abcd-2345' } })).json).toEqual({ found: 3, imported: 3, duplicates: 0, broken: 2, waiting: 3 });
+      expect((await t.call('GET', '/v1/legacy/games', { token: a.token })).json.games.map((g: any) => g.status)).toEqual(['waiting', 'waiting', 'waiting']);
+      expect((await t.call('GET', '/v1/stats?source=old', { token: a.token })).json.games).toBe(0);  // kept, not counted
+      await setList({ Alhassan: null, Dareer: null, Halawy: null, Sami: null }, ['Player 1']);
+      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ABCD2345' } })).json).toEqual({ found: 3, imported: 0, duplicates: 3, broken: 2, waiting: 1 });
       const b = await t.user('Dareer');  // the friend imports the same group: nothing twice
       expect((await t.call('POST', '/v1/legacy/import', { token: b.token, body: { code: 'ABCD2345' } })).json.imported).toBe(0);
       const list = (await t.call('GET', '/v1/legacy/games', { token: a.token })).json.games;
-      expect(list).toMatchObject([{ names: real, winner: 'mafia', valid: true, hist: ['Night 1: …'], seat: null, playedAt: 1_790_000_000_000 }]);
+      expect(list.map((g: any) => g.status)).toEqual(['waiting', 'test', 'counted']);  // newest first: Stranger's, the test game, the real one
+      expect(list[2]).toMatchObject({ names: real, winner: 'mafia', valid: true, hist: ['Night 1: …'], seat: null, playedAt: 1_790_000_000_000 });
       expect((await t.call('GET', '/v1/legacy/games', { token: b.token })).json.games).toEqual([]);  // not mine until I claim my name
     } finally { await setList({}); }
+  });
+
+  it('[S12-1] Old players: the admin sees every name found and marks it real (linked to an @handle), test, or unknown', async () => {
+    const t = await setup(), a = await t.user('Hassan'), boss = await t.user('Boss'), d = await t.user('Dareer');
+    try {
+      t.oldGroups.PLAY2345 = { exists: true, games: [old(1_790_000_000_000, real), old(1_790_000_100_000, ['Alhassan', 'Dareer', 'Halawy', 'Stranger'])] };
+      await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'PLAY2345' } });
+      expect((await t.call('GET', '/v1/legacy/players', { token: boss.token })).status).toBe(403);
+      t.env.ADMIN_IDS = boss.id;
+      const players = (await t.call('GET', '/v1/legacy/players', { token: boss.token })).json.players;
+      expect(players.slice(0, 3)).toEqual([{ name: 'Alhassan', games: 2, mark: 'unknown', link: null }, { name: 'Dareer', games: 2, mark: 'unknown', link: null }, { name: 'Halawy', games: 2, mark: 'unknown', link: null }]);
+      expect(players).toHaveLength(5);
+      const put = (name: string, mark: string, link?: string) => t.call('PUT', '/v1/legacy/players', { token: boss.token, body: { name, mark, ...(link ? { link } : {}) } });
+      expect((await put('Dareer', 'real', 'nobody_here')).status).toBe(404);
+      expect((await put('dareer', 'real', '@dareer')).json).toEqual({ ok: true, name: 'dareer', mark: 'real', link: '@Dareer' });
+      for (const n of ['Alhassan', 'Halawy', 'Sami']) await put(n, 'real');
+      await put('Stranger', 'test');
+      const after = (await t.call('GET', '/v1/legacy/players', { token: boss.token })).json.players;
+      expect(after.find((p: any) => p.name === 'Dareer')).toMatchObject({ mark: 'real', link: '@Dareer' });
+      expect(after.find((p: any) => p.name === 'Stranger')).toMatchObject({ mark: 'test' });
+      expect((await t.call('GET', '/v1/stats?source=old', { token: d.token })).json.games).toBe(1);  // Dareer's real game counts for her now
+      await put('Stranger', 'unknown');
+      expect((await t.call('GET', '/v1/legacy/players', { token: boss.token })).json.players.find((p: any) => p.name === 'Stranger').mark).toBe('unknown');
+      expect((await t.call('PUT', '/v1/legacy/players', { token: a.token, body: { name: 'Sami', mark: 'test' } })).status).toBe(403);
+    } finally { await setList({}); t.env.ADMIN_IDS = undefined; }
   });
 
   it('"Which one were you?", the settings list linking names to accounts, and the old games in Mine (not in Everyone)', async () => {

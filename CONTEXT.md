@@ -164,6 +164,17 @@ files are copied from there only when a phase needs them.
    updater picks by `Abi` (R9); a QA checklist in `docs/team-workflow.md` (R10). Answers on chat storage (R8) and
    Cloudflare usage (R11) in `docs/sprint-11-report.md`. QA runs **profile builds** on the emulator (the profile
    manifest allows `10.0.2.2`, as debug does). To confirm after a deploy: R4 with a real old code, R6 with a real push.
+   **Sprint 11 committed f62a7fb + 02f3e46, released v0.4.0 (build 100003, one APK per processor).** Then a full QA
+   cycle at his request (`docs/qa/`: 140 test cases, the click map tool `app/tool/click_map_test.dart` tapping every
+   control, findings Q1–Q10, demo videos). His own import in production reached the old relay but kept nothing (the
+   real-player list was empty) → **Sprint 12** (`docs/sprint-12-prd.md`, approved; built 2026-11-23, not committed):
+   every valid old game kept, counted once all its names are marked real by the admin's **Profile → Old players**
+   (marks in `settings.old_players` `names` + `tests`, no schema change); join code checked on the Online screen;
+   ICU plurals EN/AR with a guard test; the saved account on the first frame; the banner below the top bar; closed-room
+   / friends-tab / TalkBack role card / chat-tap polish; the click map as a CI gate (P1); friends' room size (P3,
+   migration `0009_room_size` + rollback). `docs/old-app-parity.md` rewritten: left before new roles = Groups (his
+   prompt), History tools (change valid later, hide, filter), Home quick toggles + What's new. Waiting on him:
+   `ADMIN_IDS` secret before the push, commit/push, P2 (a QA account on production), the revamp-complete list.
 5. Play readiness. 6. Migration of old users (optional).
 
 ## Later (his list, 2026-11-23)

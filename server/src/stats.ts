@@ -98,11 +98,18 @@ async function onlineGames(db: D1Database, uid: string | null, since: number): P
   });
 }
 
-/** Old names → accounts: the names claimed in the app ("Which one were you?"), then the settings list (handle or id). */
+/** The old players list (settings.old_players): {names: {real name: @handle / account id / null}, tests: [test names]}. */
+export async function oldPlayers(db: D1Database) {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'old_players'").first<{ value: string }>();
+  const v = row ? JSON.parse(row.value) as { names?: Record<string, string | null>; tests?: string[] } : {};
+  return { names: v.names ?? {}, tests: v.tests ?? [] };
+}
+
+/** Old names → accounts: the names claimed in the app ("Which one were you?"), then the settings list (handle or id).
+ *  real / tests: the name keys marked as real players / test names (S12-1: a game counts when every name is real). */
 export async function oldNameOwners(db: D1Database) {
   const own = new Map<string, string>();
-  const row = await db.prepare("SELECT value FROM settings WHERE key = 'old_players'").first<{ value: string }>();
-  const names = (row ? JSON.parse(row.value).names : {}) as Record<string, string | null>;
+  const { names, tests } = await oldPlayers(db);
   const wanted = Object.entries(names).filter(([, v]) => !!v) as [string, string][];
   if (wanted.length) {
     const { results } = await db.prepare(`SELECT id, handle FROM users WHERE id IN (${wanted.map(() => '?').join(',')}) OR handle IN (${wanted.map(() => '?').join(',')})`)
@@ -111,17 +118,22 @@ export async function oldNameOwners(db: D1Database) {
   }
   const { results: claims } = await db.prepare('SELECT name_key, user_id FROM legacy_claims').all<{ name_key: string; user_id: string }>();
   for (const c of claims) own.set(c.name_key, c.user_id);
-  return { own, list: Object.keys(names) };
+  return { own, list: Object.keys(names), real: new Set(Object.keys(names).map(nameKey)), tests: new Set(tests.map(nameKey)) };
 }
+
+/** [S12-1] An old game counts once every name in it is marked a real player; a test name keeps it out for good. */
+export const oldStatus = (names: string[], real: Set<string>, tests: Set<string>): 'counted' | 'test' | 'waiting' =>
+  names.some(n => tests.has(nameKey(n))) ? 'test' : names.every(n => real.has(nameKey(n))) ? 'counted' : 'waiting';
 
 /** Old games I imported, or played in under a name that is mine. Valid only. */
 async function oldGames(db: D1Database, uid: string, since: number): Promise<SGame[]> {
-  const { own } = await oldNameOwners(db);
+  const { own, real, tests } = await oldNameOwners(db);
   const myNames = [...own].filter(([, u]) => u === uid).map(([k]) => k);
   const { results: gs } = await db.prepare(
     `SELECT id, raw, played_at, winner, days FROM legacy_games WHERE valid = 1 AND played_at >= ? AND (importer_id = ?${myNames.length ? ` OR id IN (SELECT game_id FROM legacy_seats WHERE name_key IN (${myNames.map(() => '?').join(',')}))` : ''})`)
     .bind(since, uid, ...myNames).all<{ id: string; raw: string; played_at: number; winner: 'mafia' | 'citizens'; days: number }>();
-  return gs.map(g => fromOld(g.id, JSON.parse(g.raw), g.played_at, own));
+  return gs.map(g => ({ g, o: JSON.parse(g.raw) })).filter(x => oldStatus(x.o.names, real, tests) === 'counted')  // [S12-1] kept, counted once named
+    .map(({ g, o }) => fromOld(g.id, o, g.played_at, own));
 }
 
 /** An old app LogEntry as a stats game (its seats owned by an account when the name is someone's). */
