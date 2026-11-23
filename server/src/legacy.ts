@@ -92,7 +92,8 @@ legacyRoutes.post('/import', async c => {
     ]);
     if (res[0].meta.changes) imported++; else duplicates++;
   }
-  return c.json({ found, imported, duplicates, broken, waiting });
+  // skipped: what the 0.4.0 app reads (its import line fails without it): the entries that couldn't be read
+  return c.json({ found, imported, duplicates, broken, waiting, skipped: broken });
 });
 const DAY_MS = 24 * HOUR;
 

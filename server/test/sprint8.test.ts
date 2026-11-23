@@ -141,11 +141,11 @@ describe('importing the old app\'s history', () => {
       t.oldGroups.ABCD2345 = { exists: true, games: [old(1_790_000_000_000, real), old(1_790_000_100_000, ['Player 1', 'Player 2', 'Player 3', 'Player 4']),
         old(1_790_000_200_000, ['Alhassan', 'Dareer', 'Halawy', 'Stranger']), { id: 'bad' }, old(1_790_000_300_000, real, { roles: ['mafia'] })] };
       // the list is empty (his playtest, 2026-11-23): the games are kept, all waiting for names
-      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'abcd-2345' } })).json).toEqual({ found: 3, imported: 3, duplicates: 0, broken: 2, waiting: 3 });
+      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'abcd-2345' } })).json).toEqual({ found: 3, imported: 3, duplicates: 0, broken: 2, waiting: 3, skipped: 2 });
       expect((await t.call('GET', '/v1/legacy/games', { token: a.token })).json.games.map((g: any) => g.status)).toEqual(['waiting', 'waiting', 'waiting']);
       expect((await t.call('GET', '/v1/stats?source=old', { token: a.token })).json.games).toBe(0);  // kept, not counted
       await setList({ Alhassan: null, Dareer: null, Halawy: null, Sami: null }, ['Player 1']);
-      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ABCD2345' } })).json).toEqual({ found: 3, imported: 0, duplicates: 3, broken: 2, waiting: 1 });
+      expect((await t.call('POST', '/v1/legacy/import', { token: a.token, body: { code: 'ABCD2345' } })).json).toEqual({ found: 3, imported: 0, duplicates: 3, broken: 2, waiting: 1, skipped: 2 });
       const b = await t.user('Dareer');  // the friend imports the same group: nothing twice
       expect((await t.call('POST', '/v1/legacy/import', { token: b.token, body: { code: 'ABCD2345' } })).json.imported).toBe(0);
       const list = (await t.call('GET', '/v1/legacy/games', { token: a.token })).json.games;
