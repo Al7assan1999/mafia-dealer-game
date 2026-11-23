@@ -50,6 +50,9 @@ const defaultRules = Rules(
     skip: true, norep: false, saverev: false, decoy: true, self: true, rep: false, reveal: true,
     timer: 180, nightT: 0, ghost: false, skipVote: true);
 
+/// A record's rules: records made before the tie rule (Sprint 7) have no `tieSkip`, and their ties were random picks.
+Rules recordRules(Map<String, Object?> j) => defaultRules.merge({'tieSkip': false, ...j});
+
 const presets = <String, Map<String, Object>>{
   'classic': {'skip': true, 'norep': false, 'saverev': false, 'decoy': true, 'self': true, 'rep': false, 'reveal': true, 'timer': 180},
   'beginner': {'skip': false, 'norep': false, 'saverev': true, 'decoy': true, 'self': true, 'rep': false, 'reveal': true, 'timer': 240},

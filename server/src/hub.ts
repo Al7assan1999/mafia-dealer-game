@@ -2,7 +2,9 @@
 // everything live for that person (friends' presence, invites, join requests, friend notes) is pushed through it.
 import { DurableObject } from 'cloudflare:workers';
 import type { HubOut, Notification } from '@mafia/protocol';
-import { card, presenceOf, type Env, type UserRow } from './lib.ts';
+import { card, presenceOf, type Deps, type Env, type UserRow } from './lib.ts';
+import { sendPush } from './push.ts';
+import { wifiNotes } from './wifi.ts';
 
 export const INVITE_TTL = 30 * 60e3, NOTE_TTL = 7 * 24 * 3600e3;
 
@@ -21,14 +23,14 @@ export class Hub extends DurableObject<Env> {
       await this.ctx.storage.put('uid', uid);
       this.ctx.acceptWebSocket(server);
       if (first) await setOnline(this.env, uid, true);
-      const n = await this.env.DB.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, Date.now()).first<{ n: number }>();
-      server.send(JSON.stringify({ t: 'unread', n: n?.n ?? 0 } satisfies HubOut));
+      server.send(JSON.stringify({ t: 'unread', n: await unread(this.env.DB, uid, Date.now()) } satisfies HubOut));
       return new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': 'mafia.v1' } });
     }
-    // internal: push a message to this person's open app(s)
+    // internal: send a message to this person's open app(s); answers how many got it (0 = the app is closed)
     const msg = await req.text();
-    for (const ws of this.ctx.getWebSockets()) try { ws.send(msg); } catch { /* closing */ }
-    return new Response(null, { status: 204 });
+    let open = 0;
+    for (const ws of this.ctx.getWebSockets()) try { if (ws.readyState === WebSocket.OPEN) { ws.send(msg); open++; } } catch { /* closing */ }
+    return Response.json({ open });
   }
   async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer) {
     if (msg === 'ping') ws.send('pong');  // normally answered by Cloudflare before it gets here
@@ -44,9 +46,17 @@ export class Hub extends DurableObject<Env> {
   private async uid() { return this.ctx.storage.get<string>('uid'); }
 }
 
-/** Sends a message to someone's open app (nothing happens when it is closed). */
+/** Sends a message to someone's open app. Returns false when the app is closed (nobody got it). */
 export async function pushTo(env: Env, uid: string, msg: HubOut) {
-  await env.HUB.get(env.HUB.idFromName(uid)).fetch('https://hub/push', { method: 'POST', body: JSON.stringify(msg) });
+  const r = await env.HUB.get(env.HUB.idFromName(uid)).fetch('https://hub/push', { method: 'POST', body: JSON.stringify(msg) });
+  return ((await r.json()) as { open: number }).open > 0;
+}
+
+/** Unread bell items: notes plus the Wi-Fi confirmations and results. */
+export async function unread(db: D1Database, uid: string, now: number) {
+  const n = await db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
+  const b = await db.prepare('SELECT COUNT(*) AS n FROM bell_notes WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
+  return (n?.n ?? 0) + (b?.n ?? 0) + (await wifiNotes(db, uid, now)).filter(x => !x.read).length;
 }
 
 /** Tells this person's online friends how they look now (online, in a lobby / game). */
@@ -71,13 +81,14 @@ export async function setRoom(env: Env, uid: string, code: string | null, status
   if (r.meta.changes) await pushPresence(env, uid);
 }
 
-/** Puts a note in someone's bell and shows it live if their app is open. */
-export async function notify(env: Env, to: string, from: UserRow, kind: Notification['kind'], code: string | null, now: number) {
+/** Puts a note in someone's bell and shows it live if their app is open, else sends a push. */
+export async function notify(env: Env, deps: Deps, to: string, from: UserRow, kind: Exclude<Notification['kind'], 'wifi_confirm' | 'wifi_result'>, code: string | null, now: number) {
   const id = crypto.randomUUID(), room = kind === 'invite' || kind === 'let_in';
   const expiresAt = now + (room || kind === 'join_request' ? INVITE_TTL : NOTE_TTL);
   await env.DB.prepare('INSERT INTO notifications (id, user_id, from_id, kind, room_code, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(id, to, from.id, kind, room ? code : null, now, expiresAt).run();
   const note: Notification = { id, kind, from: card(from, 'none'), code: room ? code : null, at: now, expiresAt, read: false };
-  await pushTo(env, to, { t: 'note', note });
+  if (!(await pushTo(env, to, { t: 'note', note })))
+    await sendPush(env, deps, to, kind, { name: from.display, code, tag: kind + ':' + from.id, data: { id, ...(note.code ? { code: note.code } : {}) } });
   return id;
 }

@@ -7,6 +7,12 @@ persona's work is labeled with its name, and the roles hold each other to accoun
 - **Audit as a real player**, not only from the code: walk every screen the sprint touches using screenshots of the
   real UI (`app/test/screens_test.dart` renders them in English and Arabic at phone sizes). Note UX friction, unclear
   game states, missing edge-case flows, and polish needed for Google Play.
+- **Cover the old app, not only the instructions** (added 2026-11-23 after his note that the BA added no value of its
+  own): check every screen the sprint touches against the old app (`docs/old-app-parity.md`, `../mafia-dealer`), and
+  list what the old app did there that the new one doesn't.
+- **Bring proposals of its own:** each PRD has a "[BA] proposals" section with at least the improvements a player would
+  expect from the genre (other party / social-deduction games) or that the sprint's own flows make obvious. Each one is
+  marked as a proposal, for him to accept or drop.
 - Write a concise **Sprint PRD** (`docs/sprint-N-prd.md`): target issues and **concrete acceptance criteria** for each.
 - **STOP and ask Alhassan to sign off.** No application code before he approves or adjusts the scope.
 
@@ -19,6 +25,15 @@ persona's work is labeled with its name, and the roles hold each other to accoun
 - Automated tests: happy paths, concurrent actions, abrupt disconnects, rapid state transitions, phone sizes.
 - **A hands-on UX pass:** look at the rendered screens (English and Arabic, small phone, large text) as a player
   would. File what's confusing, cramped, unreadable or inconsistent, and send it back to the Developer.
+- **Say what each layer proves and what it doesn't** (added 2026-11-23):
+  - unit / server tests prove the rules;
+  - widget tests prove screens and flows against fakes;
+  - emulator tests prove the real app on Android with scripted players;
+  - **none of them replaces people on real phones and networks.**
+  
+  Every report lists what only a human playtest can show.
+- **Exploratory session** on the emulator when one is available: drive the real app like a tester (taps, back,
+  rotation off, airplane mode, app killed), with screenshots, beyond the scripted paths.
 - Run the whole suite and the build; fix regressions until everything is green; block the release otherwise.
 
 ## 4. [BA] acceptance review, then the Sprint Release Report

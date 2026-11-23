@@ -68,7 +68,8 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
   }
 
   void resolveNight() {
-    // the Mafia's decision: the most votes among the living Mafia; ties broken at random
+    // the Mafia's decision: the most votes among the living Mafia; a tie kills nobody (tieSkip) or, in older games, is
+    // broken at random. A tie never spends the one-time skip.
     final votes = s.night.mafia.values.toList();
     int? target;
     var skip = false;
@@ -76,8 +77,8 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       final c = <String, int>{};
       for (final v in votes) { c['$v'] = (c['$v'] ?? 0) + 1; }
       final max = c.values.reduce(math.max), top = _jsKeys(c).where((k) => c[k] == max).toList();
-      final w = top[(ctx.rng() * top.length).floor()];
-      if (w == 'skip') { skip = true; s.skipUsed = true; } else { target = int.parse(w); }
+      final w = top.length > 1 && s.rules.tieSkip ? null : top[(ctx.rng() * top.length).floor()];
+      if (w == 'skip') { skip = true; s.skipUsed = true; } else if (w != null) { target = int.parse(w); }
     }
     final doc = s.night.doctor.entries.where((e) => e.value != null).map((e) => (e.key, e.value!)).toList();
     final prot = doc.map((d) => d.$2).toSet();

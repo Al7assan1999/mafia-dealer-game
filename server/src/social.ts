@@ -2,6 +2,8 @@
 import { Hono } from 'hono';
 import { Invite, JoinRequest, MarkGame, MarkRead, type Notification } from '@mafia/protocol';
 import { notify } from './hub.ts';
+import { dismissWifi, expire, readWifi, wifiNotes } from './wifi.ts';
+import { bellNotes, dismissBell, readBell, refreshTitles } from './stats.ts';
 import { allow, ApiErr, body, card, HOUR, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3;
@@ -52,7 +54,7 @@ invites.post('/', async c => {
   await inviteLimit(c, now);
   await db.prepare("DELETE FROM notifications WHERE (kind = 'join_request' AND from_id = ?1 AND user_id = ?2) OR (kind IN ('invite', 'let_in') AND from_id = ?2 AND user_id = ?1 AND room_code = ?3)")
     .bind(userId, me.id, code).run();
-  await notify(c.env, userId, me, kind, code, now);
+  await notify(c.env, c.var.deps, userId, me, kind, code, now);
   return c.json({ ok: true, letIn: !!asked });
 });
 
@@ -67,7 +69,7 @@ joinRequests.post('/', async c => {
   if (old && now - old.created_at < AGAIN_MS) return c.json({ ok: true, dup: true });
   await inviteLimit(c, now);
   await db.prepare("DELETE FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ?").bind(me.id, userId).run();
-  await notify(c.env, userId, me, 'join_request', null, now);
+  await notify(c.env, c.var.deps, userId, me, 'join_request', null, now);
   return c.json({ ok: true });
 });
 
@@ -78,20 +80,29 @@ notes.get('/', async c => {
     `SELECT n.id AS nid, n.kind, n.room_code, n.created_at AS nat, n.expires_at, n.read_at, u.* FROM notifications n JOIN users u ON u.id = n.from_id
      WHERE n.user_id = ? AND n.expires_at > ? ORDER BY n.created_at DESC LIMIT 50`).bind(c.var.user.id, now)
     .all<UserRow & { nid: string; kind: Notification['kind']; room_code: string | null; nat: number; expires_at: number; read_at: number | null }>();
-  const list: Notification[] = results.map(r => ({ id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null }));
+  await expire(c.env, c.var.deps, now);
+  const list: Notification[] = [...results.map(r => ({ id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null })),
+    ...await wifiNotes(c.env.DB, c.var.user.id, now), ...await bellNotes(c.env.DB, c.var.user.id, now)].sort((a, b) => b.at - a.at);
   return c.json({ notifications: list, unread: list.filter(n => !n.read).length });
 });
 notes.post('/read', async c => {
   const { ids } = await body(c, MarkRead), now = c.var.deps.now(), db = c.env.DB;
   if (ids) await db.batch(ids.map(id => db.prepare('UPDATE notifications SET read_at = ? WHERE id = ? AND user_id = ? AND read_at IS NULL').bind(now, id, c.var.user.id)));
   else await db.prepare('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL').bind(now, c.var.user.id).run();
+  await readWifi(db, c.var.user.id, ids);
+  await readBell(db, c.var.user.id, ids, now);
   return c.json({ ok: true });
 });
 notes.delete('/', async c => {
   await c.env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(c.var.user.id).run();
+  await dismissWifi(c.env.DB, c.var.user.id, null);
+  await dismissBell(c.env.DB, c.var.user.id, null);
   return c.json({ ok: true });
 });
 notes.delete('/:id', async c => {
+  const id = c.req.param('id');
+  if (id.startsWith('w:')) { await dismissWifi(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
+  if (id.startsWith('b:')) { await dismissBell(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
   await c.env.DB.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').bind(c.req.param('id'), c.var.user.id).run();
   return c.json({ ok: true });
 });
@@ -102,7 +113,7 @@ games.get('/', async c => {
   const { results } = await c.env.DB.prepare(
     `SELECT g.id, g.winner, g.days, g.valid, g.played_at, p.seat, p.role, p.alive,
             (SELECT COUNT(*) FROM game_players q WHERE q.game_id = g.id) AS players
-     FROM game_players p JOIN games g ON g.id = p.game_id WHERE p.user_id = ? ORDER BY g.played_at DESC LIMIT 100`)
+     FROM game_players p JOIN games g ON g.id = p.game_id WHERE p.user_id = ? AND g.source = 'online' ORDER BY g.played_at DESC LIMIT 100`)
     .bind(c.var.user.id).all<{ id: string; winner: string; days: number; valid: number; played_at: number; seat: number; role: string; alive: number; players: number }>();
   return c.json({ games: results.map(r => ({ id: r.id, winner: r.winner, days: r.days, valid: !!r.valid, playedAt: r.played_at, seat: r.seat, role: r.role, alive: !!r.alive, players: r.players })) });
 });
@@ -123,5 +134,6 @@ games.patch('/:id', async c => {
   const { valid } = await body(c, MarkGame);
   const r = await c.env.DB.prepare('UPDATE games SET valid = ? WHERE id = ? AND host_id = ?').bind(valid ? 1 : 0, c.req.param('id'), c.var.user.id).run();
   if (!r.meta.changes) throw new ApiErr(404, 'not_found');
+  await refreshTitles(c.env, c.var.deps);
   return c.json({ ok: true });
 });

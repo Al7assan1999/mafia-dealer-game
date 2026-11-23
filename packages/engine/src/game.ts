@@ -51,13 +51,14 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
   };
 
   const resolveNight = () => {
-    // the Mafia's decision: the most votes among the living Mafia; ties broken at random
+    // the Mafia's decision: the most votes among the living Mafia; a tie kills nobody (tieSkip) or, in older games, is
+    // broken at random. A tie never spends the one-time skip.
     const votes = Object.values(s.night.mafia); let target: number | null = null, skip = false;
     if (votes.length) {
       const c: Record<string, number> = {}; votes.forEach(v => { c[String(v)] = (c[String(v)] || 0) + 1; });
       const max = Math.max(...Object.values(c)), top = Object.keys(c).filter(k => c[k] === max);
-      const w = top[Math.floor(ctx.rng() * top.length)];
-      if (w === 'skip') { skip = true; s.skipUsed = true; } else target = +w;
+      const w = top.length > 1 && s.rules.tieSkip ? null : top[Math.floor(ctx.rng() * top.length)];
+      if (w === 'skip') { skip = true; s.skipUsed = true; } else if (w != null) target = +w;
     }
     const doc = Object.entries(s.night.doctor).filter(([, q]) => q != null) as [string, number][];
     const prot = new Set(doc.map(([, q]) => q));

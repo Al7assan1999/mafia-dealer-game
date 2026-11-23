@@ -1,0 +1,67 @@
+# A release for the testers (S8-4), only when Alhassan asks: Actions → Release → Run workflow, with the "What's new"
+# points separated by ";". Builds the release APK (signed with the upload key), publishes it as a GitHub Release (the app
+# checks the latest one and updates itself), then pushes "Mafia Dealer X is out" to every phone on the `updates_en` /
+# `updates_ar` topics. Build numbers are 100000 + this workflow's run number, so a release always outranks a CI debug build.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "What's new: points separated by ;"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: 21 }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: 3.47.9, channel: stable, cache: true }
+      - name: Signing key and Firebase config
+        env:
+          KEY_B64: '${{ secrets.ANDROID_KEYSTORE_B64 }}'
+          GOOGLE_SERVICES_JSON: '${{ secrets.GOOGLE_SERVICES_JSON }}'
+        run: |
+          if [ -z "$KEY_B64" ]; then echo "No upload key: a release must be signed with it"; exit 1; fi
+          echo "$KEY_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"; echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > app/android/app/google-services.json; fi
+      - name: Version
+        id: v
+        run: |
+          echo "version=$(grep -E '^version:' app/pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
+          echo "build=$((100000 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+      - name: Release APK
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build apk --release --build-name=${{ steps.v.outputs.version }} --build-number=${{ steps.v.outputs.build }} \
+            --dart-define=VERSION=${{ steps.v.outputs.version }} --dart-define=BUILD=${{ steps.v.outputs.build }} \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          v=${{ steps.v.outputs.version }}; b=${{ steps.v.outputs.build }}
+          printf '%s' "$NOTES" | tr ';' '\n' | sed -e 's/^ *//' -e '/^$/d' -e 's/^/- /' > "$RUNNER_TEMP/notes.md"
+          cp app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b.apk"
+          gh release create "v$v-b$b" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b.apk" --title "Mafia Dealer $v (build $b)" --notes-file "$RUNNER_TEMP/notes.md"
+      - name: Push "new version" to every phone
+        env:
+          FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FCM_SERVICE_ACCOUNT" ]; then echo "No FCM_SERVICE_ACCOUNT: no push"; exit 0; fi
+          node scripts/push-release.mjs "${{ steps.v.outputs.version }}"

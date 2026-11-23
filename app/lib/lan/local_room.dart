@@ -43,12 +43,13 @@ class _Member {
   final int cn;
   String display;
   String? handle, userId;
+  int? build; // the phone's app build ("old version" in the lobby)
   int preset, buzz = 0;
   bool left = false;
-  Map<String, Object?> toJson() => {'uid': uid, 'cn': cn, 'display': display, 'handle': handle, 'userId': userId, 'preset': preset, 'buzz': buzz, 'left': left};
+  Map<String, Object?> toJson() => {'uid': uid, 'cn': cn, 'display': display, 'handle': handle, 'userId': userId, 'preset': preset, 'buzz': buzz, 'left': left, 'build': build};
   static _Member fromJson(Map j) => _Member(j['uid'] as String, j['cn'] as int, j['display'] as String, j['handle'] as String?, j['userId'] as String?, j['preset'] as int? ?? 0)
     ..buzz = j['buzz'] as int? ?? 0
-    ..left = j['left'] == true;
+    ..left = j['left'] == true..build = j['build'] as int?;
 }
 
 class LocalRoom {
@@ -105,7 +106,7 @@ class LocalRoom {
       'members': [
         for (final m in _here)
           {
-            'uid': m.uid, 'cn': m.cn, 'display': m.display, 'handle': m.handle, 'avatar': {'preset': m.preset}, 'online': online(m.uid),
+            'uid': m.uid, 'cn': m.cn, 'display': m.display, 'handle': m.handle, 'avatar': {'preset': m.preset}, 'online': online(m.uid), 'v': m.build,
             'host': m.uid == host, 'ready': ready.contains(m.uid), 'muted': buzzMax > 0 && m.buzz >= buzzMax,
             'seat': game != null && seats.contains(m.uid) ? seats.indexOf(m.uid) : null,
           },
@@ -133,7 +134,9 @@ class LocalRoom {
     if (game?.phase == Phase.end && gameId == null) {
       gameId = 'wifi-${now()}';
       valid = true;
-      final r = {'t': 'record', 'record': rec!.toJson(), 'names': game!.names, 'seats': seats, 'at': now(), 'code': code};
+      final r = {'t': 'record', 'record': rec!.toJson(), 'names': game!.names, 'seats': seats, 'at': now(), 'code': code,
+        // for "Add to online history" (S7-2): each seat's account (null = a guest) and the host
+        'accounts': [for (final u in seats) members.where((m) => m.uid == u).firstOrNull?.userId], 'host': hostUid};
       for (final c in conns) { _out(c, r); }
     }
     final events = [for (final e in _events) if (e is! NightLog) e.toJson()];
@@ -158,7 +161,7 @@ class LocalRoom {
 
   // ---------------------------------------------------------------- connections
   /// A phone connects (since = the last rev it saw, for catch-up). Returns an error code if refused.
-  String? join(LanConn c, Identity id, {int? since}) {
+  String? join(LanConn c, Identity id, {int? since, int? build}) {
     if (kicked.contains(id.uid)) return _refuse(c, 'kicked');
     var m = members.where((x) => x.uid == id.uid).firstOrNull;
     if (m != null) {
@@ -169,6 +172,7 @@ class LocalRoom {
       m = _Member(id.uid, nextCn++, id.display, id.handle, id.userId, id.preset);
       members.add(m);
     }
+    if (build != null && build > 0) m.build = build;
     conns.add(c);
     _seen[c] = now();
     if (since != null && since > 0 && since <= rev) {
@@ -422,7 +426,7 @@ class LocalRoom {
   }
 
   static GameRecord _record(Map<String, Object?> j) => GameRecord(
-        j['deal'] as int, (j['names'] as List).cast<String>(), defaultRules.merge(Map<String, Object?>.from(j['rules'] as Map)),
+        j['deal'] as int, (j['names'] as List).cast<String>(), recordRules(Map<String, Object?>.from(j['rules'] as Map)),
         (j['roles'] as List).map((x) => Role.values.byName(x as String)).toList(),
         (j['actions'] as List).map((x) {
           final m = x as Map;

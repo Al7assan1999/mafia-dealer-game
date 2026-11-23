@@ -23,6 +23,21 @@ class FakeServer {
   final blocks = <(String, String)>{}; // (blocker, blocked)
   final reports = <Map<String, Object?>>[];
   String? admin;
+  final pushTokens = <String, Map<String, Object?>>{}; // user id -> {token, lang}
+  final wifiAsked = <Map<String, Object?>>[]; // POST /v1/wifi-requests bodies
+  final wifiAnswers = <(String, String, bool)>[]; // (user, request, yes)
+  List<Map<String, Object?>> wifiGames = []; // GET /v1/wifi-requests
+  Map<String, Object?> wifiAnswer = {'status': 'pending', 'reason': null}; // what the next request gets
+  String? wifiError; // the next request fails with this (e.g. slow_down)
+  final openRooms = <String>{};
+  // Sprint 8: what the stats and old-history endpoints answer (tests fill them in)
+  Map<String, Object?> statsAnswer = {'board': [], 'me': null, 'minGames': 3, 'games': 0, 'titles': {'best': null, 'mafia': null, 'det': null, 'doc': null, 'first': null}};
+  Map<String, Object?>? playerAnswer;
+  final statsAsked = <String>[]; // the query strings
+  Map<String, Object?> oldNamesAnswer = {'names': [], 'mine': null};
+  Object importAnswer = {'imported': 0, 'duplicates': 0, 'skipped': 0}; // or an error code string
+  List<Map<String, Object?>> oldGamesAnswer = [];
+  final claims = <String>[];
   var _n = 0;
 
   Api api() => Api(base: 'https://fake', client: MockClient(_handle));
@@ -167,6 +182,26 @@ class FakeServer {
       if (body['action'] == 'ban') { users[r['userId']]!['banned'] = true; sessions.removeWhere((_, v) => v == r['userId']); }
       return ok({'ok': true});
     }
+    if (path == '/v1/me/push') { if (m == 'PUT') { pushTokens[me] = body; } else { pushTokens.remove(me); } return ok({'ok': true}); }
+    if (path == '/v1/wifi-requests' && m == 'POST') {
+      if (wifiError != null) { final e = wifiError!; wifiError = null; return err(429, e); }
+      wifiAsked.add(body);
+      return ok({'id': 'w${++_n}', ...wifiAnswer});
+    }
+    if (path == '/v1/wifi-requests' && m == 'GET') return ok({'games': wifiGames});
+    if (path.startsWith('/v1/wifi-requests/') && path.endsWith('/answer')) {
+      final id = path.split('/')[3];
+      wifiAnswers.add((me, id, body['yes'] == true));
+      notes.removeWhere((n) => n['to'] == me && n['id'] == 'w:$id');
+      return ok({'status': 'pending'});
+    }
+    if (path == '/v1/stats') { statsAsked.add(r.url.query); return ok(statsAnswer); }
+    if (path == '/v1/stats/player') return playerAnswer == null ? err(404, 'not_found') : ok(playerAnswer!);
+    if (path == '/v1/legacy/names') return ok(oldNamesAnswer);
+    if (path == '/v1/legacy/claim') { claims.add(body['name'] as String); oldNamesAnswer = {...oldNamesAnswer, 'mine': body['name']}; return ok({'ok': true, 'name': body['name']}); }
+    if (path == '/v1/legacy/import') { final a = importAnswer; return a is String ? err(a == 'busy' ? 502 : 404, a) : ok(a); }
+    if (path == '/v1/legacy/games') return ok({'games': oldGamesAnswer});
+    if (path.startsWith('/v1/rooms/') && m == 'GET') return openRooms.contains(path.split('/').last) ? ok({'open': true, 'status': 'lobby', 'host': 'x'}) : err(404, 'no_room');
     if (path == '/v1/notifications' && m == 'GET') {
       final l = notes.where((n) => n['to'] == me).toList();
       return ok({'notifications': l, 'unread': l.where((n) => n['read'] != true).length});
@@ -181,6 +216,10 @@ class FakeServer {
   }
 
   List<int>? lastPhoto;
+
+  /// A Wi-Fi request in someone's bell: asked to confirm (wifi_confirm) or my result (wifi_result).
+  void wifiNote(String to, String fromId, String kind, Map<String, Object?> wifi) =>
+      notes.add({'id': 'w:${wifi['request']}', 'to': to, 'kind': kind, 'from': card(fromId, to), 'code': null, 'at': 0, 'expiresAt': 0, 'read': false, 'wifi': wifi});
 
   /// A friend note in someone's bell.
   void note(String to, String fromId, String kind) =>

@@ -47,6 +47,31 @@ files are copied from there only when a phase needs them.
   [Developer] → [QA] adversarial tests plus a hands-on UX pass → [BA] acceptance review → Sprint Release Report.
   Read `docs/team-workflow.md` before every sprint.
 
+## Decisions (2026-11-23)
+- **Engine oddities:** a dead Detective still sees their last result (kept). **Any tie means skip:** a tied Mafia vote
+  kills nobody (was a random pick); the day vote already treats a tie as nobody out. Built in Sprint 7, stored in the
+  game's rules so old records replay unchanged.
+- **Firebase push starts now** (Sprint 7, with the Wi-Fi approval process).
+- **Everything about publishing on Google Play waits until the app is fully finished** (privacy policy, deletion page,
+  data safety, closed test, AAB, In-App Updates, app links).
+- **Moving old players** (his answers, same day): only the phone history moves, test games ("Player 1"…) left out; the
+  old games must count in the new app's stats (not a read-only tab); old data deleted 3 months after Play; timing just
+  before the Play work; **`../mafia-dealer` is never changed**. Route: the old app's existing Group history uploads a
+  phone's games, the new server imports by the group code (`docs/old-players-plan.md`, revised, waiting approval + his
+  name list).
+- Sprint 7 answers confirmed (push + approval together, "Approved" mark, a tie keeps the skip, limits, no chat push).
+  Firebase: Android app registered with the SHA-1; secrets `GOOGLE_SERVICES_JSON` and `FCM_SERVICE_ACCOUNT` set (key
+  checked against FCM with a dry run).
+- **[BA] old-app parity audit** (`docs/old-app-parity.md`): the biggest gaps are stats / titles / player profiles, the
+  welcome, minimize-lobby, host defaults in Settings, update notices for APK testers. Workflow rule strengthened: the BA
+  covers the old app and brings its own proposals; QA states what each test layer can't prove.
+- His answers to the parity questions: **Neon comes back as a choice** (Sprint 9); **offline games stay unlogged**;
+  new builds announced **"same as before"** until Play (in-app check + download + install, from a GitHub Release he
+  asks for, push instead of the alarm; switched off for the Play build); next sprint **Stats + old history** (Sprint 8
+  PRD `docs/sprint-8-prd.md`, waiting sign-off).
+- graphify set up (graph in `graphify-out/`, git hooks post-commit / post-checkout, Claude hook in
+  `.claude/settings.json`; all git-ignored except `CLAUDE.md` and `.gitattributes`).
+
 ## Phases
 1. **Engine** (done 2026-11-19, not committed): `packages/engine`, 31 tests (setup limits, one per rule, test7/test9
    scenarios, 1,000 random games). Open questions in `packages/engine/QUIRKS.md`.
@@ -102,7 +127,22 @@ files are copied from there only when a phase needs them.
    `KeepService` (connectedDevice FGS + wake lock + Wi-Fi lock, channel `mafia/keep`), "Resume hosting" from a
    snapshot, players relocating a moved host, Wi-Fi history on the phone (History tabs), host narrates by default.
    His answers: approval process in Sprint 7; own keep-alive plugin; no host takeover yet; 🖕 replaced by 🤨.
-   Next: Sprint 7 approval process, Sprint 8 push + Play readiness.
+   Sprint 6 committed and green on CI 2026-11-23 (b94d330).
+   **Sprint 7, push + Wi-Fi approval + the tie rule** (`docs/sprint-7-prd.md`, built 2026-11-23, not committed): FCM
+   push (tokens per session, only when the hub is closed, channels invites / friends / approvals, secrets
+   `GOOGLE_SERVICES_JSON` + `FCM_SERVICE_ACCOUNT`; push off without them), Wi-Fi games into online history by automatic
+   rules (migration `0006`: `settings.wifi_rules`, `wifi_requests` raw + versioned, `wifi_seats`, `games.source`; hourly
+   cron expires), Confirm / Not me in the bell, History open signed out, `rules.tieSkip` (old records replay random).
+   His answers: recommended 1–5. After it: groups (his prompt), old players (plan), Play readiness last.
+   **Sprint 8, stats + old history + in-app updates** (`docs/sprint-8-prd.md`, built 2026-11-23, not committed): the old
+   app's titles / board / profile on the server (`stats.ts`: Mine = my online + approved Wi-Fi + old games, 3-game min;
+   Everyone = accounts, server-vouched games, 10-game min, opt-out switch), best partner, share card, title-taken notes
+   (Titles channel), old history import by the old Group-history code (`legacy.ts`, migration `0007`, real-player list in
+   `settings.old_players`, empty until he sends names), History → Old app, in-app updates from GitHub Releases
+   (`update.dart`, `Updates.kt` PackageInstaller, silent on Android 12+ after the first, `release.yml` run only when he
+   asks, push topics `updates_en/ar`), old-build tag in lobbies. His answers: Everyone board added; names later; updates
+   automatic like the old app + push; P1-P4 all; local emulator for QA (Pixel 6 API 34 AVD `qa34`).
+   Next: Sprint 9 (friends drawer, minimize in room, Neon, Settings parity), Sprint 10 (the intro), groups, Play last.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).

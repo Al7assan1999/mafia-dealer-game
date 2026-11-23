@@ -20,6 +20,8 @@ import 'l10n/app_localizations.dart';
 import 'prefs.dart';
 import 'room.dart';
 import 'setup.dart';
+import 'stats.dart';
+import 'version.dart';
 import 'ui.dart';
 
 String roomErr(L l, String? code) => switch (code) {
@@ -107,6 +109,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool revealed = true; // the morning / verdict / end result is held until my narrator says the name
   bool _timeUpSaid = false;
   String? _myAddress; // Wi-Fi host: where players join (shown under the code)
+  String? _wifiKey; // the Wi-Fi game just kept on this phone (its end screen offers it to online history)
   Object? _pick;
   Audio get audio => widget.audio;
   RoomConn get conn => c; // for the tests
@@ -163,7 +166,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     } else if (m['t'] == 'record' && widget.lan) {
       // a Wi-Fi game ended: this phone keeps it (History → Wi-Fi)
       final seats = (m['seats'] as List).cast<String>();
-      widget.prefs.addWifiGame({'id': '${m['code']}-${m['at']}', 'record': m['record'], 'names': m['names'], 'mySeat': seats.indexOf(c.myUid ?? ''), 'at': m['at'], 'code': m['code']});
+      final key = '${m['code']}-${m['at']}';
+      widget.prefs.addWifiGame({'id': key, 'record': m['record'], 'names': m['names'], 'mySeat': seats.indexOf(c.myUid ?? ''), 'at': m['at'], 'code': m['code'],
+        'accounts': m['accounts'], 'host': m['host'] != null && m['host'] == c.myUid});
+      setState(() => _wifiKey = key);
     } else if (m['t'] == 'mention') {
       toast(context, l.mentionedYou(c.members.where((x) => x['cn'] == m['from']).firstOrNull?['display'] as String? ?? '?'));
       HapticFeedback.mediumImpact();
@@ -390,6 +396,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           ]),
           Text([if (m['handle'] != null) atHandle(m['handle'] as String), if (m['ready'] == true) l.readyTag, if (m['muted'] == true) l.mutedTag].join(' · '),
               style: const TextStyle(color: C.mute, fontSize: 12)),
+          if (!me && appBuild > 0 && m['v'] is int && (m['v'] as int) < appBuild)
+            Text(l.oldVersion, key: Key('oldVersion_${m['cn']}'), style: const TextStyle(color: C.gold, fontSize: 12)),
         ])),
         if (!me)
           SafetyMenu(
@@ -684,6 +692,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           const SizedBox(width: 10),
           Expanded(child: Btn(l.invalid, key: const Key('markInvalid'), ghost: valid != false, onTap: _h(() => c.send({'t': 'mark', 'valid': false})))),
         ]),
+        if (widget.lan && _wifiKey != null) WifiApproval(account: widget.account, prefs: widget.prefs, gameKey: _wifiKey!),
         Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: _h(() => c.send({'t': 'deal'}))),
         Btn(l.toLobby, key: const Key('toLobby'), ghost: true, onTap: _h(() => c.send({'t': 'lobby'}))),
       ] else
@@ -725,24 +734,41 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryState extends State<HistoryScreen> {
   List<Map<String, Object?>>? games;
   String? error;
+  Map<String, Map<String, Object?>> server = {}; // the server's Wi-Fi requests and approved games, by the game's key
 
   @override
   void initState() { super.initState(); _load(); }
   Future<void> _load() async {
+    if (!widget.account.signedIn) return;
+    widget.account.wifiRequests().then((w) { if (mounted) setState(() => server = {for (final x in w) x['key'] as String: x}); }).catchError((_) {});
     try { final g = await widget.account.games(); if (mounted) setState(() => games = g); } catch (e) { if (mounted) setState(() => error = errText(L.of(context), e)); }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(listenable: widget.prefs, builder: (context, _) {
     final l = L.of(context);
-    final wifi = widget.prefs.wifiGames;
-    return DefaultTabController(length: 2, child: Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.historyT, style: head.copyWith(fontSize: 20)),
+    final local = widget.prefs.wifiGames, keys = {for (final g in local) g['id']};
+    // approved games played on another phone of mine: shown from the server's copy of the record
+    final wifi = [...local, for (final s in server.values) if (s['status'] == 'approved' && !keys.contains(s['key']) && s['record'] != null)
+      {'id': s['key'], 'record': s['record'], 'names': (s['record'] as Map)['names'], 'mySeat': s['seat'], 'at': s['playedAt'], 'host': s['host']}]
+      ..sort((a, b) => ((b['at'] as int?) ?? 0).compareTo((a['at'] as int?) ?? 0));
+    final title = Text(l.historyT, style: head.copyWith(fontSize: 20));
+    if (!widget.account.signedIn) { // signed out: the Wi-Fi games on this phone (online history needs an account)
+      return Scaffold(appBar: AppBar(backgroundColor: C.bg, title: title), body: Column(children: [
+        Expanded(child: _wifi(l, wifi)),
+        Padding(padding: const EdgeInsets.all(16), child: Text(l.historySignIn, key: const Key('historySignIn'), textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+      ]));
+    }
+    return DefaultTabController(length: 3, child: Scaffold(
+      appBar: AppBar(backgroundColor: C.bg, title: title, actions: [
+            IconButton(key: const Key('openStats'), tooltip: l.statsT, icon: const Icon(Icons.leaderboard_outlined, color: C.mute),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatsScreen(account: widget.account)))),
+          ],
           bottom: TabBar(indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,
-              tabs: [Tab(key: const Key('tabOnline'), text: l.tabOnline), Tab(key: const Key('tabWifi'), text: l.tabWifi)])),
-      body: TabBarView(children: [_online(l), _wifi(l, wifi)]),
+              tabs: [Tab(key: const Key('tabOnline'), text: l.tabOnline), Tab(key: const Key('tabWifi'), text: l.tabWifi), Tab(key: const Key('tabOld'), text: l.tabOld)])),
+      body: TabBarView(children: [_online(l), _wifi(l, wifi), OldGamesTab(account: widget.account)]),
     ));
-  }
+  });
 
   /// Wi-Fi games on this phone: the detail page is rebuilt from the game's record.
   Widget _wifi(L l, List<Map<String, Object?>> games) => games.isEmpty
@@ -754,10 +780,13 @@ class _HistoryState extends State<HistoryScreen> {
                 key: Key('wifi_${g['id']}'),
                 leading: Icon(d['winner'] == 'mafia' ? Icons.dangerous_outlined : Icons.emoji_events_outlined, color: d['winner'] == 'mafia' ? C.red2 : C.gold),
                 title: Text(d['winner'] == 'mafia' ? l.winMafia : l.winCitizens),
-                subtitle: Text([
-                  if (d['mine'] != null) l.youPlayed(roleName(l, Role.values.byName(d['mine'] as String))),
-                  l.rcSub((d['players'] as List).length, d['days'] as int),
-                ].join(' · '), style: const TextStyle(color: C.mute)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text([
+                    if (d['mine'] != null) l.youPlayed(roleName(l, Role.values.byName(d['mine'] as String))),
+                    l.rcSub((d['players'] as List).length, d['days'] as int),
+                  ].join(' · '), style: const TextStyle(color: C.mute)),
+                  WifiApproval(account: widget.account, prefs: widget.prefs, gameKey: g['id'] as String, server: server[g['id']], game: g, compact: true),
+                ]),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _GameDetail(account: widget.account, id: '', local: d))),
               )),
         ]);
@@ -768,7 +797,7 @@ class _HistoryState extends State<HistoryScreen> {
     if (r.error != null) return null;
     final s = r.state!, my = g['mySeat'] as int? ?? -1;
     return {
-      'winner': s.winner?.name, 'days': s.day, 'valid': true, 'host': false, 'log': s.log.map((e) => e.toJson()).toList(),
+      'winner': s.winner?.name, 'days': s.day, 'valid': true, 'host': false, 'log': s.log.map((e) => e.toJson()).toList(), 'stats': {'first': s.stats.first, 'kills': s.stats.kills, 'outs': s.stats.outs, 'saves': s.stats.saves, 'caught': [for (final (d, m) in s.stats.caught) [d, m]]},
       'players': [for (var i = 0; i < s.names.length; i++) {'seat': i, 'name': s.names[i], 'role': s.roles[i].name, 'alive': s.alive[i]}],
       'mine': my >= 0 && my < s.roles.length ? s.roles[my].name : null,
     };
@@ -792,6 +821,68 @@ class _HistoryState extends State<HistoryScreen> {
   }
 }
 
+/// A kept Wi-Fi game's way into online history (S7-2): the button for the host, the guest line, or the request's
+/// status. `server` is the server's view of the request (History loads it); else the phone's own record of it.
+class WifiApproval extends StatefulWidget {
+  const WifiApproval({super.key, required this.account, required this.prefs, required this.gameKey, this.server, this.game, this.compact = false});
+  final Account account;
+  final Prefs prefs;
+  final String gameKey;
+  final Map<String, Object?>? server, game;
+  final bool compact;
+  @override
+  State<WifiApproval> createState() => _WifiApprovalState();
+}
+
+class _WifiApprovalState extends State<WifiApproval> {
+  bool busy = false;
+
+  static String reasonText(L l, String? r) => switch (r) {
+        'replay' => l.wrReplay, 'seats' => l.wrSeats, 'players' => l.wrPlayers, 'short' => l.wrShort, 'old' => l.wrOld, 'dup' => l.wrDup, _ => r ?? '?' };
+  static String statusText(L l, Map<String, Object?> req, int players) => switch (req['status']) {
+        'pending' => l.wPending((req['waiting'] as int?) ?? players - 1, (req['total'] as int?) ?? players),
+        'approved' => l.wApproved, 'declined' => l.wDeclined, 'expired' => l.wExpired, _ => l.wRejected(reasonText(l, req['reason'] as String?)) };
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: Listenable.merge([widget.prefs, widget.account]), builder: (context, _) {
+    final l = L.of(context);
+    final g = widget.game ?? widget.prefs.wifiGames.where((x) => x['id'] == widget.gameKey).firstOrNull;
+    if (g == null) return const SizedBox.shrink();
+    final players = ((g['names'] as List?) ?? const []).length;
+    final local = g['req'] == null ? null : Map<String, Object?>.from(g['req'] as Map);
+    // the server knows better (others' answers), except right after a rejection it never keeps for History
+    final req = widget.server ?? local;
+    final pad = EdgeInsets.only(top: widget.compact ? 4 : 0, bottom: widget.compact ? 0 : 10);
+    if (req != null) {
+      final ok = req['status'] == 'approved', waiting = req['status'] == 'pending';
+      return Padding(padding: pad, child: Row(mainAxisAlignment: widget.compact ? MainAxisAlignment.start : MainAxisAlignment.center, children: [
+        Icon(ok ? Icons.verified_outlined : waiting ? Icons.hourglass_top : Icons.block, size: 16, color: ok ? C.green : waiting ? C.gold : C.dim),
+        const SizedBox(width: 6),
+        Flexible(child: Text(statusText(l, req, players), key: const Key('wifiStatus'), style: TextStyle(color: ok ? C.green : C.mute, fontSize: 13))),
+      ]));
+    }
+    if (g['host'] != true) return const SizedBox.shrink();
+    if (Account.hadGuest(g)) {
+      return Padding(padding: pad, child: Text(l.guestStays, key: const Key('guestStays'), textAlign: widget.compact ? TextAlign.start : TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 13)));
+    }
+    if (!widget.account.canAskWifi(g)) return const SizedBox.shrink();
+    Future<void> send() async {
+      setState(() => busy = true);
+      try { await widget.account.askWifi(g); }
+      catch (e) { if (context.mounted) toast(context, e is ApiError && e.code == 'slow_down' ? l.wrLimit : errText(l, e)); }
+      if (mounted) setState(() => busy = false);
+    }
+    if (widget.compact) {
+      return Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const Key('addOnline'), onPressed: busy ? null : send,
+          icon: const Icon(Icons.cloud_upload_outlined, size: 18, color: C.red2), label: Text(l.addOnline, style: const TextStyle(color: C.red2))));
+    }
+    return Padding(padding: pad, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Btn(l.addOnline, key: const Key('addOnline'), ghost: true, icon: Icons.cloud_upload_outlined, onTap: busy ? null : send),
+      Padding(padding: const EdgeInsets.only(top: 4), child: Text(l.addOnlineD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12))),
+    ]));
+  });
+}
+
 class _GameDetail extends StatefulWidget {
   const _GameDetail({required this.account, required this.id, this.local});
   final Account account;
@@ -802,6 +893,15 @@ class _GameDetail extends StatefulWidget {
 }
 
 class _GameDetailState extends State<_GameDetail> {
+  /// The player of the game, from the saved stats (as on the end screen).
+  static ({int seat, String why, int? n})? _mvp(Map<String, Object?> game) {
+    final st = game['stats'] as Map?, ps = (game['players'] as List).cast<Map>();
+    if (st == null || game['winner'] == null) return null;
+    final stats = Stats(first: st['first'] as int?, kills: ((st['kills'] as List?) ?? []).cast<int>(), outs: ((st['outs'] as List?) ?? []).cast<int>(),
+        saves: ((st['saves'] as List?) ?? []).cast<int>(), caught: [for (final p in ((st['caught'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
+    return mvp(Winner.values.byName(game['winner'] as String), [for (final p in ps) Role.values.byName(p['role'] as String)], [for (final p in ps) p['alive'] == true], stats);
+  }
+
   Map<String, Object?>? g;
   @override
   void initState() {
@@ -833,13 +933,28 @@ class _GameDetailState extends State<_GameDetail> {
           Expanded(child: Btn(l.invalid, ghost: game['valid'] != false, onTap: () async { await widget.account.markGame(widget.id, false).catchError((_) {}); setState(() => game['valid'] = false); })),
         ]),
       ], children: [
+        if (_mvp(game) case final best?)
+          Sec(title: l.mvpT, child: Row(children: [
+            Icon(roleIcon(Role.values.byName(ps[best.seat]['role'] as String)), color: roleColor(Role.values.byName(ps[best.seat]['role'] as String))), const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(ps[best.seat]['name'] as String, key: const Key('detailMvp'), style: head.copyWith(fontSize: 20)),
+              Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
+                  style: const TextStyle(color: C.mute)),
+            ])),
+          ])),
         Sec(title: l.roles, child: Column(children: [
           for (final p in ps)
-            Row(children: [
-              Icon(roleIcon(Role.values.byName(p['role'] as String)), size: 18, color: roleColor(Role.values.byName(p['role'] as String))), const SizedBox(width: 8),
-              Expanded(child: Text(p['name'] as String, style: TextStyle(decoration: p['alive'] == true ? null : TextDecoration.lineThrough))),
-              Text(roleName(l, Role.values.byName(p['role'] as String))),
-            ]),
+            InkWell(
+              key: Key('player_${p['seat']}'),
+              // an account opens its profile from every verified game; a name only from the games I played in
+              onTap: widget.account.signedIn ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: widget.account,
+                  playerKey: p['userId'] != null ? 'u:${p['userId']}' : 'n:${p['name']}', filter: StatsFilter(board: p['userId'] != null ? 'all' : 'mine')))) : null,
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+                Icon(roleIcon(Role.values.byName(p['role'] as String)), size: 18, color: roleColor(Role.values.byName(p['role'] as String))), const SizedBox(width: 8),
+                Expanded(child: Text(p['name'] as String, style: TextStyle(decoration: p['alive'] == true ? null : TextDecoration.lineThrough))),
+                Text(roleName(l, Role.values.byName(p['role'] as String))),
+              ])),
+            ),
         ])),
         Sec(title: l.history, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (final e in (game['log'] as List).cast<Map>()) if (line(e).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(line(e), style: const TextStyle(color: C.mute))),

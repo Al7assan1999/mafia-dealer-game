@@ -13,7 +13,11 @@ import 'game_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'online.dart';
 import 'prefs.dart';
+import 'push.dart';
 import 'setup.dart';
+import 'stats.dart';
+import 'update.dart';
+import 'version.dart';
 import 'ui.dart';
 
 Future<void> main() async {
@@ -22,14 +26,18 @@ Future<void> main() async {
   final prefs = await Prefs.load(), audio = Audio(prefs), account = Account(Api(), SecureTokens(), prefs);
   await audio.init();
   account.restore(); // silently, in the background: the app never waits for the network
-  runApp(App(prefs: prefs, audio: audio, account: account));
+  final updater = Updater(prefs);
+  runApp(App(prefs: prefs, audio: audio, account: account, updater: updater));
+  FcmPush.start().then((p) { if (p != null) { account.push = p; updater.push = p; } }); // push stays off on a build without Firebase
+  updater.check();
 }
 
 class App extends StatefulWidget {
-  const App({super.key, required this.prefs, required this.audio, required this.account});
+  const App({super.key, required this.prefs, required this.audio, required this.account, this.updater});
   final Prefs prefs;
   final Audio audio;
   final Account account;
+  final Updater? updater; // in-app updates (null in widget tests that don't test them)
   @override
   State<App> createState() => _AppState();
 }
@@ -42,7 +50,7 @@ class _AppState extends State<App> {
   @override
   void initState() {
     super.initState();
-    _life = AppLifecycleListener(onResume: () => widget.account.foreground(true), onPause: () => widget.account.foreground(false));
+    _life = AppLifecycleListener(onResume: () { widget.account.foreground(true); widget.updater?.check(); }, onPause: () => widget.account.foreground(false));
   }
   @override
   void dispose() { _life.dispose(); super.dispose(); }
@@ -57,16 +65,51 @@ class _AppState extends State<App> {
           locale: Locale(prefs.lang),
           supportedLocales: L.supportedLocales,
           localizationsDelegates: const [L.delegate, GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-          home: Home(prefs: prefs, audio: widget.audio, account: widget.account),
+          home: Home(prefs: prefs, audio: widget.audio, account: widget.account, updater: widget.updater),
         ),
       );
 }
 
-class Home extends StatelessWidget {
-  const Home({super.key, required this.prefs, required this.audio, required this.account});
+class Home extends StatefulWidget {
+  const Home({super.key, required this.prefs, required this.audio, required this.account, this.updater});
   final Prefs prefs;
   final Audio audio;
   final Account account;
+  final Updater? updater;
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  Prefs get prefs => widget.prefs;
+  Audio get audio => widget.audio;
+  Account get account => widget.account;
+  Updater? get updater => widget.updater;
+
+  @override
+  Widget build(BuildContext context) => _HomeBody(prefs: prefs, audio: audio, account: account, updater: updater);
+
+  @override
+  void initState() {
+    super.initState();
+    // "Updated to vX" once, the first start of a newer build (S8-4 AC4)
+    final u = updater?.takeUpdated();
+    if (u != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final l = L.of(context);
+        u.notes.isEmpty ? toast(context, l.updUpdated(u.version)) : notesSheet(context, l.updUpdated(u.version), u.notes);
+      });
+    }
+  }
+}
+
+class _HomeBody extends StatelessWidget {
+  const _HomeBody({required this.prefs, required this.audio, required this.account, this.updater});
+  final Prefs prefs;
+  final Audio audio;
+  final Account account;
+  final Updater? updater;
 
   void _play(BuildContext context, OfflineGame g) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio, account: account)));
@@ -77,15 +120,35 @@ class Home extends StatelessWidget {
   void _room(BuildContext context, String code) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomScreen(account: account, prefs: prefs, audio: audio, code: code)));
 
+  /// A tapped notification: an invite opens its room (or says it expired); friends open Friends; the rest the bell.
+  Future<void> _openPush(BuildContext context, Map<String, String> d) async {
+    final kind = d['kind'], code = d['code'];
+    if ((kind == 'invite' || kind == 'let_in') && code != null) {
+      final open = await account.roomOpen(code);
+      if (!context.mounted) return;
+      if (open) return _room(context, code);
+      toast(context, L.of(context).inviteExpired);
+    } else if (kind == 'update') {
+      await updater?.check(force: true); // the card on Home has Update
+      return;
+    } else if (kind == 'friend_request' || kind == 'friend_accept') {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FriendsScreen(account: account)));
+      return;
+    }
+    if (!context.mounted) return;
+    showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: account));
+  }
+
   Widget _build(BuildContext context) {
     final l = L.of(context), saved = prefs.game != null;
     account.openRoom = (code) => _room(context, code); // the bell opens invites with it
+    account.onPushOpen = (d) => _openPush(context, d);
     return Scaffold(
       body: Stage(children: [
         Row(children: [
           Expanded(child: AccountBar(account: account)),
           IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: const Icon(Icons.settings_outlined, color: C.mute),
-              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, builder: (_) => SettingsSheet(prefs: prefs))),
+              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater))),
         ]),
         const SizedBox(height: 24),
         Center(
@@ -101,6 +164,7 @@ class Home extends StatelessWidget {
         const SizedBox(height: 22),
         Big(l.appName, sub: l.tag, size: 38),
         const SizedBox(height: 24),
+        if (updater != null) UpdateCard(updater: updater!),
         if (!prefs.guideSeen)
           Sec(color: C.card2, child: Row(children: [
             const Icon(Icons.menu_book_outlined, color: C.gold),
@@ -158,7 +222,10 @@ class Home extends StatelessWidget {
             if (prefs.guideSeen) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
                 icon: const Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: const TextStyle(color: C.mute)),
                 onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); })),
-            if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 4), child: TextButton.icon(key: const Key('history'),
+            if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 4), child: TextButton.icon(key: const Key('stats'),
+                icon: const Icon(Icons.leaderboard_outlined, color: C.mute), label: Text(l.statsT, style: const TextStyle(color: C.mute)),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatsScreen(account: account))))),
+            Padding(padding: const EdgeInsets.only(top: 4), child: TextButton.icon(key: const Key('history'), // Wi-Fi games are kept for guests too
                 icon: const Icon(Icons.history, color: C.mute), label: Text(l.historyT, style: const TextStyle(color: C.mute)),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HistoryScreen(account: account, prefs: prefs))))),
           ]);
@@ -168,9 +235,18 @@ class Home extends StatelessWidget {
   }
 }
 
-class SettingsSheet extends StatelessWidget {
-  const SettingsSheet({super.key, required this.prefs});
+class SettingsSheet extends StatefulWidget {
+  const SettingsSheet({super.key, required this.prefs, this.updater});
   final Prefs prefs;
+  final Updater? updater;
+  @override
+  State<SettingsSheet> createState() => _SettingsState();
+}
+
+class _SettingsState extends State<SettingsSheet> {
+  Prefs get prefs => widget.prefs;
+  Updater? get updater => widget.updater;
+  String? _checked; // the answer to "Check for updates", shown in the sheet ([QA] S8 #7)
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -178,7 +254,7 @@ class SettingsSheet extends StatelessWidget {
         builder: (context, _) {
           final l = L.of(context);
           return SafeArea(
-            child: Padding(
+            child: SingleChildScrollView( // [QA] S7: with the Notifications row it outgrew a 640 px phone's sheet
               padding: const EdgeInsets.all(16),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(l.settingsT, style: head.copyWith(fontSize: 22)),
@@ -193,6 +269,23 @@ class SettingsSheet extends StatelessWidget {
                 Slider(value: prefs.voice, onChanged: (v) => prefs.voice = v),
                 Text(l.sSfx),
                 Slider(value: prefs.sfx, onChanged: (v) => prefs.sfx = v),
+                ListTile(key: const Key('notifSettings'), contentPadding: EdgeInsets.zero, title: Text(l.sNotif),
+                    subtitle: Text(l.sNotifD, style: const TextStyle(color: C.dim, fontSize: 12)),
+                    trailing: const Icon(Icons.open_in_new, color: C.mute, size: 18), onTap: openNotificationSettings),
+                if (updater != null && selfUpdate) ...[
+                  SwitchListTile(key: const Key('updAlerts'), contentPadding: EdgeInsets.zero, value: prefs.updAlerts, onChanged: (v) => updater!.setAlerts(v),
+                      title: Text(l.sAlerts), subtitle: Text(l.sAlertsD, style: const TextStyle(color: C.dim, fontSize: 12))),
+                  ListTile(key: const Key('checkUpdates'), contentPadding: EdgeInsets.zero, title: Text(l.sCheck),
+                      subtitle: _checked == null ? null : Text(_checked!, key: const Key('checkResult'), style: const TextStyle(color: C.gold, fontSize: 12)),
+                      trailing: const Icon(Icons.refresh, color: C.mute, size: 18),
+                      onTap: () async {
+                        await updater!.check(force: true);
+                        if (!context.mounted) return;
+                        if (updater!.latest != null) { Navigator.of(context).pop(); return; } // the card on Home has Update
+                        setState(() => _checked = l.sUpToDate);
+                      }),
+                ],
+                Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sVersion(appVersion, appBuild), key: const Key('version'), style: const TextStyle(color: C.dim, fontSize: 12))),
               ]),
             ),
           );

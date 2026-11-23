@@ -15,6 +15,7 @@ export const RulesIn = z.object({
   skip: z.boolean(), norep: z.boolean(), saverev: z.boolean(), decoy: z.boolean(), self: z.boolean(), rep: z.boolean(),
   reveal: z.boolean(), timer: z.number().int().min(30).max(900), nightT: z.union([z.literal(0), z.literal(30), z.literal(45), z.literal(60), z.literal(90), z.literal(120), z.literal(180)]),
   ghost: z.boolean(), skipVote: z.boolean(),
+  tieSkip: z.literal(true).optional(),  // always on for new games; phones may send it, never switch it off
 }).strict();
 
 /** Everything a phone may send to its room. Seats come from the session, never from the message. */
@@ -47,7 +48,7 @@ export const RoomIn = z.discriminatedUnion('t', [
 ]);
 export type RoomIn = z.infer<typeof RoomIn>;
 
-export interface RoomMember { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; online: boolean; host: boolean; ready: boolean; muted: boolean; seat: number | null }
+export interface RoomMember { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; online: boolean; host: boolean; ready: boolean; muted: boolean; seat: number | null; v: number | null }  // v: app build
 export interface RoomInfo {
   code: string; members: RoomMember[]; rules: Rules; counts: Counts; buzzMax: number;
   status: 'lobby' | 'game'; deal: number; gameId: string | null; valid: boolean | null;
@@ -75,7 +76,34 @@ export type HubOut =
   | { t: 'note'; note: Notification }
   | { t: 'unread'; n: number };
 
-export interface Notification { id: string; kind: 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept'; from: import('./index.ts').UserCard; code: string | null; at: number; expiresAt: number; read: boolean }
+export interface Notification {
+  id: string; kind: 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'wifi_result' | 'title_lost';
+  from: import('./index.ts').UserCard; code: string | null; at: number; expiresAt: number; read: boolean;
+  wifi?: WifiNote;  // wifi_confirm (asked to confirm a Wi-Fi game) and wifi_result (my request was decided); id = 'w:' + request id
+  title?: 'best' | 'mafia' | 'det' | 'doc' | 'first';  // title_lost: `from` took this Everyone-leaderboard title from me; id = 'b:' + note id
+}
+/** A request to add a Wi-Fi game to online history, as the bell and History show it. */
+export interface WifiNote {
+  request: string; status: WifiStatus; reason: string | null; players: number; winner: 'mafia' | 'citizens' | null; playedAt: number;
+  seat: number | null; role: Role | null;  // mine in that game
+}
+export type WifiStatus = 'pending' | 'approved' | 'declined' | 'expired' | 'rejected';
+
+/** Push notifications: this device's FCM token and the language its texts should use. */
+export const PushTokenIn = z.object({ token: z.string().min(20).max(4096), lang: z.enum(['en', 'ar']) }).strict();
+/** The host asks to add a finished Wi-Fi game to online history. Every seat must be a signed-in player. */
+export const WifiRequestIn = z.object({
+  key: z.string().min(1).max(64),                   // the game's id on the phones ("<room>-<ended at>")
+  record: z.record(z.string(), z.unknown()),        // the engine's game record, replayed by the server
+  seats: z.array(z.object({ seat: z.number().int().min(0).max(19), userId: z.string().min(1).max(64), name: z.string().min(1).max(18) }).strict()).min(4).max(20),
+  app: z.string().max(32).optional(),
+}).strict();
+export const WifiAnswer = z.object({ yes: z.boolean() }).strict();
+/** A Wi-Fi request in History → Wi-Fi: mine as host (any status), or an approved game I played in. */
+export interface WifiGameInfo {
+  id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | null;
+  host: boolean; waiting: number; total: number; gameId: string | null; seat: number | null; role: Role | null; record: unknown | null;
+}
 
 export const Invite = z.object({ userId: z.string().max(64), code: z.string().regex(/^\d{6}$/) }).strict();
 export const JoinRequest = z.object({ userId: z.string().max(64) }).strict();

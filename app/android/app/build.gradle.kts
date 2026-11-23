@@ -11,6 +11,9 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+// Push (Firebase) only when google-services.json is here: locally put there by hand, in CI written from the
+// GOOGLE_SERVICES_JSON secret. Without it the app builds and runs with push switched off.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.mafiadealer.game"

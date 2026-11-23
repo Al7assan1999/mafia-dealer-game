@@ -66,7 +66,27 @@ class Prefs extends ChangeNotifier {
   void addWifiGame(Map<String, Object?> g) {
     final all = [g, ...wifiGames.where((x) => x['id'] != g['id'])].take(100).toList();
     _sp.setString('wifiGames', jsonEncode(all));
+    notifyListeners();
   }
+  /// Changes fields of a kept Wi-Fi game (its request to online history: `req` = {id, status, reason}).
+  void updateWifiGame(String id, Map<String, Object?> fields) {
+    _sp.setString('wifiGames', jsonEncode([for (final g in wifiGames) g['id'] == id ? {...g, ...fields} : g]));
+    notifyListeners();
+  }
+
+  /// Updates (S8-4): alerts on / off, the last check, the last build that ran, and the bullets of the release being installed.
+  bool get updAlerts => _sp.getBool('updAlerts') ?? true;
+  set updAlerts(bool v) => _sp.setBool('updAlerts', v);
+  int get lastCheck => _sp.getInt('lastCheck') ?? 0;
+  set lastCheck(int v) => _sp.setInt('lastCheck', v);
+  int get lastBuild => _sp.getInt('lastBuild') ?? 0;
+  set lastBuild(int v) => _sp.setInt('lastBuild', v);
+  List<String> get pendingNotes => _sp.getStringList('pendingNotes') ?? const [];
+  set pendingNotes(List<String> v) => _sp.setStringList('pendingNotes', v);
+
+  /// Has this phone asked for Android's notification permission (once, after the first sign-in)?
+  bool get pushAsked => _sp.getBool('pushAsked') ?? false;
+  set pushAsked(bool v) => _sp.setBool('pushAsked', v);
 
   /// The offline game in progress, or null.
   Map<String, Object?>? get game => _json('game');

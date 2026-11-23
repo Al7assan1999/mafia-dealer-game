@@ -183,7 +183,7 @@ void main() {
     expect(app.prefs.lanName, 'Hokan');
   });
 
-  testWidgets('History → Wi-Fi shows the games kept on this phone, with the detail page', (t) async {
+  testWidgets('History, signed out: the Wi-Fi games kept on this phone (no tabs), with the detail page', (t) async {
     final g = createGame(Setup(['A', 'B', 'C', 'D'], const Counts(1, 1, 0), defaultRules), seeded(1)).state!;
     final rec = startRecord(g);
     var s = g;
@@ -197,8 +197,8 @@ void main() {
       home: HistoryScreen(account: app.account, prefs: app.prefs),
     ));
     await t.pump(const Duration(milliseconds: 300));
-    await tapKey(t, 'tabWifi');
-    await t.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const Key('tabWifi')), findsNothing); // [S7-4] guests see their Wi-Fi games; online history needs an account
+    expect(find.byKey(const Key('historySignIn')), findsOneWidget);
     expect(find.byKey(const Key('wifi_x')), findsOneWidget);
     await tapKey(t, 'wifi_x');
     await t.pump(const Duration(milliseconds: 500));

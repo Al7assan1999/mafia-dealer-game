@@ -20,6 +20,7 @@ export const PatchMe = z.object({
   display: Display.optional(),
   fav: z.enum(ROLES).optional(),
   showOnline: z.boolean().optional(),
+  onBoard: z.boolean().optional(),  // shown on the Everyone leaderboard
 }).strict();
 /** A preset (0-9), or a photo as a data: URL (JPEG / PNG / WebP, cropped on the phone). */
 export const PutAvatar = z.union([
@@ -36,7 +37,7 @@ export interface UserCard {
   // friends only: online, in an online room ('lobby') or game, and whether they can be asked to join (an open lobby)
   on?: boolean; st?: '' | 'lobby' | 'game'; op?: boolean;
 }
-export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; emails: string[]; google: boolean;
+export interface Me { id: string; handle: string | null; display: string; avatar: Avatar; fav: string; showOnline: boolean; onBoard: boolean; emails: string[]; google: boolean;
   room: { code: string; status: 'lobby' | 'game' } | null;  // the online room I'm in, if any
   admin: boolean }  // may moderate reports
 export interface AuthAnswer { token: string; user: Me; needsHandle: boolean }

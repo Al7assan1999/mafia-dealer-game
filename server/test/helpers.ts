@@ -3,6 +3,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { googleVerifier } from '../src/auth.ts';
 import { createApp } from '../src/index.ts';
 import type { Env } from '../src/lib.ts';
+import type { PushMsg } from '../src/push.ts';
 
 export const AUD = 'test-client.apps.googleusercontent.com';
 
@@ -10,15 +11,22 @@ export const AUD = 'test-client.apps.googleusercontent.com';
 export async function setup() {
   // a clean database for every test (the plugin keeps D1 between tests of a file)
   const db = (env as unknown as Env).DB;
-  await db.batch(['games', 'rooms', 'reports', 'users', 'email_codes', 'rate_limits'].map(t => db.prepare(`DELETE FROM ${t}`)));
+  await db.batch(['legacy_games', 'wifi_requests', 'games', 'rooms', 'reports', 'users', 'email_codes', 'rate_limits'].map(t => db.prepare(`DELETE FROM ${t}`)));
   const clock = { t: 1_800_000_000_000 };
   const mail: { to: string; code: string }[] = [];
+  const pushes: PushMsg[] = [];
+  const oldGroups: Record<string, { exists: boolean; games: unknown[] }> = {};
+  let oldDown = false;
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
   const app = createApp({
     now: () => clock.t,
     sendCode: async (_e, to, code) => { mail.push({ to, code }); },
     verifyGoogle: googleVerifier(createLocalJWKSet({ keys: [jwk] })),
+    // a fake FCM: keeps every push; tokens starting with 'gone' are reported uninstalled
+    push: async (_e, msgs) => { pushes.push(...msgs); return msgs.filter(m => m.token.startsWith('gone')).map(m => m.token); },
+    // a fake old relay: groups by code
+    readOldGroup: async (_e, code) => { if (oldDown) throw new Error('down'); return oldGroups[code] ?? { exists: false, games: [] }; },
   });
   const testEnv: Env = { ...(env as unknown as Env), GOOGLE_CLIENT_IDS: AUD };
   const call = async (method: string, path: string, opts: { body?: unknown; token?: string; ip?: string } = {}) => {
@@ -51,5 +59,5 @@ export async function setup() {
     if (p.status !== 200) throw new Error('handle ' + p.status);
     return { token: a.token as string, id: a.user.id as string };
   };
-  return { app, clock, mail, call, googleToken, signInEmail, user, env: testEnv };
+  return { app, clock, mail, pushes, oldGroups, setOldDown: (v: boolean) => { oldDown = v; }, call, googleToken, signInEmail, user, env: testEnv };
 }

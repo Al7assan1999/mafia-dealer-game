@@ -11,6 +11,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'api.dart';
 import 'prefs.dart';
+import 'push.dart';
 
 /// The Google OAuth "Web" client id (the audience the server checks). Empty until Google Cloud is set up:
 /// --dart-define=GOOGLE_SERVER_CLIENT_ID=...
@@ -86,10 +87,15 @@ class Note {
   int get at => j['at'] as int;
   String? get code => j['code'] as String?;
   bool get read => j['read'] == true;
+  /// wifi_confirm / wifi_result: {request, status, reason, players, winner, playedAt, seat, role}
+  Map<String, Object?>? get wifi => j['wifi'] == null ? null : Map<String, Object?>.from(j['wifi'] as Map);
 }
 
 class Account extends ChangeNotifier {
-  Account(this.api, this.tokens, this.prefs, {GoogleAuth? google, this.live = true}) : google = google ?? CredentialManagerGoogle();
+  Account(this.api, this.tokens, this.prefs, {GoogleAuth? google, this.live = true}) : google = google ?? CredentialManagerGoogle() {
+    _lang = prefs.lang;
+    prefs.addListener(() { if (prefs.lang != _lang) { _lang = prefs.lang; _pushRegister(); } }); // push texts follow the app's language
+  }
   final Api api;
   final TokenStore tokens;
   final Prefs prefs;
@@ -141,6 +147,7 @@ class Account extends ChangeNotifier {
     _setMe(r!);
     await Future.wait([loadFriends(), loadNotes(), _syncSaved()].map((f) => f.catchError((_) {})));
     _hubStart();
+    _pushRegister();
   }
 
   void _setMe(Map<String, Object?> r) {
@@ -222,6 +229,7 @@ class Account extends ChangeNotifier {
   void Function(String code)? openRoom;
 
   Future<String> createRoom() async => ((await _try(() => api.post('/v1/rooms')))!['code'] as String);
+  Future<bool> roomOpen(String code) async { try { await api.get('/v1/rooms/$code'); return true; } catch (_) { return false; } }
   Future<void> reloadMe() async { try { _setMe((await _try(() => api.get('/v1/me')))!); } catch (_) {} }
   Future<void> invite(String userId, String code) => _try(() => api.post('/v1/invites', {'userId': userId, 'code': code}));
   Future<void> askToJoin(String userId) => _try(() => api.post('/v1/join-requests', {'userId': userId}));
@@ -277,6 +285,75 @@ class Account extends ChangeNotifier {
     setup = {'counts': c, 'rules': r};
     await _try(() => api.put('/v1/me/setup', setup!));
   }
+
+  // ---------------------------------------------------------------- push notifications (S7-1)
+  PushService? _push;
+  String _lang = 'en';
+  StreamSubscription<String>? _tokenSub;
+  Map<String, String>? _pendingOpen;
+  void Function(Map<String, String> data)? _onOpen;
+
+  /// Push is available (Firebase started): register this device whenever signed in.
+  set push(PushService? p) {
+    _push = p;
+    _tokenSub?.cancel();
+    _tokenSub = p?.tokenRefresh.listen((_) => _pushRegister());
+    p?.initial().then((d) { if (d != null) pushOpened(d); });
+    p?.opened.listen(pushOpened);
+    _pushRegister();
+  }
+  /// The home screen opens what a tapped notification is about; one tapped before it was ready waits for it.
+  set onPushOpen(void Function(Map<String, String> data)? f) {
+    _onOpen = f;
+    final d = _pendingOpen;
+    if (f != null && d != null) { _pendingOpen = null; f(d); }
+  }
+  void pushOpened(Map<String, String> data) { if (_onOpen != null) { _onOpen!(data); } else { _pendingOpen = data; } }
+
+  Future<void> _pushRegister() async {
+    final p = _push;
+    if (p == null || !signedIn || api.token == null) return;
+    if (!prefs.pushAsked) { prefs.pushAsked = true; await p.ask(); } // Android 13's prompt, once, after signing in
+    final t = await p.token();
+    if (t != null && signedIn) await api.put('/v1/me/push', {'token': t, 'lang': prefs.lang}).catchError((_) => <String, Object?>{});
+  }
+
+  // ---------------------------------------------------------------- Wi-Fi games into online history (S7-2)
+  /// May I ask for this kept Wi-Fi game? I hosted it, I'm signed in, and every seat was a signed-in player.
+  bool canAskWifi(Map<String, Object?> g) {
+    final acc = (g['accounts'] as List?)?.cast<String?>();
+    return signedIn && g['host'] == true && acc != null && acc.isNotEmpty && acc.every((x) => x != null) && acc.contains(me?['id']);
+  }
+  /// Was a guest at the table (so the game stays on the phones)?
+  static bool hadGuest(Map<String, Object?> g) => ((g['accounts'] as List?) ?? const [null]).any((x) => x == null);
+  Future<Map<String, Object?>> askWifi(Map<String, Object?> g) async {
+    final acc = (g['accounts'] as List).cast<String>(), names = (g['names'] as List).cast<String>();
+    final r = (await _try(() => api.post('/v1/wifi-requests', {'key': g['id'], 'record': g['record'],
+      'seats': [for (var i = 0; i < acc.length; i++) {'seat': i, 'userId': acc[i], 'name': names[i]}]})))!;
+    prefs.updateWifiGame(g['id'] as String, {'req': {'id': r['id'], 'status': r['status'], 'reason': r['reason']}});
+    return r;
+  }
+  /// History → Wi-Fi from the server: my requests as host and approved games I played in.
+  Future<List<Map<String, Object?>>> wifiRequests() async =>
+      ((await _try(() => api.get('/v1/wifi-requests')))!['games'] as List).map((g) => Map<String, Object?>.from(g as Map)).toList();
+  /// Confirm (yes) or Not me (no) from the bell.
+  Future<String> answerWifi(String requestId, bool yes) async {
+    final r = (await _try(() => api.post('/v1/wifi-requests/$requestId/answer', {'yes': yes})))!;
+    await loadNotes().catchError((_) {});
+    return r['status'] as String;
+  }
+
+  // ---------------------------------------------------------------- stats and the old app's history (S8)
+  /// board: 'mine' | 'all'; source: 'all' | 'online' | 'wifi' | 'old'; days: 0 (all time) or 30.
+  Future<Map<String, Object?>> stats({String board = 'mine', String source = 'all', int days = 0}) async =>
+      (await _try(() => api.get('/v1/stats?board=$board&source=$source&days=$days')))!;
+  Future<Map<String, Object?>> player(String key, {String board = 'mine', String source = 'all', int days = 0}) async =>
+      (await _try(() => api.get('/v1/stats/player?key=${Uri.encodeComponent(key)}&board=$board&source=$source&days=$days')))!;
+  Future<Map<String, Object?>> oldNames() async => (await _try(() => api.get('/v1/legacy/names')))!;
+  Future<void> claimOldName(String name) => _try(() => api.post('/v1/legacy/claim', {'name': name}));
+  Future<Map<String, Object?>> importOld(String code) async => (await _try(() => api.post('/v1/legacy/import', {'code': code})))!;
+  Future<List<Map<String, Object?>>> oldGames() async =>
+      ((await _try(() => api.get('/v1/legacy/games')))!['games'] as List).map((g) => Map<String, Object?>.from(g as Map)).toList();
 
   // ---------------------------------------------------------------- the hub socket (presence, live notes)
   WebSocket? _ws;
@@ -334,5 +411,5 @@ class Account extends ChangeNotifier {
   }
 
   @override
-  void dispose() { _hubStop(); super.dispose(); }
+  void dispose() { _hubStop(); _tokenSub?.cancel(); super.dispose(); }
 }

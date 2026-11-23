@@ -9,12 +9,15 @@ behaves differently by design.
    be left with nothing to pick (the Doctor, with self-protection off and "no repeat" on, when only one other player
    was alive), so the night waited for "Continue anyway" or the night timer. Found by the random-game test (seed 230).
    Now the game ends at once; the `win` event's `lead` is `null`.
+2. **Any tie means no kill** (2026-11-23, "any tie imply skip"). A tied Mafia vote (two players, or a player and
+   "skip") kills nobody; the morning says nobody died and the log says `{ k: 'none' }`. A tie doesn't spend the one-time
+   skip. The day vote already treated a tie as nobody out. Stored as `rules.tieSkip` when roles are dealt; records made
+   before it have no `tieSkip` and replay with the old random tie-break (`recordRules`, fixtures
+   `records-before-tie.json`).
 
-## Odd, kept as is (decide later)
+## Odd, kept as is (decided 2026-11-23: keep)
 1. **A dead Detective still sees their last result** until the next night (the old `mpPriv` built it before the
    "dead" screen).
-2. **A tied Mafia vote between a target and "skip"** is broken at random like any tie, so the one-time skip can be
-   spent by chance.
 
 ## Different by design
 1. **Removing the last player still pending finishes the night or vote.** In the old app it got stuck: that player

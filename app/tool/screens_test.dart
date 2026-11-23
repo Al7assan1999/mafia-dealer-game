@@ -14,6 +14,10 @@ import 'package:mafia_dealer/game.dart';
 import '../test/driver.dart';
 import '../test/fake_server.dart';
 import '../test/harness.dart';
+import '../test/sprint7_test.dart' show wifiRecord;
+import '../test/sprint8_test.dart' show row, statsOf;
+import 'package:mafia_dealer/stats.dart';
+import 'package:mafia_dealer/update.dart';
 import '../test/online_test.dart' show FakeRoom, member, nightOpts, openRoom, roomMsg, view;
 import 'package:mafia_dealer/lan/lan.dart';
 import 'package:mafia_dealer/lan/wifi_screen.dart';
@@ -100,6 +104,76 @@ void main() {
       await t.pump(const Duration(milliseconds: 500));
       await tapKey(t, 'bell');
       await shot(t, '${lang}_24_bell');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('$lang: Sprint 7 (history, the bell with a Wi-Fi request, settings)', (t) async {
+      final s = FakeServer(), tok = s.user('Sami');
+      for (final h in ['Dareer', 'Hokan', 'Fater']) { s.user(h); }
+      final me = s.idOf('Sami'), ids = [me, s.idOf('Dareer'), s.idOf('Hokan'), s.idOf('Fater')];
+      s.wifiNote(me, s.idOf('Dareer'), 'wifi_confirm', {'request': 'r1', 'status': 'pending', 'reason': null, 'players': 4, 'winner': 'citizens',
+        'playedAt': DateTime(2026, 11, 23).millisecondsSinceEpoch, 'seat': 0, 'role': 'doctor'});
+      s.wifiNote(me, me, 'wifi_result', {'request': 'r2', 'status': 'approved', 'reason': null, 'players': 4, 'winner': 'citizens', 'playedAt': DateTime(2026, 11, 22).millisecondsSinceEpoch, 'seat': 0, 'role': 'mafia'});
+      s.wifiGames = [{'id': 'w1', 'key': 'g2', 'status': 'pending', 'reason': null, 'playedAt': 2, 'players': 4, 'winner': 'citizens', 'host': true, 'waiting': 2, 'total': 4, 'gameId': null, 'seat': 0, 'role': 'mafia', 'record': null}];
+      final app = await launch(t, size: const Size(360, 640), lang: lang, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true});
+      final rec = wifiRecord(), names = ['A', 'B', 'C', 'D'];
+      app.prefs.addWifiGame({'id': 'g1', 'record': rec, 'names': names, 'mySeat': 0, 'at': 1, 'code': '1', 'host': true, 'accounts': [me, ids[1], null, ids[3]]});
+      app.prefs.addWifiGame({'id': 'g2', 'record': rec, 'names': names, 'mySeat': 0, 'at': 2, 'code': '1', 'host': true, 'accounts': ids});
+      app.prefs.addWifiGame({'id': 'g3', 'record': rec, 'names': names, 'mySeat': 0, 'at': 3, 'code': '1', 'host': true, 'accounts': ids});
+      await t.pump(const Duration(seconds: 1));
+      await tapKey(t, 'bell');
+      await shot(t, '${lang}_51_bell_wifi');
+      await t.binding.handlePopRoute();
+      await t.pump(const Duration(milliseconds: 500));
+      await t.scrollUntilVisible(find.byKey(const Key('history')), 200, scrollable: find.byType(Scrollable).first);
+      await tapKey(t, 'history');
+      await t.pump(const Duration(milliseconds: 500));
+      await tapKey(t, 'tabWifi');
+      await t.pump(const Duration(milliseconds: 500));
+      await shot(t, '${lang}_52_history_wifi');
+      await t.binding.handlePopRoute();
+      await t.pump(const Duration(milliseconds: 500));
+      await tapKey(t, 'settings');
+      await shot(t, '${lang}_53_settings');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('$lang: Sprint 8 (stats, profile, import, update card)', (t) async {
+      final s = FakeServer()..statsAnswer = statsOf([row('u:1', 'Dareer', w: 9, g: 12, rank: 1), row('u:2', 'Sami', w: 7, g: 12, rank: 2, me: true), row('u:3', 'Halawy', w: 7, g: 12, rank: 2),
+        row('n:hokan', 'Hokan', w: 1, g: 2, q: false)]);
+      s.playerAnswer = {'key': 'u:1', 'name': 'Dareer', 'userId': 'u1', 'games': 12, 'wins': 9, 'best': 'detective',
+        'roles': {'mafia': [3, 2], 'doctor': [2, 2], 'detective': [4, 4], 'citizen': [3, 1]}, 'mafia': [3, 2], 'side': [9, 7],
+        'nemesis': {'name': 'Hokan', 'userId': null, 'n': 2}, 'partner': {'name': 'Sami', 'userId': null, 'n': 1},
+        'moments': {'saves': 2, 'caught': 5, 'killed': 2, 'out': 1}, 'form': [true, true, false, true, true, true, false, true], 'card': null};
+      s.oldNamesAnswer = {'names': [{'name': 'Alhassan', 'taken': false}, {'name': 'Dareer', 'taken': true}, {'name': 'Halawy', 'taken': false}], 'mine': 'Alhassan'};
+      final tok = s.user('Sami');
+      final app = await launch(t, size: const Size(360, 640), lang: lang, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true});
+      final u = Updater(app.prefs)..latest = Release('0.3.0', 100005, 'x', 'x', ['Stats are back', 'Import your old history', 'Updates inside the app', 'More']);
+      final nav = Navigator.of(t.element(find.byKey(const Key('settings'))));
+      nav.push(MaterialPageRoute(builder: (_) => Scaffold(body: ListView(padding: const EdgeInsets.all(16), children: [UpdateCard(updater: u)]))));
+      await t.pump(const Duration(milliseconds: 600));
+      await shot(t, '${lang}_61_update_card');
+      nav.pop();
+      nav.push(MaterialPageRoute(builder: (_) => StatsScreen(account: app.account)));
+      await t.pump(const Duration(seconds: 1));
+      await shot(t, '${lang}_62_stats');
+      await tapKey(t, 'row_u:1');
+      await t.pump(const Duration(seconds: 1));
+      await shot(t, '${lang}_63_profile');
+      nav.popUntil((r) => r.isFirst);
+      nav.push(MaterialPageRoute(builder: (_) => ImportScreen(account: app.account)));
+      await t.pump(const Duration(seconds: 1));
+      await shot(t, '${lang}_64_import');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('$lang: History signed out', (t) async {
+      final app = await launch(t, size: const Size(360, 640), lang: lang, stored: {'guideSeen': true});
+      app.prefs.addWifiGame({'id': 'g1', 'record': wifiRecord(), 'names': ['A', 'B', 'C', 'D'], 'mySeat': 1, 'at': 1, 'code': '1', 'host': false, 'accounts': [null, null, null, null]});
+      await t.scrollUntilVisible(find.byKey(const Key('history')), 200, scrollable: find.byType(Scrollable).first);
+      await tapKey(t, 'history');
+      await t.pump(const Duration(milliseconds: 500));
+      await shot(t, '${lang}_54_history_signed_out');
       await t.pumpWidget(const SizedBox());
     });
 

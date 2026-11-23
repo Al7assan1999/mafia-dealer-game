@@ -23,8 +23,9 @@ import '../test/driver.dart';
 
 /// A scripted phone on the Wi-Fi room: readies, picks the first allowed target, votes for the lowest other seat.
 class Bot {
-  Bot(this.uid);
+  Bot(this.uid, {this.userId});
   final String uid;
+  final String? userId; // a signed-in player's account (the approval test)
   WebSocket? ws;
   Map<String, Object?>? view, room;
   int rev = 0;
@@ -32,7 +33,7 @@ class Bot {
 
   Future<void> join(String code) async {
     final q = rev > 0 ? '?rev=$rev' : '';
-    ws = await WebSocket.connect('ws://127.0.0.1:$lanPort/v1/rooms/$code/ws$q', protocols: ['mafia.v1', Identity(uid, 'Bot $uid').token()]);
+    ws = await WebSocket.connect('ws://127.0.0.1:$lanPort/v1/rooms/$code/ws$q', protocols: ['mafia.v1', Identity(uid, 'Bot $uid', userId: userId).token()]);
     ws!.listen((raw) {
       if (raw == 'pong') return;
       final m = jsonDecode(raw as String) as Map<String, Object?>;

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Push notification channels (Android settings show these names; the player can turn each off there). -->
+<resources>
+    <string name="ch_invites">Invites</string>
+    <string name="ch_invites_d">Room invites, requests to join your room, and when a friend lets you in</string>
+    <string name="ch_friends">Friends</string>
+    <string name="ch_friends_d">Friend requests and accepted requests</string>
+    <string name="ch_approvals">Game approvals</string>
+    <string name="ch_approvals_d">Confirming Wi-Fi games for online history, and the results</string>
+    <string name="ch_titles">Titles</string>
+    <string name="ch_titles_d">When someone takes one of your leaderboard titles</string>
+    <string name="ch_updates">New versions</string>
+    <string name="ch_updates_d">When a new version of Mafia Dealer is out</string>
+    <string name="upd_done">Mafia Dealer updated</string>
+    <string name="upd_open">Tap to open</string>
+</resources>

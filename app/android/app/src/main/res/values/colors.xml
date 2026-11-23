@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the Noir background (ui.dart C.bg), behind the launch splash -->
+    <color name="noir_bg">#0D0C0B</color>
+</resources>

@@ -22,6 +22,14 @@ test('the shared test games still replay to the same result (regenerate on purpo
   assert.deepEqual(now, saved, 'the engine plays these games differently now: a rule changed (update the fixtures and the Dart engine)');
 });
 
+test('records from before the tie rule (no tieSkip: random tie-breaks) still replay to their result', () => {
+  const old: GameRecord[] = JSON.parse(readFileSync(new URL('../fixtures/records-before-tie.json', import.meta.url), 'utf8'));
+  assert.equal(old.length, SEEDS);
+  assert.ok(old.every(r => !('tieSkip' in r.rules)));
+  old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
+  assert.ok(old.some(r => r.actions.some(a => a.a.t === 'night' && a.r?.length)), 'some old games broke a Mafia tie at random');
+});
+
 test('an edited record is refused', () => {
   const g = play(7).rec;
   assert.ok(replay(copy(g)).ok);

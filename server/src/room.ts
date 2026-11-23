@@ -5,9 +5,11 @@ import { createGame, DEFAULT_RULES, nameKey, startRecord, step, viewFor, type Ac
 import { RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
 import { canSee, edit, newChat, react, send, type ChatResult, type ChatState, type Who } from './chat.ts';
 import { setRoom } from './hub.ts';
+import { fcmSender } from './push.ts';
+import { refreshTitles } from './stats.ts';
 import { avatarOf, type Env, type UserRow } from './lib.ts';
 
-interface Member { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; buzz: number; left?: true }
+interface Member { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; buzz: number; left?: true; v?: number }  // v: the app's build
 interface RoomState {
   code: string; hostUid: string; members: Member[]; kicked: string[]; nextCn: number;
   rules: Rules; counts: Counts; buzzMax: number;
@@ -86,7 +88,7 @@ export class Room extends DurableObject<Env> {
       code: st.code, rules: st.rules, counts: st.counts, buzzMax: st.buzzMax, status: statusOf(st), deal: st.deal,
       gameId: st.gameId, valid: st.valid,
       members: st.members.filter(m => !m.left).map(m => ({
-        uid: m.uid, cn: m.cn, display: m.display, handle: m.handle, avatar: m.avatar, online: this.online(m.uid, except),
+        uid: m.uid, cn: m.cn, display: m.display, handle: m.handle, avatar: m.avatar, online: this.online(m.uid, except), v: m.v ?? null,
         host: m.uid === host, ready: st.ready.includes(m.uid), muted: st.buzzMax > 0 && m.buzz >= st.buzzMax,
         seat: st.game && st.seats.includes(m.uid) ? st.seats.indexOf(m.uid) : null,
       })),
@@ -160,6 +162,7 @@ export class Room extends DurableObject<Env> {
         .bind(id, seat, st.seats[seat], name, g.roles[seat], g.alive[seat] ? 1 : 0)),
     ]);
     st.gameId = id; st.valid = true;
+    await refreshTitles(this.env, { push: fcmSender, now: () => Date.now() });
   }
 
   private async close(st: RoomState, why: 'closed') {
@@ -229,6 +232,7 @@ export class Room extends DurableObject<Env> {
     if (st.kicked.includes(user.id)) return refuse('kicked');
     const before = statusOf(st), me = { display: user.display, handle: user.handle, avatar: avatarOf(user) };
     let m = st.members.find(x => x.uid === user.id);
+    const v = Number(new URL(req.url).searchParams.get('v'));  // the phone's app build, for "old version" in the lobby
     if (m) { delete m.left; Object.assign(m, me); }
     else {
       if (running(st)) return refuse('started');  // late joiners wait for the next deal; seat holders rejoin above
@@ -236,6 +240,7 @@ export class Room extends DurableObject<Env> {
       m = { uid: user.id, cn: st.nextCn++, ...me, buzz: 0 };
       st.members.push(m);
     }
+    if (Number.isInteger(v) && v > 0) m.v = v;
     st.lastActive = Date.now();
     this.ctx.acceptWebSocket(server, [user.id]);
     server.serializeAttachment({ at: Date.now() });
@@ -309,7 +314,7 @@ export class Room extends DurableObject<Env> {
     switch (inp.t) {
       case 'setup':
         if (running(st)) return err('started');
-        st.rules = inp.rules; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax;
+        st.rules = { ...inp.rules, tieSkip: true }; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax;
         break;
       case 'deal': {  // also Play again after the end: the same room, new roles
         if (running(st)) return err('started');
@@ -364,6 +369,7 @@ export class Room extends DurableObject<Env> {
         if (g?.phase !== 'end' || !st.gameId) return err('phase');
         await this.env.DB.prepare('UPDATE games SET valid = ? WHERE id = ?').bind(inp.valid ? 1 : 0, st.gameId).run();
         st.valid = inp.valid;
+        await refreshTitles(this.env, { push: fcmSender, now: () => Date.now() });
         break;
       case 'lobby':
         if (g?.phase !== 'end') return err('phase');

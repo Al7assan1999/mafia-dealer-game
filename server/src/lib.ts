@@ -11,6 +11,7 @@ export interface Env {
   MAIL_FROM: string;
   RESEND_API_KEY?: string;     // secret
   ADMIN_IDS?: string;          // secret: comma-separated account ids that moderate reports
+  FCM_SERVICE_ACCOUNT?: string; // secret: the Google service account JSON that sends pushes (none: no pushes)
   MAIL_LOG?: string;           // local tests only (`wrangler dev --var MAIL_LOG:1`): print codes instead of sending
 }
 export interface GoogleId { sub: string; email: string; name: string }
@@ -19,11 +20,13 @@ export interface Deps {
   now(): number;
   sendCode(env: Env, to: string, code: string): Promise<void>;
   verifyGoogle(env: Env, idToken: string): Promise<GoogleId | null>;
+  push: import('./push.ts').PushSender;
+  readOldGroup: import('./legacy.ts').OldGroupReader;
 }
 export interface UserRow {
   id: string; handle: string | null; display: string; avatar_preset: number; avatar_ver: number;
   fav_role: string; show_online: number; created_at: number;
-  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game'; banned_at?: number | null;
+  online?: number; room_code?: string | null; room_status?: '' | 'lobby' | 'game'; banned_at?: number | null; on_board?: number;
 }
 
 export const avatarOf = (u: UserRow): Avatar => (u.avatar_ver > 0 ? { photo: u.avatar_ver } : { preset: u.avatar_preset });

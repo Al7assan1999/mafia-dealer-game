@@ -27,6 +27,9 @@ export function step(rec: GameRecord, s: GameState, a: Action, ctx: Ctx): Result
   return res;
 }
 
+/** A record's rules. Records made before the tie rule (Sprint 7) have no `tieSkip`: their ties were random picks. */
+export const recordRules = (r: Partial<Rules>): Rules => ({ tieSkip: false, ...r } as Rules);
+
 /** Replays a record. Refuses one that doesn't hold together: `{ ok: false, error: '<where>: <why>' }`. */
 export function replay(rec: GameRecord): Result<{ state: GameState }> {
   try { return check(rec); } catch { return { ok: false, error: 'shape' }; }  // a malformed record from outside
@@ -38,7 +41,7 @@ function check(rec: GameRecord): Result<{ state: GameState }> {
   const count = (x: Role) => rec.roles.filter(y => y === x).length;
   if (count('mafia') + count('doctor') + count('detective') + count('citizen') !== rec.roles.length) return no('roles');
   const counts = { mafia: count('mafia'), doctor: count('doctor'), detective: count('detective') };
-  const c = createGame({ names: rec.names, counts, rules: rec.rules }, () => 0, rec.deal);
+  const c = createGame({ names: rec.names, counts, rules: recordRules(rec.rules) }, () => 0, rec.deal);
   if (!c.ok) return no('setup: ' + c.error);
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)
   if (c.state.roles.filter(x => x === 'mafia').length !== counts.mafia || c.state.roles.filter(x => x === 'detective').length !== counts.detective

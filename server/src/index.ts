@@ -9,6 +9,10 @@ import { ApiErr, userFromToken, type AppEnv, type Ctx, type Deps, type Env } fro
 import { games, invites, joinRequests, notes, rooms } from './social.ts';
 import { avatars, friends, me, requests, users } from './users.ts';
 import { adminRoutes, blockRoutes, reportRoutes } from './safety.ts';
+import { fcmSender, pushRoutes } from './push.ts';
+import { expire, wifiRoutes } from './wifi.ts';
+import { statsRoutes } from './stats.ts';
+import { legacyRoutes, relayReader } from './legacy.ts';
 
 export { Room } from './room.ts';
 export { Hub } from './hub.ts';
@@ -52,7 +56,7 @@ export function createApp(deps: Deps) {
   app.route('/v1/auth', auth);
   app.route('/v1/sessions', sessions);
   app.route('/v1/avatars', avatars);
-  const routes = [['/v1/me', me], ['/v1/users', users], ['/v1/friends', friends], ['/v1/friend-requests', requests],
+  const routes = [['/v1/me', me], ['/v1/me/push', pushRoutes], ['/v1/wifi-requests', wifiRoutes], ['/v1/stats', statsRoutes], ['/v1/legacy', legacyRoutes], ['/v1/users', users], ['/v1/friends', friends], ['/v1/friend-requests', requests],
     ['/v1/blocks', blockRoutes], ['/v1/reports', reportRoutes], ['/v1/admin', adminRoutes],
     ['/v1/rooms', rooms], ['/v1/invites', invites], ['/v1/join-requests', joinRequests], ['/v1/notifications', notes], ['/v1/games', games]] as const;
   for (const [path, r] of routes) { app.use(path, requireUser); app.use(path + '/*', requireUser); app.route(path, r); }
@@ -66,5 +70,10 @@ export function createApp(deps: Deps) {
   return app;
 }
 
-const app = createApp({ now: () => Date.now(), sendCode: resendCode, verifyGoogle: googleVerifier(googleKeys) });
-export default { fetch: (req, env, ctx) => app.fetch(req, env, ctx) } satisfies ExportedHandler<Env>;
+const deps: Deps = { now: () => Date.now(), sendCode: resendCode, verifyGoogle: googleVerifier(googleKeys), push: fcmSender, readOldGroup: relayReader };
+const app = createApp(deps);
+export default {
+  fetch: (req, env, ctx) => app.fetch(req, env, ctx),
+  // hourly: Wi-Fi requests whose confirmation window ran out become 'expired', and their hosts are told
+  scheduled: async (_e, env) => { await expire(env, deps, Date.now()); },
+} satisfies ExportedHandler<Env>;

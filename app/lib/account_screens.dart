@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:mafia_engine/mafia_engine.dart' show Role;
 import 'package:share_plus/share_plus.dart';
 
 import 'account.dart';
 import 'api.dart';
 import 'l10n/app_localizations.dart';
 import 'safety.dart';
+import 'stats.dart';
 import 'ui.dart';
 
 /// A server error as the player reads it.
@@ -320,6 +323,15 @@ class _ProfileState extends State<ProfileScreen> {
                 _do(() => a.patch({'handle': handle.text.trim(), 'display': name.text.trim(), 'fav': fav, 'showOnline': showOn}), l.aSaved);
               }),
             ])),
+            Sec(child: Column(children: [
+              ListTile(key: const Key('myStats'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.leaderboard_outlined, color: C.gold), title: Text(l.myStats),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${a.card!.id}')))),
+              ListTile(key: const Key('importOldHistory'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.history_edu_outlined, color: C.mute), title: Text(l.importT),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ImportScreen(account: a)))),
+              SwitchListTile(key: const Key('onBoard'), contentPadding: EdgeInsets.zero, value: a.me?['onBoard'] != false,
+                  onChanged: busy ? null : (v) => _do(() => a.patch({'onBoard': v})),
+                  title: Text(l.onBoardT), subtitle: Text(l.onBoardD, style: const TextStyle(color: C.dim, fontSize: 12))),
+            ])),
             Sec(title: l.aDevices, child: Column(children: [
               for (final d in devices ?? const <Map<String, Object?>>[])
                 Row(children: [
@@ -407,10 +419,13 @@ class _FriendsState extends State<FriendsScreen> {
         child: Row(children: [
           AvatarView.of(a.api, p, size: 40, online: sub != null ? p.online : null),
           const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.display, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: const TextStyle(color: C.mute, fontSize: 12)),
-          ])),
+          Expanded(child: InkWell(
+            key: Key('friendStats_${p.handle}'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${p.id}', filter: const StatsFilter(board: 'all')))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(p.display, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: const TextStyle(color: C.mute, fontSize: 12)),
+            ]))),
           ...actions,
         ]),
       );
@@ -514,15 +529,22 @@ class _BellState extends State<BellSheet> {
             if (notes.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text(l.nNone, style: const TextStyle(color: C.mute))),
             Flexible(child: ListView(shrinkWrap: true, children: [
               for (final n in notes)
+                if (n.wifi != null) _WifiNote(account: a, note: n) else
                 ListTile(
                   key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,
                   leading: AvatarView.of(a.api, n.from, size: 36),
                   title: Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
                   subtitle: Text(switch (n.kind) {
                     'friend_request' => l.nReq, 'friend_accept' => l.nAcc, 'invite' => l.nInvite(n.code ?? ''),
-                    'let_in' => l.nLetIn(n.code ?? ''), _ => l.nJoinReq,
+                    'let_in' => l.nLetIn(n.code ?? ''),
+                    'title_lost' => l.nTitleLost(switch (n.j['title']) { 'best' => l.tBest, 'mafia' => l.tMafia, 'det' => l.tDet, 'doc' => l.tDoc, _ => l.tFirst }),
+                    _ => l.nJoinReq,
                   }, style: const TextStyle(color: C.mute)),
-                  trailing: n.kind == 'join_request' && a.roomCode != null
+                  trailing: n.kind == 'friend_request' && a.incoming.any((p) => p.id == n.from.id)
+                      ? TextButton(key: Key('accept_${n.from.handle}'), onPressed: () async {
+                          try { await a.accept(n.from.id); await a.deleteNote(n.id); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                        }, child: Text(l.fAccept, style: const TextStyle(color: C.green)))
+                      : n.kind == 'join_request' && a.roomCode != null
                       ? TextButton(key: Key('letIn_${n.from.handle}'), onPressed: () async {
                           try { await a.invite(n.from.id, a.roomCode!); await a.deleteNote(n.id); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
                         }, child: Text(l.letIn, style: const TextStyle(color: C.green)))
@@ -537,4 +559,51 @@ class _BellState extends State<BellSheet> {
           ])),
         ));
       });
+}
+
+/// A Wi-Fi game in the bell: asked to confirm it (Confirm / Not me), or the result of my own request.
+class _WifiNote extends StatefulWidget {
+  const _WifiNote({required this.account, required this.note});
+  final Account account;
+  final Note note;
+  @override
+  State<_WifiNote> createState() => _WifiNoteState();
+}
+
+class _WifiNoteState extends State<_WifiNote> {
+  bool busy = false;
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context), n = widget.note, w = n.wifi!, a = widget.account;
+    // [QA] U1: day and year in Western digits, like every other number in the app (Arabic's date format uses ٢٣)
+    final d = DateTime.fromMillisecondsSinceEpoch(w['playedAt'] as int), date = '${d.day} ${DateFormat.MMMM(Localizations.localeOf(context).languageCode).format(d)} ${d.year}';
+    final winner = w['winner'] == 'mafia' ? l.winMafia : l.winCitizens, role = w['role'] as String?;
+    if (n.kind == 'wifi_result') {
+      final ok = w['status'] == 'approved';
+      return ListTile(key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,
+        leading: Icon(ok ? Icons.verified_outlined : Icons.block, color: ok ? C.green : C.dim, size: 32),
+        title: Text(l.nWifiDone(date, switch (w['status']) { 'approved' => l.wApproved, 'declined' => l.wDeclined, _ => l.wExpired }),
+            style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
+        trailing: IconButton(icon: const Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})));
+    }
+    Future<void> answer(bool yes) async {
+      setState(() => busy = true);
+      try { await a.answerWifi(w['request'] as String, yes); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+      if (mounted) setState(() => busy = false);
+    }
+    return Padding(key: Key('note_${n.id}'), padding: const EdgeInsets.symmetric(vertical: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      AvatarView.of(a.api, n.from, size: 36),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
+        Text(l.nWifiAsk(date, w['players'] as int, winner) + (role == null ? '' : ' ${l.nWifiYou(roleName(l, Role.values.byName(role)))}'), style: const TextStyle(color: C.mute)),
+        const SizedBox(height: 6),
+        Row(children: [
+          FilledButton(key: Key('wifiYes_${w['request']}'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: busy ? null : () => answer(true), child: Text(l.wConfirm)),
+          const SizedBox(width: 10),
+          OutlinedButton(key: Key('wifiNo_${w['request']}'), onPressed: busy ? null : () => answer(false), child: Text(l.wNotMe, style: const TextStyle(color: C.text))),
+        ]),
+      ])),
+    ]));
+  }
 }

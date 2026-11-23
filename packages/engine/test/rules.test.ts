@@ -9,11 +9,16 @@ const R8 = ['mafia', 'mafia', 'doctor', 'detective', 'citizen', 'citizen', 'citi
 const g8 = (rules = {}) => game([...R8], rules);
 const seat = (s: any, i: number) => viewFor(s, i, 1_000_000) as SeatView;
 
-test('the Mafia: most votes wins; a tie is broken at random', () => {
+test('the Mafia: most votes wins; a tie kills nobody (games before the tie rule: broken at random)', () => {
   let s = night(g8(), { 0: 4, 1: 4, 2: 5 });
   assert.equal(s.phase, 'morning'); assert.deepEqual(s.morning, { dead: 4, saved: null }); assert.equal(s.alive[4], false);
+  for (let seed = 1; seed <= 10; seed++) {
+    const t = night(g8(), { 0: 4, 1: 5, 2: 6 }, seed);
+    assert.deepEqual(t.morning, { dead: null, saved: null }); assert.equal(t.alive[4] && t.alive[5], true);
+    assert.deepEqual(t.log.at(-1), { t: 'night', day: 1, mafia: { k: 'none' }, prot: [6], checked: [0] });
+  }
   const outcomes = new Set<number | null>();
-  for (let seed = 1; seed <= 30; seed++) outcomes.add(night(g8(), { 0: 4, 1: 5, 2: 6 }, seed).morning!.dead);
+  for (let seed = 1; seed <= 30; seed++) outcomes.add(night(g8({ tieSkip: false }), { 0: 4, 1: 5, 2: 6 }, seed).morning!.dead);
   assert.deepEqual([...outcomes].sort(), [4, 5]);
 });
 test('Mafia see teammates and their picks live; they can\'t target a teammate', () => {
@@ -34,9 +39,12 @@ test('one-time skip: used only when the skip actually wins', () => {
   s = must(s, { t: 'nextNight' }).state;
   assert.equal(nightOptions(s, 0).skip, null);
   refuse(s, { t: 'night', seat: 0, choice: 'skip' }, 'choice');
-  // a skip that loses the vote doesn't use it up (find a seed where the target wins the tie)
+  // a tie between "skip" and a target kills nobody and keeps the skip
+  const t = night(g8(), { 0: 'skip', 1: 6, 2: 5 });
+  assert.equal(t.morning!.dead, null); assert.equal(t.skipUsed, false); assert.ok(nightOptions(must(must(must(t, { t: 'startDay' }).state, { t: 'decide', choice: 'none' }).state, { t: 'nextNight' }).state, 0).skip);
+  // older games: a skip that loses the random tie-break doesn't use it up (find a seed where the target wins)
   let lost = false;
-  for (let seed = 1; seed <= 30 && !lost; seed++) { const t = night(g8(), { 0: 'skip', 1: 6, 2: 5 }, seed); if (t.morning!.dead === 6) { lost = true; assert.equal(t.skipUsed, false); } }
+  for (let seed = 1; seed <= 30 && !lost; seed++) { const o = night(g8({ tieSkip: false }), { 0: 'skip', 1: 6, 2: 5 }, seed); if (o.morning!.dead === 6) { lost = true; assert.equal(o.skipUsed, false); } }
   assert.ok(lost);
   assert.equal(nightOptions(g8({ skip: false }), 0).skip, null);
 });

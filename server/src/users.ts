@@ -4,6 +4,7 @@ import { FriendRequest, Handle, MAX_AVATAR_BYTES, PatchMe, PutAvatar, SavedNames
 import { deckOk, nameKey } from '@mafia/engine';
 import { notify, pushPresence } from './hub.ts';
 import { blocks, isAdmin } from './safety.ts';
+import { refreshTitles } from './stats.ts';
 import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const MAX_FRIENDS = 300;
@@ -11,7 +12,7 @@ export const MAX_FRIENDS = 300;
 export async function meOf(db: D1Database, u: UserRow, env: { ADMIN_IDS?: string }): Promise<Me> {
   const { results } = await db.prepare('SELECT kind, email FROM identities WHERE user_id = ?').bind(u.id).all<{ kind: string; email: string }>();
   return {
-    id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, showOnline: !!u.show_online,
+    id: u.id, handle: u.handle, display: u.display, avatar: avatarOf(u), fav: u.fav_role, showOnline: !!u.show_online, onBoard: u.on_board !== 0,
     emails: [...new Set(results.map(r => r.email))].sort(), google: results.some(r => r.kind === 'google'),
     room: u.room_code && u.room_status ? { code: u.room_code, status: u.room_status } : null,
     admin: isAdmin(env, u.id),
@@ -32,14 +33,16 @@ me.get('/', async c => c.json({ user: await meOf(c.env.DB, c.var.user, c.env), n
 me.patch('/', async c => {
   const p = await body(c, PatchMe), u = c.var.user;
   try {
-    await c.env.DB.prepare('UPDATE users SET handle = ?, display = ?, fav_role = ?, show_online = ? WHERE id = ?')
-      .bind(p.handle ?? u.handle, p.display ?? u.display, p.fav ?? u.fav_role, p.showOnline == null ? u.show_online : +p.showOnline, u.id).run();
+    await c.env.DB.prepare('UPDATE users SET handle = ?, display = ?, fav_role = ?, show_online = ?, on_board = ? WHERE id = ?')
+      .bind(p.handle ?? u.handle, p.display ?? u.display, p.fav ?? u.fav_role, p.showOnline == null ? u.show_online : +p.showOnline,
+        p.onBoard == null ? (u.on_board ?? 1) : +p.onBoard, u.id).run();
   } catch (e) {
     if (/UNIQUE/i.test(String(e))) throw new ApiErr(409, 'handle_taken');
     throw e;
   }
   const fresh = (await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(u.id).first<UserRow>())!;
   if (fresh.show_online !== u.show_online) await pushPresence(c.env, u.id);  // "show me as online" switched
+  if (fresh.on_board !== u.on_board) await refreshTitles(c.env, c.var.deps);  // left / joined the Everyone board
   return c.json({ user: await meOf(c.env.DB, fresh, c.env), needsHandle: !fresh.handle });
 });
 
@@ -153,12 +156,12 @@ requests.post('/', async c => {
     const [a, b] = pair(me.id, u.id);
     // both asking at the same moment: one insert wins, the other one turns into an accept below
     const ins = await db.prepare("INSERT INTO friendships (a, b, requested_by, status, created_at) VALUES (?, ?, ?, 'pending', ?) ON CONFLICT DO NOTHING").bind(a, b, me.id, now).run();
-    if (ins.meta.changes) await notify(c.env, u.id, me, 'friend_request', null, now);
+    if (ins.meta.changes) await notify(c.env, c.var.deps, u.id, me, 'friend_request', null, now);
     f = await friendRow(c, u.id);
   }
   if (f && f.status === 'pending' && f.requested_by !== me.id) {
     const up = await db.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending'").bind(now, f.a, f.b).run();
-    if (up.meta.changes) await notify(c.env, u.id, me, 'friend_accept', null, now);
+    if (up.meta.changes) await notify(c.env, c.var.deps, u.id, me, 'friend_accept', null, now);
     f = { ...f, status: 'accepted' };
   }
   const rel = relOf(me.id, f);
@@ -169,7 +172,7 @@ requests.post('/:userId/accept', async c => {
   const r = await c.env.DB.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending' AND requested_by = ?")
     .bind(c.var.deps.now(), a, b, c.req.param('userId')).run();
   if (!r.meta.changes) throw new ApiErr(404, 'no_request');
-  await notify(c.env, c.req.param('userId'), c.var.user, 'friend_accept', null, c.var.deps.now());
+  await notify(c.env, c.var.deps, c.req.param('userId'), c.var.user, 'friend_accept', null, c.var.deps.now());
   return c.json({ rel: 'friends' });
 });
 /** Decline their request, or take mine back. */

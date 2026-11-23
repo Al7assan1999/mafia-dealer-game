@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'api.dart';
+import 'version.dart';
 
 /// The bit of a socket this needs (a real dart:io WebSocket, or a scripted one in tests).
 abstract class Sock {
@@ -89,7 +90,7 @@ class RoomConn extends ChangeNotifier {
 
   Future<void> _connect() async {
     if (_closed) return;
-    final url = api.socket('/v1/rooms/$code/ws${rev > 0 ? '?rev=$rev' : ''}');
+    final url = api.socket('/v1/rooms/$code/ws?v=$appBuild${rev > 0 ? '&rev=$rev' : ''}');
     _downT ??= Timer(const Duration(seconds: 3), () { if (!open && !_closed) { link = Link.down; notifyListeners(); } });
     try {
       final ws = await connect(url, ['mafia.v1', api.token ?? '']);

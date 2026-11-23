@@ -40,9 +40,14 @@ jobs:
         env: { KEY_B64: '${{ secrets.ANDROID_KEYSTORE_B64 }}' }
         run: |
           if [ -n "$KEY_B64" ]; then echo "$KEY_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"; echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"; fi
+      - name: Firebase config (push; without the secret the APK builds with push off)
+        env: { GOOGLE_SERVICES_JSON: '${{ secrets.GOOGLE_SERVICES_JSON }}' }
+        run: if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > app/android/app/google-services.json; fi
       - name: Debug APK
         working-directory: app
-        run: flutter build apk --debug --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
+        run: |
+          v=$(grep -E '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)
+          flutter build apk --debug --build-number=${{ github.run_number }} --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"             --dart-define=VERSION="$v" --dart-define=BUILD=${{ github.run_number }}
       - name: Name the APK (version and build number)
         id: apk
         run: |
@@ -70,6 +75,8 @@ jobs:
         env: { WRANGLER_SEND_METRICS: 'false' }
         run: |
           npx wrangler d1 migrations apply DB --local
+          # a scripted Wi-Fi game lasts seconds: the local copy of the approval rules allows short games (approval_test)
+          npx wrangler d1 execute DB --local --command "UPDATE settings SET value = json_set(value, '\$.minSecondsPerRound', 0) WHERE key = 'wifi_rules'"
           nohup npx wrangler dev --port 8787 --ip 0.0.0.0 --var MAIL_LOG:1 > "$RUNNER_TEMP/worker.log" 2>&1 &
           curl -fsS --retry 30 --retry-delay 2 --retry-all-errors http://127.0.0.1:8787/v1/health
       - name: Signing key (the upload key, so every APK has the same SHA-1)
@@ -109,6 +116,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+      FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
     defaults:
       run: { working-directory: server }
     steps:
@@ -133,6 +141,8 @@ jobs:
         run: echo "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY
       - if: steps.ready.outputs.go == 'true' && env.ADMIN_IDS != ''
         run: echo "$ADMIN_IDS" | npx wrangler secret put ADMIN_IDS
+      - if: steps.ready.outputs.go == 'true' && env.FCM_SERVICE_ACCOUNT != ''
+        run: printf '%s' "$FCM_SERVICE_ACCOUNT" | npx wrangler secret put FCM_SERVICE_ACCOUNT
       - if: steps.ready.outputs.go == 'true'
         # a new deploy takes a few seconds to reach every Cloudflare location
         run: curl -fsS --retry 6 --retry-delay 5 --retry-all-errors "https://mafia-dealer-game.mafiadealer.workers.dev/v1/health"

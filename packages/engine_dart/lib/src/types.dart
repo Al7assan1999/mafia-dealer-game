@@ -22,15 +22,17 @@ class Rules {
   final bool skip, norep, saverev, decoy, self, rep, reveal;
   final int timer, nightT;
   final bool ghost, skipVote;
+  /// A tied Mafia vote kills nobody (Sprint 7). Records from before it lack the key: random pick ([recordRules]).
+  final bool tieSkip;
   const Rules({
     required this.skip, required this.norep, required this.saverev, required this.decoy, required this.self,
     required this.rep, required this.reveal, required this.timer, required this.nightT, required this.ghost,
-    required this.skipVote,
+    required this.skipVote, this.tieSkip = true,
   });
 
   Map<String, Object?> toJson() => {
         'skip': skip, 'norep': norep, 'saverev': saverev, 'decoy': decoy, 'self': self, 'rep': rep,
-        'reveal': reveal, 'timer': timer, 'nightT': nightT, 'ghost': ghost, 'skipVote': skipVote,
+        'reveal': reveal, 'timer': timer, 'nightT': nightT, 'ghost': ghost, 'skipVote': skipVote, 'tieSkip': tieSkip,
       };
 
   /// [over] replaces some fields (like `{...rules, ...over}`); throws on a wrong type.
@@ -39,7 +41,7 @@ class Rules {
     bool b(String k) => m[k] as bool;
     int i(String k) => (m[k] as num).toInt();
     return Rules(skip: b('skip'), norep: b('norep'), saverev: b('saverev'), decoy: b('decoy'), self: b('self'),
-        rep: b('rep'), reveal: b('reveal'), timer: i('timer'), nightT: i('nightT'), ghost: b('ghost'), skipVote: b('skipVote'));
+        rep: b('rep'), reveal: b('reveal'), timer: i('timer'), nightT: i('nightT'), ghost: b('ghost'), skipVote: b('skipVote'), tieSkip: b('tieSkip'));
   }
 }
 

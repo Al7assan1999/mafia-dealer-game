@@ -17,6 +17,7 @@ export interface Rules {
   nightT: number;     // night timer, seconds (0 = none): unfinished turns are skipped after it
   ghost: boolean;     // dead players see every role
   skipVote: boolean;  // false: "no one" votes don't count, the most-voted player is out
+  tieSkip: boolean;   // a tied Mafia vote kills nobody (Sprint 7). Records from before it lack the key: random pick
 }
 
 export interface Counts { mafia: number; doctor: number; detective: number }

@@ -101,6 +101,15 @@ void main() {
     }
   });
 
+  test('records from before the tie rule (no tieSkip: random tie-breaks) still replay', () {
+    final old = jsonDecode(File('../engine/fixtures/records-before-tie.json').readAsStringSync()) as List;
+    expect(old, hasLength(60));
+    for (final (i, r) in old.indexed) {
+      expect((r['rules'] as Map).containsKey('tieSkip'), isFalse);
+      expect(replay(r).error, isNull, reason: 'game ${i + 1}');
+    }
+  });
+
   test('the same seeds make byte-identical records', () {
     final mine = jsJson([for (var seed = 1; seed <= 60; seed++) play(seed).rec.toJson()]);
     expect(mine, fixtures.readAsStringSync().trimRight());

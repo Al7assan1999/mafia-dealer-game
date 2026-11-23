@@ -43,7 +43,7 @@ export function validateSetup(names: string[], counts: Counts): { counts: Counts
 
 export const DEFAULT_RULES: Rules = {
   skip: true, norep: false, saverev: false, decoy: true, self: true, rep: false, reveal: true,
-  timer: 180, nightT: 0, ghost: false, skipVote: true,
+  timer: 180, nightT: 0, ghost: false, skipVote: true, tieSkip: true,
 };
 export const PRESETS: Record<'classic' | 'beginner', Partial<Rules>> = {
   classic: { skip: true, norep: false, saverev: false, decoy: true, self: true, rep: false, reveal: true, timer: 180 },

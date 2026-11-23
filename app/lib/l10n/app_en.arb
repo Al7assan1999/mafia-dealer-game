@@ -243,7 +243,7 @@
   "winMafiaD": "The Mafia equals or outnumbers everyone else.",
   "winCitizens": "Citizens win",
   "winCitizensD": "Every Mafia member has been eliminated.",
-  "rcSub": "{n} players · {d} rounds",
+  "rcSub": "{n} players · {d, plural, =1{1 round} other{{d} rounds}}",
   "@rcSub": {
     "placeholders": {
       "n": {
@@ -816,5 +816,329 @@
         "type": "String"
       }
     }
-  }
+  },
+  "addOnline": "Add to online history",
+  "addOnlineD": "Every other player confirms it from their bell.",
+  "guestStays": "A guest played, so this game stays on the phones.",
+  "wPending": "Waiting for {n} of {total} to confirm",
+  "@wPending": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "wApproved": "In online history",
+  "wDeclined": "Not added: a player said Not me",
+  "wExpired": "Not added: not everyone confirmed in time",
+  "wRejected": "Not added: {why}",
+  "@wRejected": {
+    "placeholders": {
+      "why": {
+        "type": "String"
+      }
+    }
+  },
+  "wrReplay": "the game record doesn't check out",
+  "wrSeats": "the players don't match their accounts",
+  "wrPlayers": "too few or too many players",
+  "wrShort": "the game was too short to be real",
+  "wrOld": "the game is too old",
+  "wrDup": "it was already sent",
+  "wrLimit": "too many requests today, try tomorrow",
+  "nWifiAsk": "asks to add the Wi-Fi game of {date} to online history: {n} players, {winner}.",
+  "@nWifiAsk": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      },
+      "winner": {
+        "type": "String"
+      }
+    }
+  },
+  "nWifiYou": "You were {role}.",
+  "@nWifiYou": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "nWifiDone": "Your Wi-Fi game of {date}: {result}",
+  "@nWifiDone": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "result": {
+        "type": "String"
+      }
+    }
+  },
+  "wConfirm": "Confirm",
+  "wNotMe": "Not me",
+  "sNotif": "Notifications",
+  "sNotifD": "Invites, friends, game approvals, titles and new versions, when the app is closed. Choose which in Android's settings.",
+  "inviteExpired": "This invite has expired",
+  "historySignIn": "Sign in to see your online games here too.",
+  "statsT": "Stats",
+  "tabMine": "Mine",
+  "tabEveryone": "Everyone",
+  "fAll": "All",
+  "fOld": "Old app",
+  "fAllTime": "All time",
+  "f30": "Last 30 days",
+  "tBest": "Best player",
+  "tMafia": "Best Mafia",
+  "tDet": "Best Detective",
+  "tDoc": "Best Doctor",
+  "tFirst": "Most killed first",
+  "tBestSub": "{pct}% · {w, plural, =1{1 win} other{{w} wins}} of {g}",
+  "@tBestSub": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      },
+      "w": {
+        "type": "int"
+      },
+      "g": {
+        "type": "int"
+      }
+    }
+  },
+  "tMafiaSub": "Won {w} of {g} as Mafia",
+  "@tMafiaSub": {
+    "placeholders": {
+      "w": {
+        "type": "int"
+      },
+      "g": {
+        "type": "int"
+      }
+    }
+  },
+  "tDetSub": "Caught the Mafia {n, plural, =1{once} other{{n} times}}",
+  "@tDetSub": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "tDocSub": "{n, plural, =1{1 save} other{{n} saves}}",
+  "@tDocSub": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "tFirstSub": "Killed first {n, plural, =1{once} other{{n} times}}",
+  "@tFirstSub": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "boardT": "Leaderboard",
+  "boardMine": "Ranked by win rate. A player needs {n} valid games to be ranked.",
+  "@boardMine": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "boardFrom": "From your online, approved Wi-Fi and old-app games. One-phone games aren't recorded.",
+  "boardEveryone": "All players, from online and approved Wi-Fi games. {n} valid games needed to be ranked.",
+  "@boardEveryone": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "needN": "Needs {n} games",
+  "@needN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sideLine": "Mafia {mw}/{mg} · Citizen {tw}/{tg}",
+  "@sideLine": {
+    "placeholders": {
+      "mw": {
+        "type": "int"
+      },
+      "mg": {
+        "type": "int"
+      },
+      "tw": {
+        "type": "int"
+      },
+      "tg": {
+        "type": "int"
+      }
+    }
+  },
+  "winsShort": "{w}/{g} wins",
+  "@winsShort": {
+    "placeholders": {
+      "w": {
+        "type": "int"
+      },
+      "g": {
+        "type": "int"
+      }
+    }
+  },
+  "noStats": "No games to count yet.",
+  "youRank": "You: #{r}",
+  "@youRank": {
+    "placeholders": {
+      "r": {
+        "type": "int"
+      }
+    }
+  },
+  "winRate": "Win rate",
+  "bestRole": "Best role",
+  "asMafiaT": "As Mafia",
+  "asTownT": "As Citizens' side",
+  "nemesis": "Killed most by",
+  "nemesisNone": "Never killed",
+  "partner": "Best partner",
+  "partnerNone": "No Mafia partner yet",
+  "nTimes": "{n, plural, =1{once} other{{n} times}}",
+  "@nTimes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "nTogether": "{n, plural, =1{1 win together} other{{n} wins together}}",
+  "@nTogether": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "byRole": "Wins by role",
+  "moments": "Moments",
+  "psSaves": "saves",
+  "psCaught": "Mafia caught",
+  "psKilled": "times killed",
+  "psOut": "voted out",
+  "form": "Recent games",
+  "fW": "W",
+  "fL": "L",
+  "shareProfile": "Share",
+  "myStats": "My stats",
+  "gamesN": "{n, plural, =1{1 game} other{{n} games}}",
+  "@gamesN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "importT": "Import old history",
+  "importD": "Bring your games from the old Mafia Dealer:",
+  "importS1": "1. In the old app: Settings → Group history → Create group.",
+  "importS2": "2. Share the 8-letter code and enter it here.",
+  "importS3": "Only games between the real players come in; test games are left out.",
+  "importCode": "Group code",
+  "importBtn": "Import",
+  "importDone": "{i} games imported, {d} already here, {s} skipped (test or unknown players).",
+  "@importDone": {
+    "placeholders": {
+      "i": {
+        "type": "int"
+      },
+      "d": {
+        "type": "int"
+      },
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "importNotFound": "No group with this code",
+  "importDown": "The old server didn't answer, try again",
+  "whoWereYou": "Which one were you?",
+  "whoD": "Your old games count for you once you pick your name.",
+  "nameTaken": "taken",
+  "noNames": "The player list isn't set up yet.",
+  "tabOld": "Old app",
+  "noOldGames": "No old games yet. Import them from your Profile.",
+  "onBoardT": "Show me on the Everyone leaderboard",
+  "onBoardD": "Your own stats stay the same either way.",
+  "nTitleLost": "took {title} from you",
+  "@nTitleLost": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "updAvail": "Update available",
+  "updWhatsNew": "What's new in {v}",
+  "@updWhatsNew": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
+  "updBtn": "Update",
+  "updDownloading": "Downloading… {p}%",
+  "@updDownloading": {
+    "placeholders": {
+      "p": {
+        "type": "int"
+      }
+    }
+  },
+  "updInstalling": "Installing…",
+  "updFailed": "The update didn't install. Opening the download page.",
+  "updUpdated": "Updated to {v}",
+  "@updUpdated": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
+  "updAllow": "Allow installs from Mafia Dealer, then tap Update again.",
+  "sAlerts": "New version alerts",
+  "sAlertsD": "A notification when a new version is out.",
+  "sCheck": "Check for updates",
+  "sUpToDate": "You have the latest version",
+  "sVersion": "Version {v} (build {b})",
+  "@sVersion": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      },
+      "b": {
+        "type": "int"
+      }
+    }
+  },
+  "oldVersion": "old version",
+  "ok": "OK",
+  "retry": "Try again"
 }

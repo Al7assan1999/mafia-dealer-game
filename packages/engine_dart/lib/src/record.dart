@@ -64,7 +64,7 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   int count(Role x) => roles.where((y) => y == x).length;
   final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective));
   if (names0.any((x) => x is! String)) return no('setup: badName');
-  final rules = defaultRules.merge(Map<String, Object?>.from(json['rules'] as Map));
+  final rules = recordRules(Map<String, Object?>.from(json['rules'] as Map));
   final c = createGame(Setup(names0.cast<String>(), counts, rules), () => 0, json['deal'] as int);
   if (c.error != null) return no('setup: ${c.error}');
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)

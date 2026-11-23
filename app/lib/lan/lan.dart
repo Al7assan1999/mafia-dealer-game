@@ -47,7 +47,7 @@ class LanServer {
         if (id == null || room.closedRoom) { req.response.statusCode = 401; return await req.response.close(); }
         final ws = await WebSocketTransformer.upgrade(req, protocolSelector: (_) => 'mafia.v1');
         final c = _Conn(ws, id.uid);
-        if (room.join(c, id, since: int.tryParse(req.uri.queryParameters['rev'] ?? '')) != null) return;
+        if (room.join(c, id, since: int.tryParse(req.uri.queryParameters['rev'] ?? ''), build: int.tryParse(req.uri.queryParameters['v'] ?? '')) != null) return;
         ws.listen((d) => room.message(c, d is String ? d : utf8.decode(d as List<int>)), onDone: () => room.closed(c), onError: (_) => room.closed(c), cancelOnError: true);
         return;
       }
