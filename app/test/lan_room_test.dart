@@ -104,11 +104,15 @@ void main() {
     expect(ps[1].me['host'], false);
   });
 
-  test('kick mid-game counts as elimination; a kicked player can\'t come back; late joiners wait, seat holders return', () {
+  test('kicks follow the host Settings (lobby only by default); any time: elimination, no coming back; late joiners wait, seat holders return', () {
     final (r, ps) = table(5);
     deal(r, ps);
     // kick a Citizen-side seat (kicking the last Mafia would end the game)
     final k = [for (var i = 1; i < 5; i++) if (r.game!.roles[i] != Role.mafia) i].last;
+    send(r, ps[0], {'t': 'kick', 'uid': 'p$k'});
+    expect(ps[k].closed, isFalse, reason: 'lobby only: refused mid-game');
+    expect(r.kick, 'lobby');
+    r.kick = 'any'; // as if the host's Settings said "any time" (the setup message carries it in the lobby)
     send(r, ps[0], {'t': 'kick', 'uid': 'p$k'});
     expect(ps[k].closed, isTrue);
     expect((ps[0].view!['roster'] as List)[k]['alive'], false);

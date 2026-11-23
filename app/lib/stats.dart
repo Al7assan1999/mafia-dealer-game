@@ -67,7 +67,7 @@ class _StatsState extends State<StatsScreen> {
           key: const Key('statsBoard'),
           segments: [ButtonSegment(value: 'mine', label: Text(l.tabMine, key: const Key('boardMine'))), ButtonSegment(value: 'all', label: Text(l.tabEveryone, key: const Key('boardAll')))],
           selected: {f.board}, showSelectedIcon: false,
-          style: SegmentedButton.styleFrom(selectedBackgroundColor: C.red, selectedForegroundColor: C.priText, side: const BorderSide(color: C.line2)),
+          style: SegmentedButton.styleFrom(selectedBackgroundColor: C.red, selectedForegroundColor: C.priText, side: BorderSide(color: C.line2)),
           onSelectionChanged: (s) => _set(f.copy(board: s.first, source: s.first == 'all' && f.source == 'old' ? 'all' : null)),
         )),
         // [QA] S8 #4: the period chips sat off-screen in one scrolling row; two rows that wrap
@@ -83,10 +83,10 @@ class _StatsState extends State<StatsScreen> {
           ]),
         ])),
         Expanded(child: error != null ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: C.red2))),
-              TextButton.icon(key: const Key('statsRetry'), onPressed: _load, icon: const Icon(Icons.refresh, color: C.text), label: Text(l.retry, style: const TextStyle(color: C.text))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Text(error!, textAlign: TextAlign.center, style: TextStyle(color: C.red2))),
+              TextButton.icon(key: const Key('statsRetry'), onPressed: _load, icon: Icon(Icons.refresh, color: C.text), label: Text(l.retry, style: TextStyle(color: C.text))),
             ]))
-            : d == null ? const Center(child: CircularProgressIndicator(color: C.red2))
+            : d == null ? Center(child: CircularProgressIndicator(color: C.red2))
             : _body(l, d)),
       ]),
     );
@@ -98,8 +98,8 @@ class _StatsState extends State<StatsScreen> {
     final note = f.board == 'all' ? l.boardEveryone(min) : '${l.boardMine(min)} ${l.boardFrom}';
     if (board.isEmpty) {
       return ListView(padding: const EdgeInsets.all(16), children: [
-        Padding(padding: const EdgeInsets.symmetric(vertical: 30), child: Text(l.noStats, key: const Key('noStats'), textAlign: TextAlign.center, style: const TextStyle(color: C.mute))),
-        Text(note, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+        Padding(padding: const EdgeInsets.symmetric(vertical: 30), child: Text(l.noStats, key: const Key('noStats'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
+        Text(note, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
       ]);
     }
     Widget title(String k, String label, String Function(Map p) sub, {bool wide = false}) {
@@ -107,12 +107,12 @@ class _StatsState extends State<StatsScreen> {
       if (p == null) return const SizedBox.shrink();
       final box = Container(
         key: Key('title_$k'), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: C.card, border: Border.all(color: k == 'best' ? C.gold : C.line), borderRadius: BorderRadius.circular(4)),
+        decoration: BoxDecoration(color: C.card, border: Border.all(color: k == 'best' ? C.gold : C.line), borderRadius: BorderRadius.circular(C.p.radius)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
           const SizedBox(height: 4),
           Text(p['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: head.copyWith(fontSize: wide ? 22 : 17, color: k == 'best' ? C.gold : C.text)),
-          Text(sub(p), style: const TextStyle(color: C.dim, fontSize: 12)),
+          Text(sub(p), style: TextStyle(color: C.dim, fontSize: 12)),
         ]),
       );
       return InkWell(onTap: () => _open(p), child: box);
@@ -130,11 +130,11 @@ class _StatsState extends State<StatsScreen> {
       const SizedBox(height: 16),
       Row(children: [
         Expanded(child: Text(l.boardT.toUpperCase(), style: head.copyWith(fontSize: 14, color: C.mute, letterSpacing: 2))),
-        if (f.board == 'all' && me != null && me['rank'] != null) Text(l.youRank(me['rank'] as int), key: const Key('myRank'), style: const TextStyle(color: C.gold)),
+        if (f.board == 'all' && me != null && me['rank'] != null) Text(l.youRank(me['rank'] as int), key: const Key('myRank'), style: TextStyle(color: C.gold)),
       ]),
-      Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(note, key: const Key('boardNote'), style: const TextStyle(color: C.dim, fontSize: 12, height: 1.4))),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(note, key: const Key('boardNote'), style: TextStyle(color: C.dim, fontSize: 12, height: 1.4))),
       for (final p in board) _row(l, p, min),
-      if (f.board == 'all' && me != null && !board.any((p) => p['me'] == true)) ...[const Divider(color: C.line), _row(l, me, min)],
+      if (f.board == 'all' && me != null && !board.any((p) => p['me'] == true)) ...[Divider(color: C.line), _row(l, me, min)],
     ]));
   }
 
@@ -144,16 +144,16 @@ class _StatsState extends State<StatsScreen> {
       key: Key('row_${p['key']}'), onTap: () => _open(p),
       child: Container(
         margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: mine ? C.card2 : C.card, border: Border.all(color: mine ? C.red : C.line), borderRadius: BorderRadius.circular(4)),
+        decoration: BoxDecoration(color: mine ? C.card2 : C.card, border: Border.all(color: mine ? C.red : C.line), borderRadius: BorderRadius.circular(C.p.radius)),
         child: Opacity(opacity: q ? 1 : .55, child: Row(children: [
           SizedBox(width: 30, child: Text(q ? '$rank' : '–', style: head.copyWith(fontSize: 17, color: rank == 1 ? C.gold : C.mute))),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text(l.sideLine(p['mw'] as int, p['mg'] as int, p['tw'] as int, p['tg'] as int), style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(l.sideLine(p['mw'] as int, p['mg'] as int, p['tw'] as int, p['tg'] as int), style: TextStyle(color: C.dim, fontSize: 12)),
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(q ? _pct(p['w'] as int, p['g'] as int) : l.needN(min), style: TextStyle(color: q ? C.text : C.dim, fontWeight: FontWeight.w700, fontSize: q ? 16 : 12)),
-            Text(l.winsShort(p['w'] as int, p['g'] as int), style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(l.winsShort(p['w'] as int, p['g'] as int), style: TextStyle(color: C.dim, fontSize: 12)),
           ]),
         ])),
       ),
@@ -203,10 +203,10 @@ class _PlayerState extends State<PlayerScreen> {
     final l = L.of(context), x = p;
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(x?['name'] as String? ?? '', style: head.copyWith(fontSize: 20)), actions: [
-        if (x != null) IconButton(key: const Key('shareProfile'), tooltip: l.shareProfile, icon: const Icon(Icons.ios_share, color: C.mute), onPressed: _share),
+        if (x != null) IconButton(key: const Key('shareProfile'), tooltip: l.shareProfile, icon: Icon(Icons.ios_share, color: C.mute), onPressed: _share),
       ]),
-      body: error != null ? Center(child: Text(error!, style: const TextStyle(color: C.red2)))
-          : x == null ? const Center(child: CircularProgressIndicator(color: C.red2))
+      body: error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
+          : x == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : ListView(padding: const EdgeInsets.all(16), children: [
               RepaintBoundary(key: _card, child: Container(color: C.bg, child: _card_(l, x))),
               ..._rest(l, x),
@@ -218,13 +218,13 @@ class _PlayerState extends State<PlayerScreen> {
   Widget _card_(L l, Map<String, Object?> x) {
     final roles = Map<String, Object?>.from(x['roles'] as Map), best = Role.values.byName(x['best'] as String), br = (roles[best.name] as List).cast<int>();
     final mafia = (x['mafia'] as List).cast<int>(), side = (x['side'] as List).cast<int>(), nem = x['nemesis'] as Map?, card = x['card'] as Map?;
-    Widget tile(String k, String big, String sub, {Color color = C.text}) => Container(
+    Widget tile(String k, String big, String sub, {Color? color}) => Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(4)),
+          decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(k.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
-            Text(big, maxLines: 1, overflow: TextOverflow.ellipsis, style: head.copyWith(fontSize: 19, color: color)),
-            Text(sub, style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(big, maxLines: 1, overflow: TextOverflow.ellipsis, style: head.copyWith(fontSize: 19, color: color ?? C.text)),
+            Text(sub, style: TextStyle(color: C.dim, fontSize: 12)),
           ]),
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -233,7 +233,7 @@ class _PlayerState extends State<PlayerScreen> {
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(x['name'] as String, style: head.copyWith(fontSize: 22)),
-          if (card['handle'] != null) Text(atHandle(card['handle'] as String), style: const TextStyle(color: C.mute)),
+          if (card['handle'] != null) Text(atHandle(card['handle'] as String), style: TextStyle(color: C.mute)),
         ])),
       ])),
       tile(l.winRate, _pct(x['wins'] as int, x['games'] as int), l.winsShort(x['wins'] as int, x['games'] as int), color: C.gold),
@@ -255,9 +255,9 @@ class _PlayerState extends State<PlayerScreen> {
     return [
       const SizedBox(height: 14),
       Sec(title: l.partner, child: Row(children: [
-        const Icon(Icons.handshake_outlined, color: C.red2), const SizedBox(width: 10),
+        Icon(Icons.handshake_outlined, color: C.red2), const SizedBox(width: 10),
         Expanded(child: Text(part?['name'] as String? ?? l.partnerNone, key: const Key('partner'), style: const TextStyle(fontWeight: FontWeight.w700))),
-        if (part != null) Text(l.nTogether(part['n'] as int), style: const TextStyle(color: C.dim)),
+        if (part != null) Text(l.nTogether(part['n'] as int), style: TextStyle(color: C.dim)),
       ])),
       Sec(title: l.byRole, child: Column(children: [
         for (final r in Role.values)
@@ -266,16 +266,16 @@ class _PlayerState extends State<PlayerScreen> {
             Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(2), child: LinearProgressIndicator(
                 value: (roles[r.name] as List)[0] == 0 ? 0 : ((roles[r.name] as List)[1] as int) / ((roles[r.name] as List)[0] as int),
                 minHeight: 8, backgroundColor: C.card2, color: roleColor(r)))),
-            SizedBox(width: 48, child: Text('${(roles[r.name] as List)[1]}/${(roles[r.name] as List)[0]}', textAlign: TextAlign.end, style: const TextStyle(color: C.dim))),
+            SizedBox(width: 48, child: Text('${(roles[r.name] as List)[1]}/${(roles[r.name] as List)[0]}', textAlign: TextAlign.end, style: TextStyle(color: C.dim))),
           ])),
       ])),
       Sec(title: l.moments, child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
         for (final (n, t) in [(m['saves'], l.psSaves), (m['caught'], l.psCaught), (m['killed'], l.psKilled), (m['out'], l.psOut)])
-          Column(children: [Text('$n', style: head.copyWith(fontSize: 22)), Text(t, style: const TextStyle(color: C.dim, fontSize: 12))]),
+          Column(children: [Text('$n', style: head.copyWith(fontSize: 22)), Text(t, style: TextStyle(color: C.dim, fontSize: 12))]),
       ])),
       Sec(title: l.form, child: Wrap(spacing: 6, children: [
         for (final w in form) Container(width: 30, height: 30, alignment: Alignment.center,
-            decoration: BoxDecoration(color: w ? C.green.withValues(alpha: .2) : C.red.withValues(alpha: .2), border: Border.all(color: w ? C.green : C.red2), borderRadius: BorderRadius.circular(3)),
+            decoration: BoxDecoration(color: w ? C.green.withValues(alpha: .2) : C.red.withValues(alpha: .2), border: Border.all(color: w ? C.green : C.red2), borderRadius: BorderRadius.circular(C.neon ? 10 : 3)),
             child: Text(w ? l.fW : l.fL, style: TextStyle(color: w ? C.green : C.red2, fontWeight: FontWeight.w700))),
       ])),
     ];
@@ -324,21 +324,21 @@ class _ImportState extends State<ImportScreen> {
         Sec(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(l.importD, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          for (final s in [l.importS1, l.importS2]) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(s, style: const TextStyle(color: C.mute))),
+          for (final s in [l.importS1, l.importS2]) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(s, style: TextStyle(color: C.mute))),
           const SizedBox(height: 6),
-          Text(l.importS3, style: const TextStyle(color: C.dim, fontSize: 12)),
+          Text(l.importS3, style: TextStyle(color: C.dim, fontSize: 12)),
           const SizedBox(height: 12),
           TextField(key: const Key('oldCode'), controller: code, textCapitalization: TextCapitalization.characters, maxLength: 9,
               style: const TextStyle(letterSpacing: 3, fontSize: 18), textDirection: TextDirection.ltr,
               decoration: InputDecoration(labelText: l.importCode, hintText: 'ABCD2345', counterText: '')),
           const SizedBox(height: 10),
           Btn(l.importBtn, key: const Key('importOld'), icon: Icons.download_outlined, onTap: busy ? null : _import),
-          if (result != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(result!, key: const Key('importResult'), style: const TextStyle(color: C.gold))),
+          if (result != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(result!, key: const Key('importResult'), style: TextStyle(color: C.gold))),
         ])),
         Sec(title: l.whoWereYou, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(l.whoD, style: const TextStyle(color: C.dim, fontSize: 12)),
+          Text(l.whoD, style: TextStyle(color: C.dim, fontSize: 12)),
           const SizedBox(height: 8),
-          if (names != null && list.isEmpty) Text(l.noNames, key: const Key('noNames'), style: const TextStyle(color: C.mute)),
+          if (names != null && list.isEmpty) Text(l.noNames, key: const Key('noNames'), style: TextStyle(color: C.mute)),
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final n in list)
               ChoiceChip(key: Key('claim_${n['name']}'), label: Text(n['taken'] == true ? '${n['name']} · ${l.nameTaken}' : n['name'] as String),
@@ -368,8 +368,8 @@ class _OldGamesState extends State<OldGamesTab> {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), g = games;
-    if (g == null) return const Center(child: CircularProgressIndicator(color: C.red2));
-    if (g.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(l.noOldGames, key: const Key('noOldGames'), textAlign: TextAlign.center, style: const TextStyle(color: C.mute))));
+    if (g == null) return Center(child: CircularProgressIndicator(color: C.red2));
+    if (g.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(l.noOldGames, key: const Key('noOldGames'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))));
     return ListView(padding: const EdgeInsets.all(16), children: [
       for (final x in g)
         Card(color: C.card, child: ListTile(
@@ -380,7 +380,7 @@ class _OldGamesState extends State<OldGamesTab> {
             if (x['seat'] != null) l.youPlayed(roleName(l, Role.values.byName((x['roles'] as List)[x['seat'] as int] as String))),
             l.rcSub((x['names'] as List).length, x['days'] as int),
             if (x['valid'] != true) l.invalid,
-          ].join(' · '), style: const TextStyle(color: C.mute)),
+          ].join(' · '), style: TextStyle(color: C.mute)),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _OldDetail(g: x))),
         )),
     ]);
@@ -406,7 +406,7 @@ class _OldDetail extends StatelessWidget {
         ])),
         // the old app wrote these lines in the language it was set to at the time
         Sec(title: l.history, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final h in (g['hist'] as List).cast<String>()) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(h, style: const TextStyle(color: C.mute))),
+          for (final h in (g['hist'] as List).cast<String>()) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(h, style: TextStyle(color: C.mute))),
         ])),
       ]),
     );

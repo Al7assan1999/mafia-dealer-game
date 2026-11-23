@@ -67,6 +67,7 @@ class LocalRoom {
   var members = <_Member>[];
   final kicked = <String>[];
   int nextCn = 1, deal = 0, buzzMax = 3, rev = 0, cut = 0;
+  String kick = 'lobby'; // S9-4: the host's kick rule (lobby only, as the old app's default, or any time)
   Rules rules = defaultRules;
   int mafia = 1, detective = 0;
   GameState? game;
@@ -101,7 +102,7 @@ class LocalRoom {
   Map<String, Object?> info() {
     final host = hostOf();
     return {
-      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'buzzMax': buzzMax,
+      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'buzzMax': buzzMax, 'kick': kick,
       'status': status, 'deal': deal, 'gameId': gameId, 'valid': valid,
       'members': [
         for (final m in _here)
@@ -231,6 +232,7 @@ class LocalRoom {
           mafia = (cc['mafia'] as int).clamp(1, 10);
           detective = (cc['detective'] as int).clamp(0, 1);
           buzzMax = (inp['buzzMax'] as int? ?? 3).clamp(0, 20);
+          if (inp['kick'] == 'lobby' || inp['kick'] == 'any') kick = inp['kick'] as String;
         } catch (_) { return err('bad_request'); }
       case 'deal':
         if (running) return err('started');
@@ -272,6 +274,7 @@ class LocalRoom {
       case 'kick':
         final who = inp['uid'] as String?;
         if (who == uid || !members.any((x) => x.uid == who)) return err('not_member');
+        if (running && kick == 'lobby') return err('lobby_only'); // the host's Settings: kicks in the lobby only
         final s = seats.indexOf(who!);
         if (running && s >= 0 && g!.alive[s] && g.phase != Phase.deal) e = _play(Action.remove(s));
         if (e != null) return err(e);
@@ -400,7 +403,7 @@ class LocalRoom {
   // ---------------------------------------------------------------- "Resume hosting": a snapshot of the room and game
   Map<String, Object?> toJson() => {
         'v': 1, 'code': code, 'hostUid': hostUid, 'members': [for (final m in members) m.toJson()], 'kicked': kicked, 'nextCn': nextCn,
-        'deal': deal, 'buzzMax': buzzMax, 'rev': rev, 'cut': cut, 'rules': rules.toJson(), 'mafia': mafia, 'detective': detective,
+        'deal': deal, 'buzzMax': buzzMax, 'kick': kick, 'rev': rev, 'cut': cut, 'rules': rules.toJson(), 'mafia': mafia, 'detective': detective,
         'rec': rec?.toJson(), 'seats': seats, 'ready': ready, 'gameId': gameId, 'valid': valid,
         'past': [for (final p in past) {'rev': p.rev, 'events': p.events}], 'lastIn': lastIn, 'chatSeq': chatSeq, 'chat': chat,
       };
@@ -409,7 +412,7 @@ class LocalRoom {
     hostUid = j['hostUid'] as String;
     members = [for (final m in (j['members'] as List)) _Member.fromJson(m as Map)];
     kicked.addAll((j['kicked'] as List).cast<String>());
-    nextCn = j['nextCn'] as int; deal = j['deal'] as int; buzzMax = j['buzzMax'] as int; rev = j['rev'] as int; cut = j['cut'] as int;
+    nextCn = j['nextCn'] as int; deal = j['deal'] as int; buzzMax = j['buzzMax'] as int; kick = j['kick'] as String? ?? 'lobby'; rev = j['rev'] as int; cut = j['cut'] as int;
     rules = defaultRules.merge(Map<String, Object?>.from(j['rules'] as Map));
     mafia = j['mafia'] as int; detective = j['detective'] as int;
     seats = (j['seats'] as List).cast<String>(); ready = (j['ready'] as List).cast<String>();

@@ -87,6 +87,8 @@ class Note {
   int get at => j['at'] as int;
   String? get code => j['code'] as String?;
   bool get read => j['read'] == true;
+  /// Handled (kept 24 h, read-only): joined / let_in / accepted / declined / dismissed / expired; null while it waits.
+  String? get result => j['result'] as String?;
   /// wifi_confirm / wifi_result: {request, status, reason, players, winner, playedAt, seat, role}
   Map<String, Object?>? get wifi => j['wifi'] == null ? null : Map<String, Object?>.from(j['wifi'] as Map);
 }
@@ -258,6 +260,7 @@ class Account extends ChangeNotifier {
     unread = r['unread'] as int? ?? 0;
     notifyListeners();
   }
+  Future<void> handled(String id, String result) async { await _try(() => api.post('/v1/notifications/$id/handled', {'result': result})).catchError((_) => null); await loadNotes(); }
   Future<void> readAll() async { if (unread == 0) return; await _try(() => api.post('/v1/notifications/read')); await loadNotes(); }
   Future<void> deleteNote(String? id) async { await _try(() => api.delete(id == null ? '/v1/notifications' : '/v1/notifications/$id')); await loadNotes(); }
 

@@ -74,7 +74,7 @@ class _SetupState extends State<SetupScreen> {
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [
-        if (err != null) Text(err, key: const Key('setupError'), textAlign: TextAlign.center, style: const TextStyle(color: C.red2)),
+        if (err != null) Text(err, key: const Key('setupError'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: err == null ? () => _deal(l, v.counts) : null),
       ], children: [
         Sec(
@@ -84,24 +84,24 @@ class _SetupState extends State<SetupScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(children: [
-                  SizedBox(width: 28, child: Text('${i + 1}', style: const TextStyle(color: C.dim))),
+                  SizedBox(width: 28, child: Text('${i + 1}', style: TextStyle(color: C.dim))),
                   Expanded(
                     child: TextField(
                       key: Key('name$i'), controller: names[i], maxLength: maxName, onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(hintText: l.playerN(i + 1), counterText: ''),
                     ),
                   ),
-                  IconButton(key: Key('remove$i'), tooltip: l.remove, icon: const Icon(Icons.close, color: C.dim),
+                  IconButton(key: Key('remove$i'), tooltip: l.remove, icon: Icon(Icons.close, color: C.dim),
                       onPressed: names.length <= 1 ? null : () => setState(() => names.removeAt(i).dispose())),
                 ]),
               ),
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton(key: const Key('addPlayer'), onPressed: names.length >= maxPlayers ? null : () => setState(() => names.add(TextEditingController())),
-                  child: Text(l.addPlayer, style: const TextStyle(color: C.red2))),
+                  child: Text(l.addPlayer, style: TextStyle(color: C.red2))),
             ),
             if (chips.isNotEmpty) ...[
-              Text(l.saved, style: const TextStyle(color: C.mute, fontSize: 13)),
+              Text(l.saved, style: TextStyle(color: C.mute, fontSize: 13)),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 6, children: [
                 for (final c in chips)
@@ -141,7 +141,7 @@ class DeckEditor extends StatelessWidget {
         _count(l.detective, m < 2 ? '${l.dDetective} · ${l.detNeed2}' : l.dDetective, Role.detective, d,
             on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null),
         _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d).clamp(0, 99), null, null),
-        if (n >= minPlayers) Text(l.recM(recMafia(n)), style: const TextStyle(color: C.dim, fontSize: 12)),
+        if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),
       ]),
     );
   }
@@ -153,7 +153,7 @@ class DeckEditor extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text(desc, style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(desc, style: TextStyle(color: C.dim, fontSize: 12)),
           ])),
           if (r == Role.mafia || r == Role.detective) IconButton(key: Key('minus_${r.name}'), onPressed: minus, icon: const Icon(Icons.remove_circle_outline)),
           SizedBox(width: 24, child: Text('$n', key: Key('count_${r.name}'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
@@ -197,14 +197,14 @@ class RulesEditor extends StatelessWidget {
 
   Widget _sw(String t, String? d, bool v, ValueChanged<bool>? on) => SwitchListTile(
         contentPadding: EdgeInsets.zero, value: v, onChanged: on, title: Text(t, style: const TextStyle(fontSize: 14)),
-        subtitle: d == null ? null : Text(d, style: const TextStyle(color: C.dim, fontSize: 12)),
+        subtitle: d == null ? null : Text(d, style: TextStyle(color: C.dim, fontSize: 12)),
       );
 
   Widget _pickRow(String t, String? d, List<int> opts, int v, String Function(int) label, ValueChanged<int>? on) => Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(t, style: const TextStyle(fontSize: 14)),
-          if (d != null) Text(d, style: const TextStyle(color: C.dim, fontSize: 12)),
+          if (d != null) Text(d, style: TextStyle(color: C.dim, fontSize: 12)),
           const SizedBox(height: 6),
           Wrap(spacing: 6, runSpacing: 6, children: [
             for (final o in {...opts, v}.toList()..sort())

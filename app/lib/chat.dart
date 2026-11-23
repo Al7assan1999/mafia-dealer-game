@@ -72,11 +72,11 @@ class _ChatState extends State<ChatScreen> {
       if (canEdit) ListTile(key: const Key('menuEdit'), leading: const Icon(Icons.edit_outlined), title: Text(l.editMsg),
           onTap: () { Navigator.pop(ctx); setState(() { editing = m; replyTo = null; text.text = m['text'] as String; }); }),
       if (!mine && sender != null && widget.safety) ...[
-        ListTile(key: const Key('menuReport'), leading: const Icon(Icons.flag_outlined, color: C.red2), title: Text(l.report), onTap: () {
+        ListTile(key: const Key('menuReport'), leading: Icon(Icons.flag_outlined, color: C.red2), title: Text(l.report), onTap: () {
           Navigator.pop(ctx);
           reportDialog(context, widget.account, sender['uid'] as String, sender['display'] as String, room: c.code, msgId: m['id'] as int, text: m['text'] as String);
         }),
-        ListTile(key: const Key('menuBlock'), leading: const Icon(Icons.block, color: C.red2), title: Text(l.block), onTap: () async {
+        ListTile(key: const Key('menuBlock'), leading: Icon(Icons.block, color: C.red2), title: Text(l.block), onTap: () async {
           Navigator.pop(ctx);
           if (await confirmBlock(context, widget.account, sender['uid'] as String, sender['display'] as String)) setState(() {});
         }),
@@ -108,9 +108,9 @@ class _ChatState extends State<ChatScreen> {
               for (final m in others) _convChip(m['display'] as String, '${m['cn']}'),
             ])),
             if (widget.out && conv == 'all') Container(width: double.infinity, color: C.card2, padding: const EdgeInsets.all(8),
-                child: Text(l.outOnlyNote, key: const Key('outOnly'), textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 12))),
+                child: Text(l.outOnlyNote, key: const Key('outOnly'), textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 12))),
             Expanded(child: msgs.isEmpty && pending.isEmpty
-                ? Center(child: Text(l.noMessages, style: const TextStyle(color: C.mute)))
+                ? Center(child: Text(l.noMessages, style: TextStyle(color: C.mute)))
                 : ListView(reverse: true, padding: const EdgeInsets.all(12), children: [
                     for (final e in pending.reversed) _bubble(l, {...e.value, 'from': c.myCn}, cid: e.key),
                     for (final m in msgs.reversed) _bubble(l, m),
@@ -119,11 +119,11 @@ class _ChatState extends State<ChatScreen> {
               Container(color: C.card2, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Row(children: [
                 Icon(editing != null ? Icons.edit_outlined : Icons.reply, size: 18, color: C.mute),
                 const SizedBox(width: 8),
-                Expanded(child: Text(editing != null ? l.editMsg : '${nameOf(replyTo!['from'] as int)}: ${replyTo!['text']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: C.mute))),
+                Expanded(child: Text(editing != null ? l.editMsg : '${nameOf(replyTo!['from'] as int)}: ${replyTo!['text']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: C.mute))),
                 IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() { replyTo = null; if (editing != null) { editing = null; text.clear(); } })),
               ])),
             SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(8, 4, 8, 8), child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              IconButton(key: const Key('mentionBtn'), tooltip: l.mention, icon: const Icon(Icons.alternate_email, color: C.mute), onPressed: _pickMention),
+              IconButton(key: const Key('mentionBtn'), tooltip: l.mention, icon: Icon(Icons.alternate_email, color: C.mute), onPressed: _pickMention),
               Expanded(child: TextField(key: const Key('chatText'), controller: text, maxLength: 200, minLines: 1, maxLines: 4,
                   textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: InputDecoration(hintText: l.typeMsg))),
               IconButton(key: const Key('chatSend'), icon: Icon(editing != null ? Icons.check : Icons.send, color: C.red2), onPressed: _send),
@@ -151,7 +151,7 @@ class _ChatState extends State<ChatScreen> {
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .78),
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: BoxDecoration(color: mine ? C.red : C.alt, borderRadius: BorderRadius.circular(3),
+      decoration: BoxDecoration(color: mine ? C.red : C.alt, borderRadius: BorderRadius.circular(C.neon ? 10 : 3),
           boxShadow: const [BoxShadow(color: Colors.black, offset: Offset(2, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         if (!mine) Text(nameOf(m['from'] as int).toUpperCase(), style: head.copyWith(fontSize: 12, color: C.red, letterSpacing: 1)),

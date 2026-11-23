@@ -31,7 +31,7 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (text != null) ...[
             Container(width: double.infinity, padding: const EdgeInsets.all(10), color: C.card2, child: Text(text, style: const TextStyle(fontStyle: FontStyle.italic))),
-            Padding(padding: const EdgeInsets.only(top: 4, bottom: 8), child: Text(l.reportMsg, style: const TextStyle(color: C.dim, fontSize: 12))),
+            Padding(padding: const EdgeInsets.only(top: 4, bottom: 8), child: Text(l.reportMsg, style: TextStyle(color: C.dim, fontSize: 12))),
           ],
           RadioGroup<String>(
             groupValue: reason,
@@ -46,8 +46,8 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
               contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading),
         ])),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel, style: const TextStyle(color: C.mute))),
-          TextButton(key: const Key('sendReport'), onPressed: reason == null ? null : () => Navigator.pop(c, true), child: Text(l.sendReport, style: const TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel, style: TextStyle(color: C.mute))),
+          TextButton(key: const Key('sendReport'), onPressed: reason == null ? null : () => Navigator.pop(c, true), child: Text(l.sendReport, style: TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
         ],
       )));
   if (ok != true || !context.mounted) return false;
@@ -76,7 +76,7 @@ class SafetyMenu extends StatelessWidget {
     final l = L.of(context);
     return PopupMenuButton<String>(
       key: Key('safety_$name'),
-      icon: const Icon(Icons.more_vert, color: C.dim),
+      icon: Icon(Icons.more_vert, color: C.dim),
       onSelected: (x) {
         if (x == 'block') { confirmBlock(context, account, userId, name); } else if (x == 'report') { reportDialog(context, account, userId, name); } else { onExtra?.call(x); }
       },
@@ -104,19 +104,19 @@ class _BlockedState extends State<BlockedScreen> {
     final l = L.of(context);
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.blockedList, style: head.copyWith(fontSize: 20))),
-      body: list == null ? const Center(child: CircularProgressIndicator(color: C.red2))
-          : list!.isEmpty ? Center(child: Text(l.noBlocked, style: const TextStyle(color: C.mute)))
+      body: list == null ? Center(child: CircularProgressIndicator(color: C.red2))
+          : list!.isEmpty ? Center(child: Text(l.noBlocked, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
               for (final p in list!)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: AvatarView.of(widget.account.api, p, size: 36),
                   title: Text(p.display),
-                  subtitle: Text(atHandle(p.handle), style: const TextStyle(color: C.mute)),
+                  subtitle: Text(atHandle(p.handle), style: TextStyle(color: C.mute)),
                   trailing: TextButton(key: Key('unblock_${p.handle}'), onPressed: () async {
                     await widget.account.unblock(p.id).catchError((_) {});
                     _load();
-                  }, child: Text(l.unblock, style: const TextStyle(color: C.red2))),
+                  }, child: Text(l.unblock, style: TextStyle(color: C.red2))),
                 ),
             ]),
     );
@@ -143,23 +143,23 @@ class _ReportsState extends State<ReportsScreen> {
     String reason(Object? r) => switch (r) { 'spam' => l.reasonSpam, 'harassment' => l.reasonHarassment, 'hate' => l.reasonHate, _ => l.reasonOther };
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.reportsT, style: head.copyWith(fontSize: 20))),
-      body: list == null ? const Center(child: CircularProgressIndicator(color: C.red2))
-          : list!.isEmpty ? Center(child: Text(l.noReports, style: const TextStyle(color: C.mute)))
+      body: list == null ? Center(child: CircularProgressIndicator(color: C.red2))
+          : list!.isEmpty ? Center(child: Text(l.noReports, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
               for (final r in list!)
                 Sec(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${r['display']} ${atHandle(r['handle'] as String?)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text('${reason(r['reason'])} · ${l.reportedBy((r['reporter'] as String?) ?? '—')}', style: const TextStyle(color: C.mute, fontSize: 12)),
+                  Text('${reason(r['reason'])} · ${l.reportedBy((r['reporter'] as String?) ?? '—')}', style: TextStyle(color: C.mute, fontSize: 12)),
                   if ((r['message'] as Map?)?['text'] != null) Padding(padding: const EdgeInsets.only(top: 8),
                       child: Text('“${(r['message'] as Map)['text']}”', style: const TextStyle(fontStyle: FontStyle.italic))),
-                  if ((r['note'] as String?)?.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 6), child: Text(r['note'] as String, style: const TextStyle(color: C.mute))),
+                  if ((r['note'] as String?)?.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 6), child: Text(r['note'] as String, style: TextStyle(color: C.mute))),
                   Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    TextButton(onPressed: () async { await widget.account.moderate(r['id'] as String, 'dismiss').catchError((_) {}); _load(); }, child: Text(l.dismiss, style: const TextStyle(color: C.mute))),
+                    TextButton(onPressed: () async { await widget.account.moderate(r['id'] as String, 'dismiss').catchError((_) {}); _load(); }, child: Text(l.dismiss, style: TextStyle(color: C.mute))),
                     TextButton(key: Key('ban_${r['id']}'), onPressed: () async {
                       if (!await ask(context, l.banQ(r['display'] as String), l.banD, l.ban)) return;
                       await widget.account.moderate(r['id'] as String, 'ban').catchError((_) {});
                       _load();
-                    }, child: Text(l.ban, style: const TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
+                    }, child: Text(l.ban, style: TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
                   ]),
                 ])),
             ]),

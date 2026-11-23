@@ -12,6 +12,7 @@ import 'account.dart';
 import 'account_screens.dart';
 import 'api.dart';
 import 'chat.dart';
+import 'drawer.dart';
 import 'lan/lan.dart' show localAddresses;
 import 'safety.dart';
 import 'audio.dart';
@@ -26,7 +27,7 @@ import 'ui.dart';
 
 String roomErr(L l, String? code) => switch (code) {
       'no_room' => l.eNoRoom, 'started' => l.eStarted, 'room_full' => l.eRoomFull, 'kicked' => l.eKicked,
-      'forbidden' => l.eForbidden, 'not_open' => l.eNotOpen, 'offline' => l.eOffline, _ => l.eOther,
+      'forbidden' => l.eForbidden, 'not_open' => l.eNotOpen, 'offline' => l.eOffline, 'lobby_only' => l.eLobbyOnly, _ => l.eOther,
     };
 
 Role? _role(Object? r) => r is String && r.isNotEmpty ? Role.values.byName(r) : null;
@@ -55,7 +56,7 @@ class _OnlineHomeState extends State<OnlineHome> {
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.online, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
-        Text(l.onlineSub, style: const TextStyle(color: C.mute)),
+        Text(l.onlineSub, style: TextStyle(color: C.mute)),
         const SizedBox(height: 18),
         if (!a.signedIn) ...[
           Text(l.onlineNeedsAccount),
@@ -79,16 +80,126 @@ class _OnlineHomeState extends State<OnlineHome> {
                 onPressed: () { if (code.text.length == 6) _open(code.text); }, child: Text(l.join)),
           ]),
         ],
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: const TextStyle(color: C.red2))),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
       ]),
     );
   }
 }
 
+// ---------------------------------------------------------------- minimize (S9-1)
+/// The room this phone stays in while it goes Home from the lobby: the connection outlives the room screen. The room bar
+/// leads back; dealing the roles pulls the player back; a kick or a closed room is told on whatever screen is open.
+class ActiveRoom extends ChangeNotifier {
+  ActiveRoom._();
+  static final instance = ActiveRoom._();
+  static final navigatorKey = GlobalKey<NavigatorState>();
+  static final messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  RoomConn? conn;
+  String code = '';
+  bool lanHost = false;
+  RoomScreen Function(RoomConn c)? _reopen; // the same room screen again, on the same connection
+  VoidCallback? _onLeave; // Wi-Fi host: stop the server when the room is left for good
+  bool get minimized => conn != null;
+
+  void hold(RoomConn c, String code, RoomScreen Function(RoomConn c) reopen, {bool lanHost = false, VoidCallback? onLeave}) {
+    conn = c; this.code = code; this.lanHost = lanHost; _reopen = reopen; _onLeave = onLeave;
+    c.addListener(_watch);
+    notifyListeners();
+  }
+
+  void _watch() {
+    final c = conn;
+    if (c == null) return;
+    final ctx = navigatorKey.currentContext;
+    if (c.bye != null) { // kicked or closed while away: say so where the player is
+      final l = ctx == null ? null : L.of(ctx);
+      final msg = l == null ? null : c.bye == 'kicked' ? l.eKicked : l.roomClosed;
+      _drop(dispose: true);
+      if (msg != null) messengerKey.currentState?.showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+    if (c.view != null) { // the roles are dealt: back to the room
+      HapticFeedback.heavyImpact();
+      reopen();
+      final l = navigatorKey.currentContext == null ? null : L.of(navigatorKey.currentContext!);
+      if (l != null) messengerKey.currentState?.showSnackBar(SnackBar(content: Text(l.rolesDealt)));
+    }
+    notifyListeners(); // members, unread chat
+  }
+
+  /// Back to the room screen (the room bar, a deal, an invite into this same room).
+  void reopen() {
+    final c = conn, b = _reopen;
+    if (c == null || b == null) return;
+    _drop(dispose: false);
+    navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => b(c)));
+  }
+
+  /// Leaves the room for good (before starting something else).
+  void leave() {
+    final c = conn;
+    if (c == null) return;
+    if (c.bye == null) c.send({'t': lanHost ? 'close' : 'leave'});
+    final onLeave = _onLeave;
+    _drop(dispose: true);
+    onLeave?.call();
+  }
+
+  void _drop({required bool dispose}) {
+    final c = conn;
+    c?.removeListener(_watch);
+    conn = null; _reopen = null; _onLeave = null;
+    if (dispose) Future.delayed(const Duration(milliseconds: 300), () => c?.dispose()); // the goodbye goes out first
+    notifyListeners();
+  }
+}
+
+/// While minimized, starting something else asks first. True when nothing is held (or it was left).
+Future<bool> leaveRoomFirst(BuildContext context) async {
+  final a = ActiveRoom.instance;
+  if (!a.minimized) return true;
+  final l = L.of(context);
+  if (!await ask(context, l.leaveFirstQ, l.leaveFirstD(a.code), l.leaveRoom)) return false;
+  a.leave();
+  return true;
+}
+
+/// The room bar on every screen while minimized (MaterialApp.builder puts it above the pages).
+class RoomBarFrame extends StatelessWidget {
+  const RoomBarFrame({super.key, required this.child, this.onLongPress});
+  final Widget child;
+  final void Function(BuildContext context)? onLongPress; // P4: the friends drawer with Invite ready
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: ActiveRoom.instance, builder: (context, _) {
+        final a = ActiveRoom.instance, c = a.conn;
+        if (c == null) return child;
+        final l = L.of(context), ms = c.members, host = ms.where((m) => m['host'] == true).firstOrNull, n = ms.where((m) => m['online'] != false).length;
+        final mine = c.isHost;
+        return Column(children: [
+          Material(color: C.red, child: SafeArea(bottom: false, child: InkWell(
+            key: const Key('roomBar'), onTap: a.reopen, onLongPress: onLongPress == null ? null : () => onLongPress!(context),
+            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Row(children: [
+              Icon(Icons.meeting_room_outlined, color: C.priText, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(mine ? l.roomBarHost(n) : l.roomBarIn((host?['display'] as String?) ?? '?', n),
+                  style: TextStyle(color: C.priText, fontWeight: FontWeight.w700))),
+              if (c.unreadTotal > 0) Badge(label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.priText, size: 20)),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: C.priText),
+            ])),
+          ))),
+          Expanded(child: MediaQuery.removePadding(context: context, removeTop: true, child: child)),
+        ]);
+      });
+}
+
 // ---------------------------------------------------------------- the room
 class RoomScreen extends StatefulWidget {
   const RoomScreen({super.key, required this.account, required this.prefs, required this.audio, required this.code, this.connect,
-      this.api, this.lan = false, this.lanHost = false, this.relocate, this.onClose});
+      this.api, this.lan = false, this.lanHost = false, this.relocate, this.onClose, this.existing, this.inviteOnJoin});
+  final RoomConn? existing; // back from minimized: the same connection (S9-1)
+  final String? inviteOnJoin; // Invite from Home (S9-5): invite this friend once the room is open
   final Api? api; // Wi-Fi: the host phone's server
   final bool lan, lanHost; // a Wi-Fi room / this phone hosts it
   final Future<Api?> Function()? relocate; // Wi-Fi: find the host again if its address changed
@@ -103,7 +214,8 @@ class RoomScreen extends StatefulWidget {
 }
 
 class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
-  late final RoomConn c = RoomConn(widget.api ?? widget.account.api, widget.code, connect: widget.connect ?? ioConnect, relocate: widget.relocate);
+  late final RoomConn c = widget.existing ?? RoomConn(widget.api ?? widget.account.api, widget.code, connect: widget.connect ?? ioConnect, relocate: widget.relocate);
+  bool _minimized = false, _invited = false;
   StreamSubscription<dynamic>? _n, _s;
   Timer? _tick, _arm;
   bool revealed = true; // the morning / verdict / end result is held until my narrator says the name
@@ -123,7 +235,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _n = c.narration.listen(_narrate);
     _s = c.side.listen(_onSide);
     c.addListener(_changed);
-    c.start();
+    if (widget.existing == null) c.start();
     if (widget.lanHost) localAddresses().then((a) { if (mounted && a.isNotEmpty) setState(() => _myAddress = a.first); });
     _tick = Timer.periodic(const Duration(seconds: 1), (_) { _checkTimeUp(); if (mounted) setState(() {}); });
     WakelockPlus.enable().catchError((_) {});
@@ -134,13 +246,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _n?.cancel(); _s?.cancel(); _tick?.cancel(); _arm?.cancel();
     c.removeListener(_changed);
-    c.dispose();
+    if (!_minimized) c.dispose(); // minimized: ActiveRoom keeps the connection
     audio.stop();
     audio.muted = false;
     WakelockPlus.disable().catchError((_) {});
     if (!widget.lan) widget.account.reloadMe();
-    widget.onClose?.call();
+    if (!_minimized) widget.onClose?.call();
     super.dispose();
+  }
+
+  /// S9-1: go Home and stay in the room (lobby only).
+  void _minimize() {
+    _minimized = true;
+    final w = widget;
+    ActiveRoom.instance.hold(c, w.code, (conn) => RoomScreen(account: w.account, prefs: w.prefs, audio: w.audio, code: w.code, connect: w.connect,
+        api: w.api, lan: w.lan, lanHost: w.lanHost, relocate: w.relocate, onClose: w.onClose, existing: conn), lanHost: w.lanHost, onLeave: w.onClose);
+    Navigator.of(context).pop();
   }
 
   @override
@@ -150,9 +271,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   List<String> get names => [for (final r in (v?['roster'] as List? ?? const [])) (r as Map)['name'] as String];
   String _name(int seat) => seat >= 0 && seat < names.length ? names[seat] : '?';
 
+  bool _defaults = false;
   void _changed() {
     final err = c.error;
     if (err != null && mounted && c.room != null) { toast(context, roomErr(L.of(context), err)); c.error = null; }
+    final room = c.room;
+    if (room != null && c.isHost && !_defaults) {
+      _defaults = true;
+      // S9-4: a room I host starts with my Settings (buzz limit, kick rule), once, while nobody has been dealt in yet
+      final p = widget.prefs;
+      if (room['deal'] == 0 && (room['buzzMax'] != p.hostBuzzMax || room['kick'] != p.hostKick)) {
+        c.send({'t': 'setup', 'rules': room['rules'], 'counts': {'mafia': (room['counts'] as Map)['mafia'], 'detective': (room['counts'] as Map)['detective']},
+          'buzzMax': p.hostBuzzMax, 'kick': p.hostKick});
+      }
+    }
+    if (room != null && c.isHost && widget.inviteOnJoin != null && !_invited) {
+      _invited = true; // S9-5: Invite from Home, once the room exists
+      Future.delayed(const Duration(milliseconds: 600), () => widget.account.invite(widget.inviteOnJoin!, widget.code).catchError((_) {}));
+    }
     if (mounted) setState(() {});
   }
 
@@ -265,7 +401,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           title: Text(l.roomCode(widget.code), style: head.copyWith(fontSize: 20)),
           actions: [
             if (c.room != null) IconButton(key: const Key('chat'), tooltip: l.chatT,
-                icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: const Icon(Icons.chat_bubble_outline, color: C.mute)),
+                icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.mute)),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
                     out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))),
             IconButton(key: const Key('narrate'), tooltip: l.narrateHere,
@@ -275,14 +411,20 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   if (!widget.lan) widget.prefs.narrate = !audio.muted; // online: remembered; Wi-Fi: this room only
                   if (audio.muted) audio.stop();
                 })),
-            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: const Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'buzz'}))),
-            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: const Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'ping'}))),
-            IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: const Icon(Icons.logout, color: C.mute), onPressed: _leave),
+            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'buzz'}))),
+            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'ping'}))),
+            if (c.room != null && c.view == null && c.bye == null)
+              IconButton(key: const Key('minimize'), tooltip: l.minimize, icon: Icon(Icons.home_outlined, color: C.mute), onPressed: _minimize),
+            IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: Icon(Icons.logout, color: C.mute), onPressed: _leave),
           ],
         ),
         body: Column(children: [
           _bar(l),
-          Expanded(child: KeyedSubtree(key: ValueKey('${v?['phase']}/${v?['ph']}/${v?['day']}/$revealed'), child: _screen(l))),
+          Expanded(child: Stack(children: [
+            Positioned.fill(child: KeyedSubtree(key: ValueKey('${v?['phase']}/${v?['ph']}/${v?['day']}/$revealed'), child: _screen(l))),
+            // S9-2: the friends tab in an online lobby (never in a game, never in a Wi-Fi room)
+            if (!widget.lan && c.room != null && v == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c)),
+          ])),
         ]),
       ),
     );
@@ -304,7 +446,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     if (text == null) return const SizedBox.shrink();
     return Container(key: const Key('connBar'), width: double.infinity, color: color, padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-        child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: C.priText, fontWeight: FontWeight.w700)));
+        child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: C.priText, fontWeight: FontWeight.w700)));
   }
 
   Widget _screen(L l) {
@@ -315,7 +457,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
     if (c.room == null) {
       return Stage(bottom: [if (c.error != null) Btn(l.home, onTap: () => Navigator.of(context).pop())], children: [
-        if (c.error != null) Big(roomErr(l, c.error), color: C.red2) else const Center(child: CircularProgressIndicator(color: C.red2)),
+        if (c.error != null) Big(roomErr(l, c.error), color: C.red2) else Center(child: CircularProgressIndicator(color: C.red2)),
       ]);
     }
     final view = v;
@@ -342,15 +484,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final rules = defaultRules.merge(Map<String, Object?>.from(room['rules'] as Map));
     final counts = Counts((room['counts'] as Map)['mafia'] as int, 1, (room['counts'] as Map)['detective'] as int);
     final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts);
-    void setup(Counts cc, Rules rr) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3});
+    void setup(Counts cc, Rules rr) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
+      if (room['kick'] != null) 'kick': room['kick']});
     return Stage(center: false, bottom: [
       if (host) ...[
         Text([l.playersCount(ms.length), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
               switch (presetOf(rules)) { 'classic' => l.presetClassic, 'beginner' => l.presetBeginner, _ => l.presetCustom }].join(' · '),
-            key: const Key('dealSummary'), textAlign: TextAlign.center, style: const TextStyle(color: C.mute)),
+            key: const Key('dealSummary'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
         for (final m in ms.where((m) => m['online'] == false))
           Text(l.offlineDealt(m['display'] as String), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFD9A441))),
-        if (ms.length < minPlayers) Text(l.eNoMembers, textAlign: TextAlign.center, style: const TextStyle(color: C.red2)),
+        if (ms.length < minPlayers) Text(l.eNoMembers, textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null ? _h(() => c.send({'t': 'deal'})) : null),
         Row(children: [
           if (!widget.lan) ...[
@@ -362,11 +505,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           })),
         ]),
       ] else
-        Text(l.waitHost, textAlign: TextAlign.center, style: const TextStyle(color: C.mute)),
+        Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
     ], children: [
       Sec(child: Column(children: [
         Text(widget.code, key: const Key('code'), style: head.copyWith(fontSize: 44, letterSpacing: 10, color: C.gold)),
-        if (_myAddress != null) Text(l.hostAddress(_myAddress!), key: const Key('myAddress'), style: const TextStyle(color: C.mute)), // [QA] U2
+        if (_myAddress != null) Text(l.hostAddress(_myAddress!), key: const Key('myAddress'), style: TextStyle(color: C.mute)), // [QA] U2
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           TextButton.icon(key: const Key('shareCode'), icon: const Icon(Icons.share_outlined), label: Text(l.share),
               onPressed: () => SharePlus.instance.share(ShareParams(text: l.shareRoomTxt(widget.code)))),
@@ -392,12 +535,12 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Flexible(child: Text('${m['display']}${me ? ' (${l.you})' : ''}', style: const TextStyle(fontWeight: FontWeight.w700))),
-            if (m['host'] == true) const Padding(padding: EdgeInsetsDirectional.only(start: 6), child: Icon(Icons.workspace_premium, color: C.gold, size: 18)),
+            if (m['host'] == true) Padding(padding: EdgeInsetsDirectional.only(start: 6), child: Icon(Icons.workspace_premium, color: C.gold, size: 18)),
           ]),
           Text([if (m['handle'] != null) atHandle(m['handle'] as String), if (m['ready'] == true) l.readyTag, if (m['muted'] == true) l.mutedTag].join(' · '),
-              style: const TextStyle(color: C.mute, fontSize: 12)),
+              style: TextStyle(color: C.mute, fontSize: 12)),
           if (!me && appBuild > 0 && m['v'] is int && (m['v'] as int) < appBuild)
-            Text(l.oldVersion, key: Key('oldVersion_${m['cn']}'), style: const TextStyle(color: C.gold, fontSize: 12)),
+            Text(l.oldVersion, key: Key('oldVersion_${m['cn']}'), style: TextStyle(color: C.gold, fontSize: 12)),
         ])),
         if (!me)
           SafetyMenu(
@@ -425,19 +568,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final inRoom = c.members.map((m) => m['uid']).toSet();
       return SafeArea(child: ListView(padding: const EdgeInsets.all(16), shrinkWrap: true, children: [
         Text(l.inviteFriends, style: head.copyWith(fontSize: 20)),
-        if (fs.isEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(l.fNone, style: const TextStyle(color: C.mute))),
+        if (fs.isEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(l.fNone, style: TextStyle(color: C.mute))),
         for (final f in fs)
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: AvatarView.of(a.api, f, size: 36, online: f.online),
             title: Text(f.display),
-            subtitle: Text(atHandle(f.handle), style: const TextStyle(color: C.mute)),
+            subtitle: Text(atHandle(f.handle), style: TextStyle(color: C.mute)),
             trailing: inRoom.contains(f.id) ? null : TextButton(
               key: Key('invite_${f.handle}'),
               onPressed: sent.contains(f.id) ? null : () async {
                 try { await a.invite(f.id, widget.code); set(() => sent.add(f.id)); } catch (e) { if (ctx.mounted) toast(ctx, errText(l, e)); }
               },
-              child: Text(sent.contains(f.id) ? l.invited : l.invite, style: const TextStyle(color: C.red2)),
+              child: Text(sent.contains(f.id) ? l.invited : l.invite, style: TextStyle(color: C.red2)),
             ),
           ),
       ]));
@@ -459,7 +602,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Widget _progress(L l, Map<String, Object?> view) {
     final p = view['progress'] as Map?;
     return p == null ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12),
-        child: Text(l.progressN(p['done'] as int, p['total'] as int), key: const Key('progress'), textAlign: TextAlign.center, style: const TextStyle(color: C.mute)));
+        child: Text(l.progressN(p['done'] as int, p['total'] as int), key: const Key('progress'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)));
   }
 
   Widget _deal(L l, Map<String, Object?> view) {
@@ -488,11 +631,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           onTap: disabled ? null : () => setState(() => _pick = value),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: on ? const Color(0xFF3A1512) : C.card, border: Border.all(color: on ? C.red : C.line, width: on ? 2 : 1), borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: on ? const Color(0xFF3A1512) : C.card, border: Border.all(color: on ? C.red : C.line, width: on ? 2 : 1), borderRadius: BorderRadius.circular(C.p.radius)),
             child: Row(children: [
               Expanded(child: Text(label, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: accent ?? C.text))),
-              for (final t in tags) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(t, style: const TextStyle(color: C.mute, fontSize: 12))),
-              if (on) const Padding(padding: EdgeInsetsDirectional.only(start: 8), child: Icon(Icons.check, color: C.red2)),
+              for (final t in tags) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(t, style: TextStyle(color: C.mute, fontSize: 12))),
+              if (on) Padding(padding: EdgeInsetsDirectional.only(start: 8), child: Icon(Icons.check, color: C.red2)),
             ]),
           ),
         ),
@@ -514,14 +657,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       Row(children: [
         Icon(roleIcon(role), color: roleColor(role)), const SizedBox(width: 8),
         Text(roleName(l, role), style: head.copyWith(color: roleColor(role), fontSize: 18)),
-        const Spacer(), Text(l.night(view['day'] as int), style: const TextStyle(color: C.mute)),
+        const Spacer(), Text(l.night(view['day'] as int), style: TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
-      Text(desc, style: const TextStyle(color: C.mute)),
+      Text(desc, style: TextStyle(color: C.mute)),
       if ((view['mates'] as List).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6),
-          child: Text(l.mates([for (final j in view['mates'] as List) _name(j as int)].join(', ')), style: const TextStyle(color: C.red2))),
-      if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), key: const Key('nightClock'), style: const TextStyle(color: C.red2))),
+          child: Text(l.mates([for (final j in view['mates'] as List) _name(j as int)].join(', ')), style: TextStyle(color: C.red2))),
+      if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), key: const Key('nightClock'), style: TextStyle(color: C.red2))),
       const SizedBox(height: 16),
       if (!none)
         for (final o in (no['opts'] as List).cast<Map>())
@@ -539,10 +682,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Widget _waiting(L l, Map<String, Object?> view, String text, Color color) {
     final check = view['check'] as Map?, secs = view['phase'] == 'night' ? _secondsLeft() : null;
     return Stage(color: color, bottom: _hostBar(l, view, const []), children: [
-      const Icon(Icons.lock_outline, color: C.mute, size: 48), const SizedBox(height: 14),
+      Icon(Icons.lock_outline, color: C.mute, size: 48), const SizedBox(height: 14),
       Big(text),
       _progress(l, view),
-      if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), textAlign: TextAlign.center, style: const TextStyle(color: C.red2))),
+      if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), textAlign: TextAlign.center, style: TextStyle(color: C.red2))),
       if (check != null) Padding(padding: const EdgeInsets.only(top: 22), child: Sec(color: C.card2,
           child: Text(l.checkResult(_name(check['seat'] as int), check['mafia'] == true ? l.mafia : l.notMafia), key: const Key('checkResult'),
               textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: check['mafia'] == true ? C.red2 : C.green)))),
@@ -556,7 +699,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           for (final b in (view['board'] as List).cast<Map>())
             Row(children: [
               Expanded(child: Text(_name(b['seat'] as int))),
-              Text(b['v'] == null ? '…' : b['v'] == 'none' ? l.noOne : b['v'] == 'abstain' ? '—' : _name(b['v'] as int), style: const TextStyle(color: C.mute)),
+              Text(b['v'] == null ? '…' : b['v'] == 'none' ? l.noOne : b['v'] == 'abstain' ? '—' : _name(b['v'] as int), style: TextStyle(color: C.mute)),
             ]),
         ])),
       );
@@ -564,7 +707,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Widget _dead(L l, Map<String, Object?> view) {
     final roles = view['roles'] as List?;
     return Stage(color: C.blood, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
-      const Icon(Icons.visibility_outlined, color: C.mute, size: 48), const SizedBox(height: 12),
+      Icon(Icons.visibility_outlined, color: C.mute, size: 48), const SizedBox(height: 12),
       Big(l.youAreOut, sub: l.youAreOutD),
       _progress(l, view),
       if (roles != null) Padding(padding: const EdgeInsets.only(top: 18), child: Sec(title: l.roles, child: Column(children: [
@@ -579,9 +722,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         'morning' => [if (revealed) Btn(l.startDay(view['day'] as int), key: const Key('startDay'), onTap: _h(() => c.send({'t': 'startDay'})))],
         'day' => [
             Btn(l.secretVoteOnline, key: const Key('secretVote'), onTap: _h(() => c.send({'t': 'startVote', 'open': false}))),
-            Text(l.secretVoteOnlineD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(l.secretVoteOnlineD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
             Btn(l.tableVoteOnline, key: const Key('tableVote'), ghost: true, onTap: _h(() => c.send({'t': 'startVote', 'open': true}))),
-            Text(l.tableVoteOnlineD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+            Text(l.tableVoteOnlineD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
           ],
         'verdict' => [if (revealed) Btn(l.nextNight((view['day'] as int) + 1), key: const Key('nextNight'), onTap: _h(() => c.send({'t': 'nextNight'})))],
         _ => const [],
@@ -591,7 +734,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         Btn(l.skipWait, key: const Key('revealNow'), ghost: true, onTap: _reveal),
       ], children: [
         Icon(icon, color: C.gold, size: 60), const SizedBox(height: 16), Big(text), const SizedBox(height: 18),
-        const Center(child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute))),
+        Center(child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute))),
       ]);
 
   Widget _morning(L l, Map<String, Object?> view) {
@@ -601,15 +744,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       Text(l.morningOf(view['day'] as int).toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.mute, letterSpacing: 3)),
       const SizedBox(height: 24),
       if (r['k'] == 'killed') ...[
-        Text(l.victimIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.red2),
         if (role != null) Text(l.wasRole(roleName(l, role)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else if (r['k'] == 'saved') ...[
-        Text(l.savedIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.green),
       ] else
         Big(l.nobody, color: C.green),
-      if (!c.isHost) Padding(padding: const EdgeInsets.only(top: 20), child: Text(l.waitHost, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+      if (!c.isHost) Padding(padding: const EdgeInsets.only(top: 20), child: Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
     ]);
   }
 
@@ -622,14 +765,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (c.isHost) ...[
           const SizedBox(height: 10),
           Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-            OutlinedButton(key: const Key('timerGo'), onPressed: _h(() => c.send({'t': 'timer', 'op': running ? 'pause' : 'start'})), child: Text(running ? l.pause : l.start, style: const TextStyle(color: C.text))),
-            OutlinedButton(key: const Key('timerAdd'), onPressed: _h(() => c.send({'t': 'timer', 'op': 'add', 'sec': 60})), child: Text(l.plusMin, style: const TextStyle(color: C.text))),
-            OutlinedButton(key: const Key('timerReset'), onPressed: _h(() => c.send({'t': 'timer', 'op': 'reset'})), child: Text(l.reset, style: const TextStyle(color: C.text))),
+            OutlinedButton(key: const Key('timerGo'), onPressed: _h(() => c.send({'t': 'timer', 'op': running ? 'pause' : 'start'})), child: Text(running ? l.pause : l.start, style: TextStyle(color: C.text))),
+            OutlinedButton(key: const Key('timerAdd'), onPressed: _h(() => c.send({'t': 'timer', 'op': 'add', 'sec': 60})), child: Text(l.plusMin, style: TextStyle(color: C.text))),
+            OutlinedButton(key: const Key('timerReset'), onPressed: _h(() => c.send({'t': 'timer', 'op': 'reset'})), child: Text(l.reset, style: TextStyle(color: C.text))),
           ]),
         ],
       ])),
       _roster(l, view),
-      if (!c.isHost) Text(l.waitHost, textAlign: TextAlign.center, style: const TextStyle(color: C.dim)),
+      if (!c.isHost) Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
     ]);
   }
 
@@ -639,7 +782,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           Chip(
             label: Text(r['alive'] == true ? r['name'] as String : '${r['name']} · ${l.outTag}',
                 style: TextStyle(color: r['alive'] == true ? C.text : C.dim, decoration: r['alive'] == true ? null : TextDecoration.lineThrough)),
-            backgroundColor: r['alive'] == true ? C.card2 : C.bg, side: const BorderSide(color: C.line),
+            backgroundColor: r['alive'] == true ? C.card2 : C.bg, side: BorderSide(color: C.line),
           ),
       ]));
 
@@ -662,7 +805,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final r = Map<String, Object?>.from(view['result'] as Map? ?? const {'k': 'skipped'}), role = _role(r['role']), tally = r['tally'] as List?;
     return Stage(color: r['k'] == 'out' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       if (r['k'] == 'out') ...[
-        Text(l.outIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.red2),
         if (role != null) Text(l.wasRole(roleName(l, role)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else
@@ -671,7 +814,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         const SizedBox(height: 22),
         Sec(child: Column(children: [
           for (final t in tally.cast<Map>())
-            Row(children: [Expanded(child: Text(t['k'] == 'none' ? l.noOne : _name(t['k'] as int))), Text('${t['n']} ${l.votes}', style: const TextStyle(color: C.mute))]),
+            Row(children: [Expanded(child: Text(t['k'] == 'none' ? l.noOne : _name(t['k'] as int))), Text('${t['n']} ${l.votes}', style: TextStyle(color: C.mute))]),
         ])),
       ],
     ]);
@@ -696,18 +839,18 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: _h(() => c.send({'t': 'deal'}))),
         Btn(l.toLobby, key: const Key('toLobby'), ghost: true, onTap: _h(() => c.send({'t': 'lobby'}))),
       ] else
-        Text(l.waitHost, textAlign: TextAlign.center, style: const TextStyle(color: C.dim)),
+        Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
     ], children: [
       const SizedBox(height: 12),
       Big(mafia ? l.winMafia : l.winCitizens, sub: mafia ? l.winMafiaD : l.winCitizensD, color: mafia ? C.red2 : C.gold, size: 36),
-      Padding(padding: const EdgeInsets.only(top: 6, bottom: 18), child: Text(l.rcSub(roles.length, rc['day'] as int), textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+      Padding(padding: const EdgeInsets.only(top: 6, bottom: 18), child: Text(l.rcSub(roles.length, rc['day'] as int), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
       if (best != null)
         Sec(title: l.mvpT, child: Row(children: [
           Icon(roleIcon(roles[best.seat]), color: roleColor(roles[best.seat])), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_name(best.seat), style: head.copyWith(fontSize: 20)),
             Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
-                style: const TextStyle(color: C.mute)),
+                style: TextStyle(color: C.mute)),
           ])),
         ])),
       Sec(title: l.roles, child: Column(children: [
@@ -756,12 +899,12 @@ class _HistoryState extends State<HistoryScreen> {
     if (!widget.account.signedIn) { // signed out: the Wi-Fi games on this phone (online history needs an account)
       return Scaffold(appBar: AppBar(backgroundColor: C.bg, title: title), body: Column(children: [
         Expanded(child: _wifi(l, wifi)),
-        Padding(padding: const EdgeInsets.all(16), child: Text(l.historySignIn, key: const Key('historySignIn'), textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+        Padding(padding: const EdgeInsets.all(16), child: Text(l.historySignIn, key: const Key('historySignIn'), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
       ]));
     }
     return DefaultTabController(length: 3, child: Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: title, actions: [
-            IconButton(key: const Key('openStats'), tooltip: l.statsT, icon: const Icon(Icons.leaderboard_outlined, color: C.mute),
+            IconButton(key: const Key('openStats'), tooltip: l.statsT, icon: Icon(Icons.leaderboard_outlined, color: C.mute),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatsScreen(account: widget.account)))),
           ],
           bottom: TabBar(indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,
@@ -772,7 +915,7 @@ class _HistoryState extends State<HistoryScreen> {
 
   /// Wi-Fi games on this phone: the detail page is rebuilt from the game's record.
   Widget _wifi(L l, List<Map<String, Object?>> games) => games.isEmpty
-      ? Center(child: Text(l.noWifiGames, style: const TextStyle(color: C.mute)))
+      ? Center(child: Text(l.noWifiGames, style: TextStyle(color: C.mute)))
       : ListView(padding: const EdgeInsets.all(16), children: [
           for (final g in games)
             if (_wifiGame(g) case final d?)
@@ -784,7 +927,7 @@ class _HistoryState extends State<HistoryScreen> {
                   Text([
                     if (d['mine'] != null) l.youPlayed(roleName(l, Role.values.byName(d['mine'] as String))),
                     l.rcSub((d['players'] as List).length, d['days'] as int),
-                  ].join(' · '), style: const TextStyle(color: C.mute)),
+                  ].join(' · '), style: TextStyle(color: C.mute)),
                   WifiApproval(account: widget.account, prefs: widget.prefs, gameKey: g['id'] as String, server: server[g['id']], game: g, compact: true),
                 ]),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _GameDetail(account: widget.account, id: '', local: d))),
@@ -804,9 +947,9 @@ class _HistoryState extends State<HistoryScreen> {
   }
 
   Widget _online(L l) {
-    return error != null ? Center(child: Text(error!, style: const TextStyle(color: C.red2)))
-          : games == null ? const Center(child: CircularProgressIndicator(color: C.red2))
-          : games!.isEmpty ? Center(child: Text(l.noHistory, style: const TextStyle(color: C.mute)))
+    return error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
+          : games == null ? Center(child: CircularProgressIndicator(color: C.red2))
+          : games!.isEmpty ? Center(child: Text(l.noHistory, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
               for (final g in games!)
                 Card(color: C.card, child: ListTile(
@@ -814,7 +957,7 @@ class _HistoryState extends State<HistoryScreen> {
                   leading: Icon(g['winner'] == 'mafia' ? Icons.dangerous_outlined : Icons.emoji_events_outlined, color: g['winner'] == 'mafia' ? C.red2 : C.gold),
                   title: Text(g['winner'] == 'mafia' ? l.winMafia : l.winCitizens),
                   subtitle: Text('${l.youPlayed(roleName(l, Role.values.byName(g['role'] as String)))} · ${l.rcSub(g['players'] as int, g['days'] as int)}'
-                      '${g['valid'] == true ? '' : ' · ${l.invalid}'}', style: const TextStyle(color: C.mute)),
+                      '${g['valid'] == true ? '' : ' · ${l.invalid}'}', style: TextStyle(color: C.mute)),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _GameDetail(account: widget.account, id: g['id'] as String))),
                 )),
             ]);
@@ -863,7 +1006,7 @@ class _WifiApprovalState extends State<WifiApproval> {
     }
     if (g['host'] != true) return const SizedBox.shrink();
     if (Account.hadGuest(g)) {
-      return Padding(padding: pad, child: Text(l.guestStays, key: const Key('guestStays'), textAlign: widget.compact ? TextAlign.start : TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 13)));
+      return Padding(padding: pad, child: Text(l.guestStays, key: const Key('guestStays'), textAlign: widget.compact ? TextAlign.start : TextAlign.center, style: TextStyle(color: C.dim, fontSize: 13)));
     }
     if (!widget.account.canAskWifi(g)) return const SizedBox.shrink();
     Future<void> send() async {
@@ -874,11 +1017,11 @@ class _WifiApprovalState extends State<WifiApproval> {
     }
     if (widget.compact) {
       return Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const Key('addOnline'), onPressed: busy ? null : send,
-          icon: const Icon(Icons.cloud_upload_outlined, size: 18, color: C.red2), label: Text(l.addOnline, style: const TextStyle(color: C.red2))));
+          icon: Icon(Icons.cloud_upload_outlined, size: 18, color: C.red2), label: Text(l.addOnline, style: TextStyle(color: C.red2))));
     }
     return Padding(padding: pad, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Btn(l.addOnline, key: const Key('addOnline'), ghost: true, icon: Icons.cloud_upload_outlined, onTap: busy ? null : send),
-      Padding(padding: const EdgeInsets.only(top: 4), child: Text(l.addOnlineD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12))),
+      Padding(padding: const EdgeInsets.only(top: 4), child: Text(l.addOnlineD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12))),
     ]));
   });
 }
@@ -913,7 +1056,7 @@ class _GameDetailState extends State<_GameDetail> {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), game = g;
-    if (game == null) return Scaffold(appBar: AppBar(backgroundColor: C.bg), body: const Center(child: CircularProgressIndicator(color: C.red2)));
+    if (game == null) return Scaffold(appBar: AppBar(backgroundColor: C.bg), body: Center(child: CircularProgressIndicator(color: C.red2)));
     final ps = (game['players'] as List).cast<Map>(), name = {for (final p in ps) p['seat'] as int: p['name'] as String};
     String line(Map e) => switch (e['t']) {
           'night' => l.hNight(e['day'] as int) + switch ((e['mafia'] as Map)['k']) {
@@ -939,7 +1082,7 @@ class _GameDetailState extends State<_GameDetail> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(ps[best.seat]['name'] as String, key: const Key('detailMvp'), style: head.copyWith(fontSize: 20)),
               Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
-                  style: const TextStyle(color: C.mute)),
+                  style: TextStyle(color: C.mute)),
             ])),
           ])),
         Sec(title: l.roles, child: Column(children: [
@@ -957,7 +1100,7 @@ class _GameDetailState extends State<_GameDetail> {
             ),
         ])),
         Sec(title: l.history, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          for (final e in (game['log'] as List).cast<Map>()) if (line(e).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(line(e), style: const TextStyle(color: C.mute))),
+          for (final e in (game['log'] as List).cast<Map>()) if (line(e).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(line(e), style: TextStyle(color: C.mute))),
         ])),
       ]),
     );

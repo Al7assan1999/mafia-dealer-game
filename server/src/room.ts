@@ -12,7 +12,7 @@ import { avatarOf, type Env, type UserRow } from './lib.ts';
 interface Member { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; buzz: number; left?: true; v?: number }  // v: the app's build
 interface RoomState {
   code: string; hostUid: string; members: Member[]; kicked: string[]; nextCn: number;
-  rules: Rules; counts: Counts; buzzMax: number;
+  rules: Rules; counts: Counts; buzzMax: number; kick?: 'lobby' | 'any';  // kick: S9-4 (missing in older rooms = lobby only)
   deal: number; game: GameState | null; seats: string[]; ready: string[]; gameId: string | null; valid: boolean | null;
   lastActive: number;
   rev: number;                                  // grows with every change: phones reconnect with the last one they saw
@@ -85,7 +85,7 @@ export class Room extends DurableObject<Env> {
   private info(st: RoomState, except?: WebSocket): RoomInfo {
     const host = this.hostOf(st, except);
     return {
-      code: st.code, rules: st.rules, counts: st.counts, buzzMax: st.buzzMax, status: statusOf(st), deal: st.deal,
+      code: st.code, rules: st.rules, counts: st.counts, buzzMax: st.buzzMax, kick: st.kick ?? 'lobby', status: statusOf(st), deal: st.deal,
       gameId: st.gameId, valid: st.valid,
       members: st.members.filter(m => !m.left).map(m => ({
         uid: m.uid, cn: m.cn, display: m.display, handle: m.handle, avatar: m.avatar, online: this.online(m.uid, except), v: m.v ?? null,
@@ -314,7 +314,7 @@ export class Room extends DurableObject<Env> {
     switch (inp.t) {
       case 'setup':
         if (running(st)) return err('started');
-        st.rules = { ...inp.rules, tieSkip: true }; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax;
+        st.rules = { ...inp.rules, tieSkip: true }; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax; if (inp.kick) st.kick = inp.kick;
         break;
       case 'deal': {  // also Play again after the end: the same room, new roles
         if (running(st)) return err('started');
@@ -350,6 +350,7 @@ export class Room extends DurableObject<Env> {
       }
       case 'kick': {
         if (inp.uid === uid || !st.members.some(x => x.uid === inp.uid)) return err('not_member');
+        if (running(st) && (st.kick ?? 'lobby') === 'lobby') return err('lobby_only');  // the host's Settings: kicks in the lobby only
         const s = st.seats.indexOf(inp.uid);
         if (running(st) && s >= 0 && g!.alive[s] && g!.phase !== 'deal') e = this.play(st, { t: 'remove', seat: s });
         if (e) return err(e);

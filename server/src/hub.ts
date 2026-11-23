@@ -54,7 +54,7 @@ export async function pushTo(env: Env, uid: string, msg: HubOut) {
 
 /** Unread bell items: notes plus the Wi-Fi confirmations and results. */
 export async function unread(db: D1Database, uid: string, now: number) {
-  const n = await db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
+  const n = await db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND handled_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
   const b = await db.prepare('SELECT COUNT(*) AS n FROM bell_notes WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
   return (n?.n ?? 0) + (b?.n ?? 0) + (await wifiNotes(db, uid, now)).filter(x => !x.read).length;
 }

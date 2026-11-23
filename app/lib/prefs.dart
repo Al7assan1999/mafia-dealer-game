@@ -13,6 +13,18 @@ class Prefs extends ChangeNotifier {
   static Future<Prefs> load() async => Prefs(await SharedPreferences.getInstance());
 
   String get lang => _sp.getString('lang') ?? 'en';
+  /// When you host (S9-4): new rooms start with these. The old app's defaults: buzz limit 3, kick in the lobby only.
+  int get hostBuzzMax => _sp.getInt('hostBuzzMax') ?? 3;
+  set hostBuzzMax(int v) { _sp.setInt('hostBuzzMax', v); notifyListeners(); }
+  String get hostKick => _sp.getString('hostKick') ?? 'lobby';
+  set hostKick(String v) { _sp.setString('hostKick', v); notifyListeners(); }
+  /// Where the friends tab sits on the screen edge (0 top .. 1 bottom), as the player dragged it.
+  double get drawerY => _sp.getDouble('drawerY') ?? 0;
+  set drawerY(double v) => _sp.setDouble('drawerY', v);
+
+  /// The look (S9-3): 'noir' (default) or 'neon'.
+  String get theme => _sp.getString('theme') ?? 'noir';
+  set theme(String v) { _sp.setString('theme', v); notifyListeners(); }
   set lang(String v) { _sp.setString('lang', v); notifyListeners(); }
 
   double get voice => _sp.getDouble('voice') ?? 1;

@@ -132,36 +132,44 @@ class _WifiState extends State<WifiScreen> {
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.wifi.replaceAll('\u2011', '-'), style: head.copyWith(fontSize: 20))), // [QA] U1: no U+2011 in the heading font
       body: Stage(center: false, children: [
-        Text(l.wifiSub, style: const TextStyle(color: C.mute)),
+        Text(l.wifiSub, style: TextStyle(color: C.mute)),
         const SizedBox(height: 14),
         TextField(key: const Key('lanName'), controller: name, maxLength: 18, decoration: InputDecoration(labelText: l.yourName, counterText: '')),
         const SizedBox(height: 12),
         Btn(l.hostRoom, key: const Key('hostRoom'), icon: Icons.wifi_tethering, onTap: busy ? null : () => _host(l)),
         const SizedBox(height: 18),
         Sec(title: l.joinRoom, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (!scanning && mine.isEmpty) Text(l.noWifi, key: const Key('noWifi'), style: const TextStyle(color: C.red2)),
+          if (!scanning && mine.isEmpty) Text(l.noWifi, key: const Key('noWifi'), style: TextStyle(color: C.red2)),
           if (scanning) Row(children: [
-            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute)),
+            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute)),
             const SizedBox(width: 10),
-            Expanded(child: Text(l.searching, style: const TextStyle(color: C.mute))),
+            Expanded(child: Text(l.searching, style: TextStyle(color: C.mute))),
           ]),
           for (final f in found)
-            ListTile(
-              key: Key('found_${f.code}'), contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.wifi, color: C.gold),
-              title: Text('${f.host} · ${f.code}'),
-              subtitle: Text(l.roomPlayers(f.players, f.status == 'game' ? l.statusGame : l.statusLobby), style: const TextStyle(color: C.mute)),
-              trailing: const Icon(Icons.chevron_right, color: C.dim),
-              onTap: () => _join(l, f.address, code: f.code),
-            ),
+            if (f.status == 'game' && widget.prefs.lanJoin?['code'] != f.code)
+              ListTile( // P2: a game in progress I hold no seat in: shown, not offered
+                key: Key('found_${f.code}'), contentPadding: EdgeInsets.zero, enabled: false,
+                leading: Icon(Icons.wifi, color: C.dim),
+                title: Text('${f.host} · ${f.code}', style: TextStyle(color: C.dim)),
+                subtitle: Text(l.playingNoJoin, key: Key('playing_${f.code}'), style: TextStyle(color: C.dim)),
+              )
+            else
+              ListTile(
+                key: Key('found_${f.code}'), contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.wifi, color: C.gold),
+                title: Text('${f.host} · ${f.code}'),
+                subtitle: Text(l.roomPlayers(f.players, f.status == 'game' ? l.statusGame : l.statusLobby), style: TextStyle(color: C.mute)),
+                trailing: Icon(Icons.chevron_right, color: C.dim),
+                onTap: () => _join(l, f.address, code: f.code),
+              ),
           if (!scanning && mine.isNotEmpty && found.isEmpty) ...[
             Text(l.nothingFound, key: const Key('nothingFound'), style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text(l.nothingFoundTips, style: const TextStyle(color: C.mute, fontSize: 12)),
+            Text(l.nothingFoundTips, style: TextStyle(color: C.mute, fontSize: 12)),
           ],
           if (!scanning) Align(alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(key: const Key('searchAgain'), onPressed: _scan, icon: const Icon(Icons.refresh, color: C.red2), label: Text(l.searchAgain, style: const TextStyle(color: C.red2)))),
+              child: TextButton.icon(key: const Key('searchAgain'), onPressed: _scan, icon: Icon(Icons.refresh, color: C.red2), label: Text(l.searchAgain, style: TextStyle(color: C.red2)))),
           const Divider(),
-          Text(l.manualAddress, style: const TextStyle(color: C.mute, fontSize: 13)),
+          Text(l.manualAddress, style: TextStyle(color: C.mute, fontSize: 13)),
           const SizedBox(height: 6),
           Row(children: [
             Expanded(child: TextField(key: const Key('lanAddress'), controller: address, keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -170,7 +178,7 @@ class _WifiState extends State<WifiScreen> {
             FilledButton(key: const Key('joinAddress'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: busy ? null : () => _join(l, address.text), child: Text(l.join)),
           ]),
         ])),
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, key: const Key('error'), style: const TextStyle(color: C.red2))),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
       ]),
     );
   }

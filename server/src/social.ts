@@ -1,12 +1,12 @@
 // Online rooms (create / look up), room invites and join requests, the bell, and the history of online games.
 import { Hono } from 'hono';
-import { Invite, JoinRequest, MarkGame, MarkRead, type Notification } from '@mafia/protocol';
+import { Handled, Invite, JoinRequest, MarkGame, MarkRead, type Notification } from '@mafia/protocol';
 import { notify } from './hub.ts';
 import { dismissWifi, expire, readWifi, wifiNotes } from './wifi.ts';
 import { bellNotes, dismissBell, readBell, refreshTitles } from './stats.ts';
 import { allow, ApiErr, body, card, HOUR, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
-export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3;
+export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3, HISTORY_MS = 24 * HOUR;
 
 const friendsWith = async (c: Ctx, other: string) => {
   const [a, b] = c.var.user.id < other ? [c.var.user.id, other] : [other, c.var.user.id];
@@ -46,14 +46,17 @@ invites.post('/', async c => {
   const { userId, code } = await body(c, Invite), db = c.env.DB, me = c.var.user, now = c.var.deps.now();
   if (!(await friendsWith(c, userId))) throw new ApiErr(403, 'not_friends');
   if (me.room_code !== code) throw new ApiErr(403, 'not_member');
-  const asked = await db.prepare("SELECT id FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ? AND expires_at > ?").bind(userId, me.id, now).first();
+  const asked = await db.prepare("SELECT id FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ? AND expires_at > ? AND handled_at IS NULL").bind(userId, me.id, now).first();
   const kind = asked ? 'let_in' : 'invite';
   const old = await db.prepare("SELECT id, created_at FROM notifications WHERE kind IN ('invite', 'let_in') AND from_id = ? AND user_id = ? AND room_code = ?")
     .bind(me.id, userId, code).first<{ id: string; created_at: number }>();
   if (old && !asked && now - old.created_at < AGAIN_MS) return c.json({ ok: true, dup: true });
   await inviteLimit(c, now);
-  await db.prepare("DELETE FROM notifications WHERE (kind = 'join_request' AND from_id = ?1 AND user_id = ?2) OR (kind IN ('invite', 'let_in') AND from_id = ?2 AND user_id = ?1 AND room_code = ?3)")
-    .bind(userId, me.id, code).run();
+  await db.batch([
+    // their request to me is answered (kept in my bell as "Let in"); my older invites to them are replaced
+    db.prepare("UPDATE notifications SET handled_at = ?3, result = 'let_in' WHERE kind = 'join_request' AND from_id = ?1 AND user_id = ?2 AND handled_at IS NULL").bind(userId, me.id, now),
+    db.prepare("DELETE FROM notifications WHERE kind IN ('invite', 'let_in') AND from_id = ?2 AND user_id = ?1 AND room_code = ?3").bind(userId, me.id, code),
+  ]);
   await notify(c.env, c.var.deps, userId, me, kind, code, now);
   return c.json({ ok: true, letIn: !!asked });
 });
@@ -65,7 +68,7 @@ joinRequests.post('/', async c => {
   if (!(await friendsWith(c, userId))) throw new ApiErr(403, 'not_friends');
   const u = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<UserRow>();
   if (!u || !u.online || !u.show_online || u.room_status !== 'lobby') throw new ApiErr(409, 'not_open');
-  const old = await db.prepare("SELECT created_at FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ?").bind(me.id, userId).first<{ created_at: number }>();
+  const old = await db.prepare("SELECT created_at FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ? AND handled_at IS NULL").bind(me.id, userId).first<{ created_at: number }>();
   if (old && now - old.created_at < AGAIN_MS) return c.json({ ok: true, dup: true });
   await inviteLimit(c, now);
   await db.prepare("DELETE FROM notifications WHERE kind = 'join_request' AND from_id = ? AND user_id = ?").bind(me.id, userId).run();
@@ -77,11 +80,16 @@ export const notes = new Hono<AppEnv>();
 notes.get('/', async c => {
   const now = c.var.deps.now();
   const { results } = await c.env.DB.prepare(
-    `SELECT n.id AS nid, n.kind, n.room_code, n.created_at AS nat, n.expires_at, n.read_at, u.* FROM notifications n JOIN users u ON u.id = n.from_id
-     WHERE n.user_id = ? AND n.expires_at > ? ORDER BY n.created_at DESC LIMIT 50`).bind(c.var.user.id, now)
-    .all<UserRow & { nid: string; kind: Notification['kind']; room_code: string | null; nat: number; expires_at: number; read_at: number | null }>();
+    // live items, plus handled or expired ones for 24 h (read-only, with their result)
+    `SELECT n.id AS nid, n.kind, n.room_code, n.created_at AS nat, n.expires_at, n.read_at, n.handled_at, n.result, u.* FROM notifications n JOIN users u ON u.id = n.from_id
+     WHERE n.user_id = ?1 AND ((n.handled_at IS NULL AND n.expires_at > ?2) OR n.handled_at > ?2 - ?3 OR (n.handled_at IS NULL AND n.expires_at <= ?2 AND n.expires_at > ?2 - ?3))  -- [QA] S9 #1: a day after it lapses
+     ORDER BY n.created_at DESC LIMIT 50`).bind(c.var.user.id, now, HISTORY_MS)
+    .all<UserRow & { nid: string; kind: Notification['kind']; room_code: string | null; nat: number; expires_at: number; read_at: number | null; handled_at: number | null; result: Notification['result'] }>();
   await expire(c.env, c.var.deps, now);
-  const list: Notification[] = [...results.map(r => ({ id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null })),
+  const list: Notification[] = [...results.map(r => {
+    const result = r.handled_at != null ? r.result : r.expires_at <= now ? 'expired' as const : null;
+    return { id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null || result != null, result };
+  }),
     ...await wifiNotes(c.env.DB, c.var.user.id, now), ...await bellNotes(c.env.DB, c.var.user.id, now)].sort((a, b) => b.at - a.at);
   return c.json({ notifications: list, unread: list.filter(n => !n.read).length });
 });
@@ -93,8 +101,16 @@ notes.post('/read', async c => {
   await readBell(db, c.var.user.id, ids, now);
   return c.json({ ok: true });
 });
+/** An item answered from the bell (Join, Let in, Accept, Decline, ✕): kept 24 h with its result. */
+notes.post('/:id/handled', async c => {
+  const { result } = await body(c, Handled);
+  await c.env.DB.prepare('UPDATE notifications SET handled_at = ?, result = ?, read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ? AND handled_at IS NULL')
+    .bind(c.var.deps.now(), result, c.var.deps.now(), c.req.param('id'), c.var.user.id).run();
+  return c.json({ ok: true });
+});
+/** Clear: everything already handled or expired (anything still waiting for an answer stays). */
 notes.delete('/', async c => {
-  await c.env.DB.prepare('DELETE FROM notifications WHERE user_id = ?').bind(c.var.user.id).run();
+  await c.env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND (handled_at IS NOT NULL OR expires_at <= ? OR kind = 'friend_accept')").bind(c.var.user.id, c.var.deps.now()).run();
   await dismissWifi(c.env.DB, c.var.user.id, null);
   await dismissBell(c.env.DB, c.var.user.id, null);
   return c.json({ ok: true });
@@ -103,6 +119,10 @@ notes.delete('/:id', async c => {
   const id = c.req.param('id');
   if (id.startsWith('w:')) { await dismissWifi(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
   if (id.startsWith('b:')) { await dismissBell(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
+  // ✕ on a live item = Dismissed (kept 24 h); on a handled one it goes for good
+  const r = await c.env.DB.prepare("UPDATE notifications SET handled_at = ?, result = 'dismissed' WHERE id = ? AND user_id = ? AND handled_at IS NULL AND expires_at > ?")
+    .bind(c.var.deps.now(), id, c.var.user.id, c.var.deps.now()).run();
+  if (r.meta.changes) return c.json({ ok: true });
   await c.env.DB.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').bind(c.req.param('id'), c.var.user.id).run();
   return c.json({ ok: true });
 });

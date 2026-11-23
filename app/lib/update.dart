@@ -155,26 +155,26 @@ class UpdateCard extends StatelessWidget {
         final busy = updater.state == 'downloading' || updater.state == 'installing';
         return Sec(key: const Key('updateCard'), color: C.card2, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            const Icon(Icons.system_update, color: C.gold), const SizedBox(width: 10),
+            Icon(Icons.system_update, color: C.gold), const SizedBox(width: 10),
             Expanded(child: Text(l.updAvail, style: head.copyWith(fontSize: 18, color: C.gold))),
-            Text('v${r.version}', style: const TextStyle(color: C.mute)),
+            Text('v${r.version}', style: TextStyle(color: C.mute)),
           ]),
           if (r.notes.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(l.updWhatsNew(r.version), style: const TextStyle(color: C.mute, fontSize: 12)),
+            Text(l.updWhatsNew(r.version), style: TextStyle(color: C.mute, fontSize: 12)),
             for (final n in r.notes.take(3)) Padding(padding: const EdgeInsets.only(top: 3), child: Text('• $n')),
             if (r.notes.length > 3) Align(alignment: AlignmentDirectional.centerStart, child: TextButton(key: const Key('updSeeAll'),
-                onPressed: () => notesSheet(context, l.updWhatsNew(r.version), r.notes), child: Text('${r.notes.length - 3}+', style: const TextStyle(color: C.red2)))),
+                onPressed: () => notesSheet(context, l.updWhatsNew(r.version), r.notes), child: Text('${r.notes.length - 3}+', style: TextStyle(color: C.red2)))),
           ],
           const SizedBox(height: 10),
           if (updater.state == 'downloading') ...[
             LinearProgressIndicator(value: updater.progress, color: C.red, backgroundColor: C.card),
-            Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.updDownloading((updater.progress * 100).round()), key: const Key('updProgress'), style: const TextStyle(color: C.mute))),
+            Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.updDownloading((updater.progress * 100).round()), key: const Key('updProgress'), style: TextStyle(color: C.mute))),
           ] else if (updater.state == 'installing')
-            Text(l.updInstalling, style: const TextStyle(color: C.mute))
+            Text(l.updInstalling, style: TextStyle(color: C.mute))
           else ...[
-            if (updater.state == 'allow') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updAllow, key: const Key('updAllow'), style: const TextStyle(color: C.mute))),
-            if (updater.state == 'failed') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updFailed, style: const TextStyle(color: C.red2))),
+            if (updater.state == 'allow') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updAllow, key: const Key('updAllow'), style: TextStyle(color: C.mute))),
+            if (updater.state == 'failed') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updFailed, style: TextStyle(color: C.red2))),
             Btn(l.updBtn, key: const Key('updBtn'), icon: Icons.download, onTap: busy ? null : updater.update),
           ],
         ]));

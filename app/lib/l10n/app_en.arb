@@ -1140,5 +1140,56 @@
   },
   "oldVersion": "old version",
   "ok": "OK",
-  "retry": "Try again"
+  "retry": "Try again",
+  "minimize": "Go Home (stay in the room)",
+  "roomBarHost": "Your room · {n} players",
+  "@roomBarHost": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "roomBarIn": "In {name}'s room · {n}",
+  "@roomBarIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "leaveFirstQ": "Leave your room first?",
+  "leaveFirstD": "You're still in room {code}. Leave it to start something else.",
+  "@leaveFirstD": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "stay": "Stay",
+  "rolesDealt": "Roles are being dealt",
+  "eLobbyOnly": "Kicks are for the lobby only. Change it in Settings → When you host.",
+  "inYourRoom": "In your room",
+  "sLook": "Look",
+  "sNoir": "Noir",
+  "sNeon": "Neon",
+  "sHost": "When you host",
+  "sBuzz": "Buzz limit",
+  "sBuzzD": "Mute a player after this many buzzes (0 = no limit).",
+  "sKick": "Kick players",
+  "sKickLobby": "Lobby only",
+  "sKickAny": "Any time",
+  "closeAppQ": "Close Mafia Dealer?",
+  "close": "Close",
+  "rJoined": "Joined",
+  "rLetIn": "Let in",
+  "rAccepted": "Accepted",
+  "rDeclined": "Declined",
+  "rDismissed": "Dismissed",
+  "rExpired": "Expired",
+  "playingNoJoin": "Playing · you can't join"
 }

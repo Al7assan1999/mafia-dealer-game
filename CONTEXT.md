@@ -142,7 +142,14 @@ files are copied from there only when a phase needs them.
    (`update.dart`, `Updates.kt` PackageInstaller, silent on Android 12+ after the first, `release.yml` run only when he
    asks, push topics `updates_en/ar`), old-build tag in lobbies. His answers: Everyone board added; names later; updates
    automatic like the old app + push; P1-P4 all; local emulator for QA (Pixel 6 API 34 AVD `qa34`).
-   Next: Sprint 9 (friends drawer, minimize in room, Neon, Settings parity), Sprint 10 (the intro), groups, Play last.
+   Sprint 8 committed with Sprint 7 (05067b3), CI all green incl. the emulator approval test.
+   **Sprint 9, drawer + minimize + Neon + host defaults** (`docs/sprint-9-prd.md`, built 2026-11-23, not committed):
+   `ActiveRoom` keeps a lobby's connection while Home (room bar, pulled back on deal, leave-first), the friends edge tab and
+   drawer (`drawer.dart`, Invite from Home), Neon as a run-time palette (`ui.dart` `Palette`, Readex Pro font), Settings
+   Look + When you host (kick lobby-only default enforced by server and Wi-Fi room), Back on Home asks, bell history 24 h
+   (migration `0008`), P1 one red button + tiles, P2 Wi-Fi playing rooms greyed, P3 previews, P4 long-press bar.
+   His answers: Noir default; minimize Wi-Fi too; kick from Settings like the old app; bell history on server; P1-P4.
+   Next: Sprint 10 (the intro), groups, Play last.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).

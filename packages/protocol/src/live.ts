@@ -21,7 +21,8 @@ export const RulesIn = z.object({
 /** Everything a phone may send to its room. Seats come from the session, never from the message. */
 export const RoomIn = z.discriminatedUnion('t', [
   // host
-  z.object({ t: z.literal('setup'), rules: RulesIn, counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(), buzzMax: z.number().int().min(0).max(20) }).strict(),
+  z.object({ t: z.literal('setup'), rules: RulesIn, counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(), buzzMax: z.number().int().min(0).max(20),
+    kick: z.enum(['lobby', 'any']).optional() }).strict(),  // S9-4: the host's kick rule (Settings)
   z.object({ t: z.literal('deal') }).strict(),          // deal roles (also Play again after the end)
   z.object({ t: z.literal('start') }).strict(),         // begin without waiting for everyone's "ready"
   z.object({ t: z.literal('startDay') }).strict(),
@@ -50,7 +51,7 @@ export type RoomIn = z.infer<typeof RoomIn>;
 
 export interface RoomMember { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; online: boolean; host: boolean; ready: boolean; muted: boolean; seat: number | null; v: number | null }  // v: app build
 export interface RoomInfo {
-  code: string; members: RoomMember[]; rules: Rules; counts: Counts; buzzMax: number;
+  code: string; members: RoomMember[]; rules: Rules; counts: Counts; buzzMax: number; kick: 'lobby' | 'any';
   status: 'lobby' | 'game'; deal: number; gameId: string | null; valid: boolean | null;
 }
 export interface ChatMsg { id: number; from: number; to: number; text: string; at: number; reply?: number; mentions?: number[]; rx?: Record<number, number[]>; edited?: true; outOnly?: true }
@@ -80,7 +81,8 @@ export interface Notification {
   id: string; kind: 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'wifi_result' | 'title_lost';
   from: import('./index.ts').UserCard; code: string | null; at: number; expiresAt: number; read: boolean;
   wifi?: WifiNote;  // wifi_confirm (asked to confirm a Wi-Fi game) and wifi_result (my request was decided); id = 'w:' + request id
-  title?: 'best' | 'mafia' | 'det' | 'doc' | 'first';  // title_lost: `from` took this Everyone-leaderboard title from me; id = 'b:' + note id
+  title?: 'best' | 'mafia' | 'det' | 'doc' | 'first';
+  result?: 'joined' | 'let_in' | 'accepted' | 'declined' | 'dismissed' | 'expired' | null;  // handled (kept 24 h, read-only)  // title_lost: `from` took this Everyone-leaderboard title from me; id = 'b:' + note id
 }
 /** A request to add a Wi-Fi game to online history, as the bell and History show it. */
 export interface WifiNote {
@@ -107,6 +109,7 @@ export interface WifiGameInfo {
 
 export const Invite = z.object({ userId: z.string().max(64), code: z.string().regex(/^\d{6}$/) }).strict();
 export const JoinRequest = z.object({ userId: z.string().max(64) }).strict();
+export const Handled = z.object({ result: z.enum(['joined', 'let_in', 'accepted', 'declined', 'dismissed']) }).strict();
 export const MarkRead = z.object({ ids: z.array(z.string().max(64)).max(100).optional() }).strict();
 export const MarkGame = z.object({ valid: z.boolean() }).strict();
 

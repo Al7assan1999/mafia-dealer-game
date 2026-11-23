@@ -56,7 +56,7 @@ class AvatarView extends StatelessWidget {
         width: size, height: size,
         child: Stack(children: [
           Positioned.fill(child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(C.p.radius),
             child: photo != null
                 ? Image.network(api.avatarUrl(id, photo!), fit: BoxFit.cover, errorBuilder: (_, _, _) => _preset(0))
                 : _preset(preset ?? 0),
@@ -80,7 +80,7 @@ class AccountBar extends StatelessWidget {
         void go(Widget w) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => w));
         if (!a.signedIn) {
           return Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const Key('signIn'),
-              onPressed: () => go(SignInScreen(account: a)), icon: const Icon(Icons.login, color: C.red2), label: Text(l.aIn, style: const TextStyle(color: C.red2))));
+              onPressed: () => go(SignInScreen(account: a)), icon: Icon(Icons.login, color: C.red2), label: Text(l.aIn, style: TextStyle(color: C.red2))));
         }
         return Row(children: [
           InkWell(
@@ -90,14 +90,14 @@ class AccountBar extends StatelessWidget {
               AvatarView.of(a.api, a.card!, size: 34),
               const SizedBox(width: 8),
               Text(a.handle != null ? atHandle(a.handle) : a.display, style: const TextStyle(fontWeight: FontWeight.w700)),
-              if (a.offline) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(l.eOfflineShort, style: const TextStyle(color: C.dim, fontSize: 12))),
+              if (a.offline) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(l.eOfflineShort, style: TextStyle(color: C.dim, fontSize: 12))),
             ]),
           ),
           const Spacer(),
           IconButton(key: const Key('friends'), tooltip: l.friendsT, onPressed: () => go(FriendsScreen(account: a)),
-              icon: Badge(isLabelVisible: a.incoming.isNotEmpty, label: Text('${a.incoming.length}'), child: const Icon(Icons.group_outlined, color: C.mute))),
+              icon: Badge(isLabelVisible: a.incoming.isNotEmpty, label: Text('${a.incoming.length}'), child: Icon(Icons.group_outlined, color: C.mute))),
           IconButton(key: const Key('bell'), tooltip: l.notifT, onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: a)),
-              icon: Badge(isLabelVisible: a.unread > 0, label: Text('${a.unread}'), child: const Icon(Icons.notifications_none, color: C.mute))),
+              icon: Badge(isLabelVisible: a.unread > 0, label: Text('${a.unread}'), child: Icon(Icons.notifications_none, color: C.mute))),
         ]);
       });
 }
@@ -148,18 +148,18 @@ class _SignInState extends State<SignInScreen> {
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.aIn, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
-        Text(l.aWhy, style: const TextStyle(color: C.mute)),
+        Text(l.aWhy, style: TextStyle(color: C.mute)),
         const SizedBox(height: 18),
         if (sentTo == null) ...[
           Btn(a.google.available ? l.aGoogle : l.aGoogleSoon, key: const Key('google'), icon: Icons.account_circle_outlined,
               onTap: a.google.available && !busy ? () => _run(() async { await a.signInGoogle(); _done(); }) : null),
-          Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(l.aOr, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+          Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(l.aOr, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
           TextField(key: const Key('email'), controller: email, keyboardType: TextInputType.emailAddress, autofillHints: const [AutofillHints.email],
               decoration: InputDecoration(labelText: l.aEmail), onSubmitted: (_) => _send()),
           const SizedBox(height: 12),
           Btn(l.aEmailGo, key: const Key('sendCode'), ghost: true, onTap: busy ? null : _send),
         ] else ...[
-          Text(l.aCodeSent(sentTo!), style: const TextStyle(color: C.mute)),
+          Text(l.aCodeSent(sentTo!), style: TextStyle(color: C.mute)),
           const SizedBox(height: 12),
           TextField(key: const Key('code'), controller: code, keyboardType: TextInputType.number, maxLength: 6, autofocus: true,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: InputDecoration(labelText: l.aCode, counterText: ''),
@@ -173,11 +173,11 @@ class _SignInState extends State<SignInScreen> {
           Row(children: [
             TextButton(key: const Key('resend'), onPressed: wait > 0 || busy ? null : _send, child: Text(wait > 0 ? l.aResendIn(wait) : l.aResend)),
             const Spacer(),
-            TextButton(onPressed: () => setState(() { sentTo = null; code.clear(); error = null; }), child: Text(l.aOtherEmail, style: const TextStyle(color: C.mute))),
+            TextButton(onPressed: () => setState(() { sentTo = null; code.clear(); error = null; }), child: Text(l.aOtherEmail, style: TextStyle(color: C.mute))),
           ]),
         ],
-        if (busy) const Padding(padding: EdgeInsets.only(top: 14), child: Center(child: CircularProgressIndicator(color: C.red2))),
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(error!, key: const Key('error'), style: const TextStyle(color: C.red2))),
+        if (busy) Padding(padding: EdgeInsets.only(top: 14), child: Center(child: CircularProgressIndicator(color: C.red2))),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
       ]),
     );
   }
@@ -215,12 +215,12 @@ class _HandleState extends State<HandleScreen> {
           if (mounted) setState(() => busy = false);
         }),
       ], children: [
-        Text(l.aPickHandleD, style: const TextStyle(color: C.mute)),
+        Text(l.aPickHandleD, style: TextStyle(color: C.mute)),
         const SizedBox(height: 14),
         TextField(key: const Key('handle'), controller: handle, maxLength: 21, decoration: InputDecoration(labelText: l.aUser, prefixText: '@', counterText: '')),
         const SizedBox(height: 12),
         TextField(key: const Key('display'), controller: name, maxLength: 18, decoration: InputDecoration(labelText: l.aName, counterText: '')),
-        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: const TextStyle(color: C.red2))),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
       ]),
     );
   }
@@ -316,7 +316,7 @@ class _ProfileState extends State<ProfileScreen> {
                 onChanged: (v) => setState(() => fav = v ?? ''),
               ),
               SwitchListTile(key: const Key('showOnline'), contentPadding: EdgeInsets.zero, value: showOn, onChanged: (v) => setState(() => showOn = v),
-                  title: Text(l.fShowOn), subtitle: Text(l.fShowOnD, style: const TextStyle(color: C.dim, fontSize: 12))),
+                  title: Text(l.fShowOn), subtitle: Text(l.fShowOnD, style: TextStyle(color: C.dim, fontSize: 12))),
               Btn(l.aSave, key: const Key('saveProfile'), onTap: busy ? null : () {
                 if (!_handleRx.hasMatch(handle.text.trim())) return toast(context, l.eHandle);
                 if (name.text.trim().isEmpty) return toast(context, l.eBadName);
@@ -324,33 +324,33 @@ class _ProfileState extends State<ProfileScreen> {
               }),
             ])),
             Sec(child: Column(children: [
-              ListTile(key: const Key('myStats'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.leaderboard_outlined, color: C.gold), title: Text(l.myStats),
+              ListTile(key: const Key('myStats'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.leaderboard_outlined, color: C.gold), title: Text(l.myStats),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${a.card!.id}')))),
-              ListTile(key: const Key('importOldHistory'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.history_edu_outlined, color: C.mute), title: Text(l.importT),
+              ListTile(key: const Key('importOldHistory'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.history_edu_outlined, color: C.mute), title: Text(l.importT),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ImportScreen(account: a)))),
               SwitchListTile(key: const Key('onBoard'), contentPadding: EdgeInsets.zero, value: a.me?['onBoard'] != false,
                   onChanged: busy ? null : (v) => _do(() => a.patch({'onBoard': v})),
-                  title: Text(l.onBoardT), subtitle: Text(l.onBoardD, style: const TextStyle(color: C.dim, fontSize: 12))),
+                  title: Text(l.onBoardT), subtitle: Text(l.onBoardD, style: TextStyle(color: C.dim, fontSize: 12))),
             ])),
             Sec(title: l.aDevices, child: Column(children: [
               for (final d in devices ?? const <Map<String, Object?>>[])
                 Row(children: [
-                  const Icon(Icons.smartphone, color: C.mute, size: 18),
+                  Icon(Icons.smartphone, color: C.mute, size: 18),
                   const SizedBox(width: 8),
                   Expanded(child: Text('${d['device']}${d['current'] == true ? ' · ${l.aThisDevice}' : ''}')),
                   TextButton(onPressed: () => _do(() async {
                         await a.endSession(d['id'] as String, current: d['current'] == true);
                         await _loadDevices();
-                      }), child: Text(l.aSignOutDevice, style: const TextStyle(color: C.red2))),
+                      }), child: Text(l.aSignOutDevice, style: TextStyle(color: C.red2))),
                 ]),
             ])),
             Sec(child: Column(children: [
-              ListTile(key: const Key('blockedList'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.block, color: C.mute), title: Text(l.blockedList),
+              ListTile(key: const Key('blockedList'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.block, color: C.mute), title: Text(l.blockedList),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlockedScreen(account: a)))),
-              if (a.isAdmin) ListTile(key: const Key('reports'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.flag_outlined, color: C.red2), title: Text(l.reportsT),
+              if (a.isAdmin) ListTile(key: const Key('reports'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.flag_outlined, color: C.red2), title: Text(l.reportsT),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportsScreen(account: a)))),
-              ListTile(key: const Key('accountId'), contentPadding: EdgeInsets.zero, leading: const Icon(Icons.badge_outlined, color: C.mute), title: Text(l.accountId),
-                  subtitle: Text(a.card!.id, style: const TextStyle(color: C.dim, fontSize: 11)), trailing: const Icon(Icons.copy, size: 18, color: C.dim),
+              ListTile(key: const Key('accountId'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.badge_outlined, color: C.mute), title: Text(l.accountId),
+                  subtitle: Text(a.card!.id, style: TextStyle(color: C.dim, fontSize: 11)), trailing: Icon(Icons.copy, size: 18, color: C.dim),
                   onTap: () => copyText(context, a.card!.id)),
             ])),
             Btn(l.aOut, key: const Key('signOut'), ghost: true, icon: Icons.logout, onTap: () async {
@@ -360,7 +360,7 @@ class _ProfileState extends State<ProfileScreen> {
               }
             }),
             const SizedBox(height: 12),
-            TextButton(key: const Key('deleteAccount'), onPressed: () => _confirmDelete(l), child: Text(l.aDel, style: const TextStyle(color: C.red2))),
+            TextButton(key: const Key('deleteAccount'), onPressed: () => _confirmDelete(l), child: Text(l.aDel, style: TextStyle(color: C.red2))),
           ]),
         );
       });
@@ -370,14 +370,14 @@ class _ProfileState extends State<ProfileScreen> {
     final ok = await showDialog<bool>(context: context, builder: (c) => StatefulBuilder(builder: (c, set) => AlertDialog(
           title: Text(l.aDelQ, style: head.copyWith(fontSize: 20)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(l.aDelD, style: const TextStyle(color: C.mute)),
+            Text(l.aDelD, style: TextStyle(color: C.mute)),
             const SizedBox(height: 10),
             TextField(key: const Key('typeDelete'), controller: typed, onChanged: (_) => set(() {}), decoration: const InputDecoration(hintText: 'delete')),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel, style: const TextStyle(color: C.mute))),
+            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel, style: TextStyle(color: C.mute))),
             TextButton(key: const Key('confirmDelete'), onPressed: typed.text.trim().toLowerCase() == 'delete' ? () => Navigator.pop(c, true) : null,
-                child: Text(l.aDel, style: const TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
+                child: Text(l.aDel, style: TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
           ],
         )));
     if (ok != true || !mounted) return;
@@ -424,7 +424,7 @@ class _FriendsState extends State<FriendsScreen> {
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${p.id}', filter: const StatsFilter(board: 'all')))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(p.display, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: const TextStyle(color: C.mute, fontSize: 12)),
+              Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: TextStyle(color: C.mute, fontSize: 12)),
             ]))),
           ...actions,
         ]),
@@ -472,24 +472,24 @@ class _FriendsState extends State<FriendsScreen> {
                   }, child: Text(l.fAddBtn)),
                 ]),
               ),
-              if (a.offline) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.eOffline, style: const TextStyle(color: C.red2))),
+              if (a.offline) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.eOffline, style: TextStyle(color: C.red2))),
               Expanded(child: TabBarView(children: [
                 _list(l.fNone, [for (final p in a.friends) _row(p, [
                   if (a.roomCode != null && p.status != 'lobby' && p.status != 'game')
                     TextButton(onPressed: () => _do(() async { await a.invite(p.id, a.roomCode!); if (context.mounted) toast(context, l.invited); }),
-                        child: Text(l.invite, style: const TextStyle(color: C.red2)))
+                        child: Text(l.invite, style: TextStyle(color: C.red2)))
                   else if (p.j['op'] == true && a.roomCode == null)
                     TextButton(key: Key('askJoin_${p.handle}'), onPressed: () => _do(() async { await a.askToJoin(p.id); if (context.mounted) toast(context, l.asked); }),
-                        child: Text(l.askJoin, style: const TextStyle(color: C.red2))),
+                        child: Text(l.askJoin, style: TextStyle(color: C.red2))),
                   SafetyMenu(account: a, userId: p.id, name: p.display, extra: [PopupMenuItem(value: 'remove', child: Text(l.fRemove))],
                       onExtra: (_) async { if (await ask(context, l.fRemoveQ(p.display), l.fRemoveD, l.fRemove)) _do(() => a.unfriend(p.id)); }),
                 ], sub: _status(l, p))]),
                 _list(l.fNoReq, [for (final p in a.incoming) _row(p, [
-                  TextButton(key: Key('accept_${p.handle}'), onPressed: () => _do(() => a.accept(p.id)), child: Text(l.fAccept, style: const TextStyle(color: C.green))),
-                  TextButton(onPressed: () => _do(() => a.decline(p.id)), child: Text(l.fDecline, style: const TextStyle(color: C.mute))),
+                  TextButton(key: Key('accept_${p.handle}'), onPressed: () => _do(() => a.accept(p.id)), child: Text(l.fAccept, style: TextStyle(color: C.green))),
+                  TextButton(onPressed: () => _do(() => a.decline(p.id)), child: Text(l.fDecline, style: TextStyle(color: C.mute))),
                 ])]),
                 _list(l.fNoSent, [for (final p in a.outgoing) _row(p, [
-                  TextButton(onPressed: () => _do(() => a.decline(p.id)), child: Text(l.fCancelReq, style: const TextStyle(color: C.mute))),
+                  TextButton(onPressed: () => _do(() => a.decline(p.id)), child: Text(l.fCancelReq, style: TextStyle(color: C.mute))),
                 ])]),
               ])),
             ]),
@@ -499,7 +499,7 @@ class _FriendsState extends State<FriendsScreen> {
 
   Widget _list(String empty, List<Widget> rows) => RefreshIndicator(
         onRefresh: () => a.loadFriends().catchError((_) {}),
-        child: ListView(padding: const EdgeInsets.all(16), children: rows.isEmpty ? [Text(empty, style: const TextStyle(color: C.mute))] : rows),
+        child: ListView(padding: const EdgeInsets.all(16), children: rows.isEmpty ? [Text(empty, style: TextStyle(color: C.mute))] : rows),
       );
 }
 
@@ -510,6 +510,9 @@ class BellSheet extends StatefulWidget {
   @override
   State<BellSheet> createState() => _BellState();
 }
+
+String _result(L l, String r) => switch (r) {
+      'joined' => l.rJoined, 'let_in' => l.rLetIn, 'accepted' => l.rAccepted, 'declined' => l.rDeclined, 'dismissed' => l.rDismissed, _ => l.rExpired };
 
 class _BellState extends State<BellSheet> {
   @override
@@ -524,9 +527,9 @@ class _BellState extends State<BellSheet> {
           child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
               Expanded(child: Text(l.notifT, style: head.copyWith(fontSize: 22))),
-              if (notes.isNotEmpty) TextButton(key: const Key('clearNotes'), onPressed: () => a.deleteNote(null).catchError((_) {}), child: Text(l.nClear, style: const TextStyle(color: C.mute))),
+              if (notes.isNotEmpty) TextButton(key: const Key('clearNotes'), onPressed: () => a.deleteNote(null).catchError((_) {}), child: Text(l.nClear, style: TextStyle(color: C.mute))),
             ]),
-            if (notes.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text(l.nNone, style: const TextStyle(color: C.mute))),
+            if (notes.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text(l.nNone, style: TextStyle(color: C.mute))),
             Flexible(child: ListView(shrinkWrap: true, children: [
               for (final n in notes)
                 if (n.wifi != null) _WifiNote(account: a, note: n) else
@@ -539,17 +542,27 @@ class _BellState extends State<BellSheet> {
                     'let_in' => l.nLetIn(n.code ?? ''),
                     'title_lost' => l.nTitleLost(switch (n.j['title']) { 'best' => l.tBest, 'mafia' => l.tMafia, 'det' => l.tDet, 'doc' => l.tDoc, _ => l.tFirst }),
                     _ => l.nJoinReq,
-                  }, style: const TextStyle(color: C.mute)),
-                  trailing: n.kind == 'friend_request' && a.incoming.any((p) => p.id == n.from.id)
-                      ? TextButton(key: Key('accept_${n.from.handle}'), onPressed: () async {
-                          try { await a.accept(n.from.id); await a.deleteNote(n.id); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
-                        }, child: Text(l.fAccept, style: const TextStyle(color: C.green)))
+                  }, style: TextStyle(color: C.mute)),
+                  // S9-5 AC2: an answered item stays 24 h, read-only, with its result
+                  trailing: n.result != null
+                      ? Text(_result(l, n.result!), key: Key('result_${n.id}'), style: TextStyle(color: n.result == 'expired' || n.result == 'dismissed' || n.result == 'declined' ? C.dim : C.green, fontSize: 12))
+                      : n.kind == 'friend_request' && a.incoming.any((p) => p.id == n.from.id)
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          TextButton(key: Key('accept_${n.from.handle}'), onPressed: () async {
+                            try { await a.accept(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                          }, child: Text(l.fAccept, style: TextStyle(color: C.green))),
+                          IconButton(key: Key('decline_${n.from.handle}'), tooltip: l.fDecline, icon: Icon(Icons.close, color: C.dim), onPressed: () async {
+                            try { await a.decline(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                          }),
+                        ])
                       : n.kind == 'join_request' && a.roomCode != null
                       ? TextButton(key: Key('letIn_${n.from.handle}'), onPressed: () async {
-                          try { await a.invite(n.from.id, a.roomCode!); await a.deleteNote(n.id); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
-                        }, child: Text(l.letIn, style: const TextStyle(color: C.green)))
-                      : IconButton(icon: const Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})),
+                          try { await a.invite(n.from.id, a.roomCode!); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                        }, child: Text(l.letIn, style: TextStyle(color: C.green)))
+                      : IconButton(icon: Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})),
                   onTap: () {
+                    if (n.result != null) return; // read-only
+                    if ((n.kind == 'invite' || n.kind == 'let_in') && n.code != null) a.handled(n.id, 'joined');
                     Navigator.of(context).pop();
                     if ((n.kind == 'invite' || n.kind == 'let_in') && n.code != null && a.openRoom != null) return a.openRoom!(n.code!);
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => FriendsScreen(account: a)));
@@ -584,7 +597,7 @@ class _WifiNoteState extends State<_WifiNote> {
         leading: Icon(ok ? Icons.verified_outlined : Icons.block, color: ok ? C.green : C.dim, size: 32),
         title: Text(l.nWifiDone(date, switch (w['status']) { 'approved' => l.wApproved, 'declined' => l.wDeclined, _ => l.wExpired }),
             style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
-        trailing: IconButton(icon: const Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})));
+        trailing: IconButton(icon: Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})));
     }
     Future<void> answer(bool yes) async {
       setState(() => busy = true);
@@ -596,12 +609,12 @@ class _WifiNoteState extends State<_WifiNote> {
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
-        Text(l.nWifiAsk(date, w['players'] as int, winner) + (role == null ? '' : ' ${l.nWifiYou(roleName(l, Role.values.byName(role)))}'), style: const TextStyle(color: C.mute)),
+        Text(l.nWifiAsk(date, w['players'] as int, winner) + (role == null ? '' : ' ${l.nWifiYou(roleName(l, Role.values.byName(role)))}'), style: TextStyle(color: C.mute)),
         const SizedBox(height: 6),
         Row(children: [
           FilledButton(key: Key('wifiYes_${w['request']}'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: busy ? null : () => answer(true), child: Text(l.wConfirm)),
           const SizedBox(width: 10),
-          OutlinedButton(key: Key('wifiNo_${w['request']}'), onPressed: busy ? null : () => answer(false), child: Text(l.wNotMe, style: const TextStyle(color: C.text))),
+          OutlinedButton(key: Key('wifiNo_${w['request']}'), onPressed: busy ? null : () => answer(false), child: Text(l.wNotMe, style: TextStyle(color: C.text))),
         ]),
       ])),
     ]));

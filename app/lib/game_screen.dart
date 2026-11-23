@@ -76,29 +76,29 @@ class _GameScreenState extends State<GameScreen> {
         Screen.nightPick => _nightPick(l),
         Screen.nightLocked => _nightLocked(l),
         Screen.dawn => Stage(color: C.night, bottom: [Btn(l.dawn, key: const Key('dawn'), icon: Icons.wb_twilight, onTap: g.dawn)],
-            children: [const Icon(Icons.nightlight_round, color: C.blue, size: 56), const SizedBox(height: 16), Big(l.allDone, sub: l.allDoneHint)]),
+            children: [Icon(Icons.nightlight_round, color: C.blue, size: 56), const SizedBox(height: 16), Big(l.allDone, sub: l.allDoneHint)]),
         Screen.morning => _morning(l),
         Screen.day => _day(l),
         Screen.ballotPass => _pass(l, l.open(_name(g.who)), () => g.ballotOpen(g.who), top: l.startBallot),
         Screen.ballotPick => _ballotPick(l),
         Screen.ballotVoted => Stage(bottom: [Btn(l.done, key: const Key('ballotNext'), onTap: () => g.ballotNext(g.who))],
-            children: [const Icon(Icons.how_to_vote_outlined, color: C.green, size: 56), const SizedBox(height: 16), Big(l.voted, sub: l.lockedHint)]),
+            children: [Icon(Icons.how_to_vote_outlined, color: C.green, size: 56), const SizedBox(height: 16), Big(l.voted, sub: l.lockedHint)]),
         Screen.verdict => _verdict(l),
         Screen.end => _end(l),
       };
 
   // ---------------------------------------------------------------- shared
-  Widget _pass(L l, String button, VoidCallback onTap, {Color color = C.bg, String? top}) => Stage(
+  Widget _pass(L l, String button, VoidCallback onTap, {Color? color, String? top}) => Stage(
         color: color,
         bottom: [Btn(button, key: const Key('open'), icon: Icons.visibility_outlined, onTap: onTap)],
         children: [
           if (top != null) Text(top.toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.mute, letterSpacing: 3)),
           if (top != null) const SizedBox(height: 18),
-          Text(l.passTo, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+          Text(l.passTo, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
           const SizedBox(height: 8),
           Big(_name(g.who), size: 40, color: C.gold),
           const SizedBox(height: 18),
-          Text(l.tiltHint, textAlign: TextAlign.center, style: const TextStyle(color: C.dim)),
+          Text(l.tiltHint, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
           if (g.s.phase == Phase.night && g.s.night.endsAt != 0) _nightClock(l),
         ],
       );
@@ -106,7 +106,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _nightClock(L l) => Padding(
         padding: const EdgeInsets.only(top: 18),
         child: Text(l.nightTimeLeft(((g.s.night.endsAt - OfflineGame.now()) / 1000).ceil().clamp(0, 999)),
-            key: const Key('nightClock'), textAlign: TextAlign.center, style: const TextStyle(color: C.red2)),
+            key: const Key('nightClock'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
       );
 
   Widget _option(String label, Object value, {List<String> tags = const [], bool disabled = false, Color? accent}) {
@@ -123,12 +123,12 @@ class _GameScreenState extends State<GameScreen> {
             decoration: BoxDecoration(
               color: on ? const Color(0xFF3A1512) : C.card,
               border: Border.all(color: on ? C.red : C.line, width: on ? 2 : 1),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(C.p.radius),
             ),
             child: Row(children: [
               Expanded(child: Text(label, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: accent ?? C.text))),
-              for (final t in tags) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(t, style: const TextStyle(color: C.mute, fontSize: 12))),
-              if (on) const Padding(padding: EdgeInsetsDirectional.only(start: 8), child: Icon(Icons.check, color: C.red2)),
+              for (final t in tags) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(t, style: TextStyle(color: C.mute, fontSize: 12))),
+              if (on) Padding(padding: EdgeInsetsDirectional.only(start: 8), child: Icon(Icons.check, color: C.red2)),
             ]),
           ),
         ),
@@ -152,12 +152,12 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(width: 8),
         Text(roleName(l, role), style: head.copyWith(color: roleColor(role), fontSize: 18)),
         const Spacer(),
-        Text('${_name(seat)} · ${l.night(g.s.day)}', style: const TextStyle(color: C.mute)),
+        Text('${_name(seat)} · ${l.night(g.s.day)}', style: TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
-      Text(desc, style: const TextStyle(color: C.mute)),
-      if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.mates(v.mates.map(_name).join(', ')), style: const TextStyle(color: C.red2))),
+      Text(desc, style: TextStyle(color: C.mute)),
+      if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.mates(v.mates.map(_name).join(', ')), style: TextStyle(color: C.red2))),
       if (g.s.night.endsAt != 0) _nightClock(l),
       const SizedBox(height: 16),
       if (!none)
@@ -176,7 +176,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _nightLocked(L l) {
     final seat = g.who, check = g.s.roles[seat] == Role.detective ? g.s.night.detective[seat] : null, last = g.s.phase != Phase.night;
     return Stage(color: C.night, bottom: [Btn(last ? l.doneLast : l.done, key: const Key('nightNext'), onTap: () => g.nightNext(seat))], children: [
-      const Icon(Icons.lock_outline, color: C.mute, size: 48),
+      Icon(Icons.lock_outline, color: C.mute, size: 48),
       const SizedBox(height: 14),
       Big(l.locked, sub: l.lockedHint),
       if (check != null)
@@ -199,7 +199,7 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(height: 16),
         Big(text),
         const SizedBox(height: 18),
-        const Center(child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute))),
+        Center(child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: C.mute))),
       ]);
 
   Widget _morning(L l) {
@@ -209,11 +209,11 @@ class _GameScreenState extends State<GameScreen> {
       Text(l.morningOf(g.s.day).toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.mute, letterSpacing: 3)),
       const SizedBox(height: 24),
       if (d != null) ...[
-        Text(l.victimIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(d), size: 42, color: C.red2),
         if (g.s.rules.reveal) Text(l.wasRole(roleName(l, g.s.roles[d])), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else if (m.saved != null) ...[
-        Text(l.savedIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(m.saved!), size: 42, color: C.green),
       ] else
         Big(l.nobody, color: C.green),
@@ -230,9 +230,9 @@ class _GameScreenState extends State<GameScreen> {
         Text(left == 0 && running ? l.timeUp : clock, key: const Key('clock'), style: head.copyWith(fontSize: 52, color: left == 0 ? C.red2 : C.text)),
         const SizedBox(height: 10),
         Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(key: const Key('timerGo'), onPressed: () => g.timer(running ? 'pause' : 'start'), child: Text(running ? l.pause : l.start, style: const TextStyle(color: C.text))),
-          OutlinedButton(key: const Key('timerAdd'), onPressed: () => g.timer('add'), child: Text(l.plusMin, style: const TextStyle(color: C.text))),
-          OutlinedButton(key: const Key('timerReset'), onPressed: () => g.timer('reset'), child: Text(l.reset, style: const TextStyle(color: C.text))),
+          OutlinedButton(key: const Key('timerGo'), onPressed: () => g.timer(running ? 'pause' : 'start'), child: Text(running ? l.pause : l.start, style: TextStyle(color: C.text))),
+          OutlinedButton(key: const Key('timerAdd'), onPressed: () => g.timer('add'), child: Text(l.plusMin, style: TextStyle(color: C.text))),
+          OutlinedButton(key: const Key('timerReset'), onPressed: () => g.timer('reset'), child: Text(l.reset, style: TextStyle(color: C.text))),
         ]),
       ]),
     );
@@ -250,9 +250,9 @@ class _GameScreenState extends State<GameScreen> {
     return Stage(color: C.day, center: false, bottom: [
       Text(l.howDecide, textAlign: TextAlign.center, style: head.copyWith(fontSize: 18)),
       Btn(l.decideTogether, key: const Key('decideTogether'), onTap: () => setState(() => _deciding = true)),
-      Text(l.decideTogetherD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+      Text(l.decideTogetherD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
       Btn(l.startBallot, key: const Key('ballot'), ghost: true, icon: Icons.how_to_vote_outlined, onTap: () => _do(g.startBallot)),
-      Text(l.secretBallotD, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+      Text(l.secretBallotD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
     ], children: [
       timer,
       Sec(title: l.alivePlayers, child: Wrap(spacing: 8, runSpacing: 6, children: [
@@ -261,7 +261,7 @@ class _GameScreenState extends State<GameScreen> {
             key: Key('roster_$i'),
             label: Text(g.s.alive[i] ? _name(i) : '${_name(i)} · ${g.s.rules.reveal ? roleName(l, g.s.roles[i]) : l.outTag}',
                 style: TextStyle(color: g.s.alive[i] ? C.text : C.dim, decoration: g.s.alive[i] ? null : TextDecoration.lineThrough)),
-            backgroundColor: g.s.alive[i] ? C.card2 : C.bg, side: const BorderSide(color: C.line),
+            backgroundColor: g.s.alive[i] ? C.card2 : C.bg, side: BorderSide(color: C.line),
           ),
       ])),
     ]);
@@ -272,7 +272,7 @@ class _GameScreenState extends State<GameScreen> {
     return Stage(center: false, bottom: [
       Btn(l.castVote, key: const Key('castVote'), onTap: _pick == null ? null : () { final c = _pick; if (c != null) _do(() => g.ballotCast(seat, c)); }),
     ], children: [
-      Text(_name(seat), style: const TextStyle(color: C.mute)),
+      Text(_name(seat), style: TextStyle(color: C.mute)),
       Text(l.votePick, style: head.copyWith(fontSize: 26)),
       const SizedBox(height: 14),
       for (final i in aliveSeats(g.s)) if (i != seat) _option(_name(i), i),
@@ -286,7 +286,7 @@ class _GameScreenState extends State<GameScreen> {
     final v = g.s.verdict!;
     return Stage(color: v.out != null ? C.blood : C.day, bottom: [Btn(l.nextNight(g.s.day + 1), key: const Key('nextNight'), onTap: g.nextNight)], children: [
       if (v.out != null) ...[
-        Text(l.outIs, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+        Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(v.out!), size: 42, color: C.red2),
         if (g.s.rules.reveal) Text(l.wasRole(roleName(l, g.s.roles[v.out!])), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else
@@ -295,7 +295,7 @@ class _GameScreenState extends State<GameScreen> {
         const SizedBox(height: 22),
         Sec(child: Column(children: [
           for (final t in v.tally!)
-            Row(children: [Expanded(child: Text(t.k == 'none' ? l.noOne : _name(t.k as int))), Text('${t.n} ${l.votes}', style: const TextStyle(color: C.mute))]),
+            Row(children: [Expanded(child: Text(t.k == 'none' ? l.noOne : _name(t.k as int))), Text('${t.n} ${l.votes}', style: TextStyle(color: C.mute))]),
         ])),
       ],
     ]);
@@ -321,7 +321,7 @@ class _GameScreenState extends State<GameScreen> {
     ], children: [
       const SizedBox(height: 12),
       Big(mafia ? l.winMafia : l.winCitizens, sub: mafia ? l.winMafiaD : l.winCitizensD, color: mafia ? C.red2 : C.gold, size: 36),
-      Padding(padding: const EdgeInsets.only(top: 6, bottom: 18), child: Text(l.rcSub(g.n, s.day), textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
+      Padding(padding: const EdgeInsets.only(top: 6, bottom: 18), child: Text(l.rcSub(g.n, s.day), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
       if (best != null)
         Sec(title: l.mvpT, child: Row(children: [
           Icon(roleIcon(s.roles[best.seat]), color: roleColor(s.roles[best.seat])),
@@ -329,7 +329,7 @@ class _GameScreenState extends State<GameScreen> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_name(best.seat), style: head.copyWith(fontSize: 20)),
             Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
-                style: const TextStyle(color: C.mute)),
+                style: TextStyle(color: C.mute)),
           ])),
         ])),
       Sec(title: l.roles, child: Column(children: [
@@ -346,9 +346,9 @@ class _GameScreenState extends State<GameScreen> {
       ])),
       Sec(title: l.history, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         for (final e in s.log)
-          if (_line(l, e) case final t?) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(t, style: const TextStyle(color: C.mute))),
+          if (_line(l, e) case final t?) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(t, style: TextStyle(color: C.mute))),
       ])),
-      Text(l.nothingSaved, textAlign: TextAlign.center, style: const TextStyle(color: C.dim, fontSize: 12)),
+      Text(l.nothingSaved, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
     ]);
   }
 
@@ -405,7 +405,7 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
       Btn(widget.done, key: const Key('memorized'), onTap: seen && !show ? widget.onDone : null),
       ...widget.extra,
     ], children: [
-      Text(widget.name, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+      Text(widget.name, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
       Text(l.yourRole.toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.dim, letterSpacing: 3)),
       const SizedBox(height: 16),
       Listener(
@@ -419,8 +419,8 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: show ? C.alt : C.card2,
               border: Border.all(color: show ? roleColor(role) : C.line2, width: 2),
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: const [BoxShadow(color: C.red, offset: Offset(4, 4))],
+              borderRadius: BorderRadius.circular(C.p.radius),
+              boxShadow: [BoxShadow(color: C.red, offset: Offset(4, 4))],
             ),
             padding: const EdgeInsets.all(20),
             child: show
@@ -431,12 +431,12 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
                     const SizedBox(height: 8),
                     Text(desc, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF5A5248))),
                     if (widget.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12),
-                        child: Text(l.mates(widget.mates.join(', ')), textAlign: TextAlign.center, style: const TextStyle(color: C.red, fontWeight: FontWeight.w700))),
+                        child: Text(l.mates(widget.mates.join(', ')), textAlign: TextAlign.center, style: TextStyle(color: C.red, fontWeight: FontWeight.w700))),
                   ])
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Icon(Icons.visibility_off_outlined, size: 54, color: C.mute),
+                    Icon(Icons.visibility_off_outlined, size: 54, color: C.mute),
                     const SizedBox(height: 12),
-                    Text(l.holdHint, textAlign: TextAlign.center, style: const TextStyle(color: C.mute, fontSize: 16)),
+                    Text(l.holdHint, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
                   ]),
           ),
         ),

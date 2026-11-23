@@ -9,6 +9,11 @@ import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } fro
 
 export const MAX_FRIENDS = 300;
 
+/** Their friend request in my bell, answered from anywhere: kept 24 h as Accepted / Declined. */
+const answered = (c: Ctx, from: string, result: 'accepted' | 'declined') => c.env.DB.prepare(
+  "UPDATE notifications SET handled_at = ?, result = ? WHERE kind = 'friend_request' AND user_id = ? AND from_id = ? AND handled_at IS NULL")
+  .bind(c.var.deps.now(), result, c.var.user.id, from).run();
+
 export async function meOf(db: D1Database, u: UserRow, env: { ADMIN_IDS?: string }): Promise<Me> {
   const { results } = await db.prepare('SELECT kind, email FROM identities WHERE user_id = ?').bind(u.id).all<{ kind: string; email: string }>();
   return {
@@ -172,11 +177,13 @@ requests.post('/:userId/accept', async c => {
   const r = await c.env.DB.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE a = ? AND b = ? AND status = 'pending' AND requested_by = ?")
     .bind(c.var.deps.now(), a, b, c.req.param('userId')).run();
   if (!r.meta.changes) throw new ApiErr(404, 'no_request');
+  await answered(c, c.req.param('userId'), 'accepted');
   await notify(c.env, c.var.deps, c.req.param('userId'), c.var.user, 'friend_accept', null, c.var.deps.now());
   return c.json({ rel: 'friends' });
 });
 /** Decline their request, or take mine back. */
 requests.delete('/:userId', async c => {
+  await answered(c, c.req.param('userId'), 'declined');
   await c.env.DB.prepare("DELETE FROM friendships WHERE a = ? AND b = ? AND status = 'pending'").bind(...pair(c.var.user.id, c.req.param('userId'))).run();
   return c.json({ rel: 'none' });
 });

@@ -18,6 +18,8 @@ import '../test/sprint7_test.dart' show wifiRecord;
 import '../test/sprint8_test.dart' show row, statsOf;
 import 'package:mafia_dealer/stats.dart';
 import 'package:mafia_dealer/update.dart';
+import 'package:mafia_dealer/ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../test/online_test.dart' show FakeRoom, member, nightOpts, openRoom, roomMsg, view;
 import 'package:mafia_dealer/lan/lan.dart';
 import 'package:mafia_dealer/lan/wifi_screen.dart';
@@ -157,6 +159,7 @@ void main() {
       nav.push(MaterialPageRoute(builder: (_) => StatsScreen(account: app.account)));
       await t.pump(const Duration(seconds: 1));
       await shot(t, '${lang}_62_stats');
+      await t.scrollUntilVisible(find.byKey(const Key('row_u:1')), 300, scrollable: find.byType(Scrollable).last);
       await tapKey(t, 'row_u:1');
       await t.pump(const Duration(seconds: 1));
       await shot(t, '${lang}_63_profile');
@@ -166,6 +169,49 @@ void main() {
       await shot(t, '${lang}_64_import');
       await t.pumpWidget(const SizedBox());
     });
+
+    for (final theme in ['noir', 'neon']) {
+      testWidgets('$lang $theme: Sprint 9 (Home with the tab, the drawer, Settings, the room bar)', (t) async {
+        final s = FakeServer(), tok = s.user('Sami');
+        for (final h in ['Dareer', 'Hokan', 'Halawy']) { s.user(h); }
+        final me = s.idOf('Sami');
+        for (final h in ['Dareer', 'Halawy']) { final d = s.idOf(h); s.friends.add(me.compareTo(d) < 0 ? (me, d) : (d, me)); }
+        final h = s.idOf('Hokan');
+        s.friendships.add(me.compareTo(h) < 0 ? (me, h, h) : (h, me, h));
+        await launch(t, size: const Size(360, 640), lang: lang, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true, 'theme': theme});
+        await t.pump(const Duration(seconds: 1));
+        await shot(t, '${lang}_${theme}_71_home');
+        await t.scrollUntilVisible(find.byKey(const Key('history')), 200, scrollable: find.byType(Scrollable).first);
+        await shot(t, '${lang}_${theme}_72_home_tiles');
+        await tapKey(t, 'friendsTab');
+        await t.pump(const Duration(milliseconds: 600));
+        await shot(t, '${lang}_${theme}_73_drawer');
+        await t.tapAt(Offset(lang == 'ar' ? 350 : 10, 300)); // the dimmed side (the drawer opens from the left in Arabic)
+        await t.pump(const Duration(milliseconds: 600));
+        await tapKey(t, 'settings');
+        await t.pump(const Duration(milliseconds: 600));
+        await shot(t, '${lang}_${theme}_74_settings');
+        await t.scrollUntilVisible(find.byKey(const Key('kickMode')), 200, scrollable: find.byType(Scrollable).last);
+        await shot(t, '${lang}_${theme}_75_settings_host');
+        await t.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('$lang $theme: lobby and a game screen', (t) async {
+        final r = (await openRoom(t, lang: lang, size: const Size(360, 640))).room;
+        final p = await SharedPreferences.getInstance();
+        await p.setString('theme', theme);
+        C.p = theme == 'neon' ? neonPalette : noirPalette;
+        r.last.push(roomMsg(1));
+        r.last.push({'t': 'view', 'rev': 1, 'view': null});
+        await t.pump(const Duration(seconds: 1));
+        await shot(t, '${lang}_${theme}_76_lobby');
+        r.last.push(view(2, 'night', ph: 'night', extra: {'night': nightOpts}));
+        await t.pump(const Duration(seconds: 1));
+        await shot(t, '${lang}_${theme}_77_night');
+        C.p = noirPalette;
+        await t.pumpWidget(const SizedBox());
+      });
+    }
 
     testWidgets('$lang: History signed out', (t) async {
       final app = await launch(t, size: const Size(360, 640), lang: lang, stored: {'guideSeen': true});

@@ -23,7 +23,7 @@ class GuideScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(roleName(l, r), style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text(d, style: const TextStyle(color: C.mute)),
+                Text(d, style: TextStyle(color: C.mute)),
               ])),
             ])),
         ])),

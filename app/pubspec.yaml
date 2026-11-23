@@ -52,3 +52,6 @@ flutter:
     - family: Messiri
       fonts:
         - asset: assets/fonts/ElMessiri-Variable.ttf
+    - family: Readex
+      fonts:
+        - asset: assets/fonts/ReadexPro-Variable.ttf

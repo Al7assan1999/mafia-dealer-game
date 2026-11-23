@@ -19,6 +19,7 @@ Future<void> setUpHarness() async {
     ('Plex', ['IBMPlexSansArabic-Regular.ttf', 'IBMPlexSansArabic-Bold.ttf']),
     ('Elite', ['SpecialElite-Regular.ttf']),
     ('Messiri', ['ElMessiri-Variable.ttf']),
+    ('Readex', ['ReadexPro-Variable.ttf']),
   ]) {
     final l = FontLoader(family);
     for (final f in files) { l.addFont(rootBundle.load('assets/fonts/$f')); }

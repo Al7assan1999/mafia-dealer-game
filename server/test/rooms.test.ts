@@ -125,14 +125,21 @@ describe('the room', () => {
     expect((await DB().prepare('SELECT room_code FROM users WHERE id = ?').bind(t.accts[0].id).first<any>()).room_code).toBeNull();
   });
 
-  it('a kick mid-game eliminates the player, who cannot come back', async () => {
-    const t = await table(5), [host, , , , e] = t.players;
+  it("kicks follow the host Settings: lobby only refuses one mid-game; any time eliminates the player, who cannot come back", async () => {
+    const t = await table(5), [host] = t.players;
     await deal(t);
+    host.send({ t: 'kick', uid: t.accts[4].id });  // the old app's default: lobby only
+    await host.until(() => host.got(m => m.t === 'err' && m.error === 'lobby_only'), 'refused');
+    expect(host.room.kick).toBe('lobby');
+
+    const u = await table(5), [h, , , , e] = u.players;
+    await deal(u, { rules: rules(), counts: { mafia: 1, detective: 0 }, kick: 'any' });
+    expect(h.room.kick).toBe('any');
     const seat = e.view.seat;
-    host.send({ t: 'kick', uid: t.accts[4].id });
+    h.send({ t: 'kick', uid: u.accts[4].id });
     await e.until(() => e.got(m => m.t === 'bye' && m.why === 'kicked'), 'bye');
-    await host.until(() => host.view.roster[seat].alive === false || host.view.phase === 'end', 'out');
-    const again = await connect(`/v1/rooms/${t.code}/ws`, t.accts[4].token);
+    await h.until(() => h.view.roster[seat].alive === false || h.view.phase === 'end', 'out');
+    const again = await connect(`/v1/rooms/${u.code}/ws`, u.accts[4].token);
     await again.until(() => again.got(m => m.t === 'err' && m.error === 'kicked'), 'kicked');
   });
 
@@ -253,7 +260,8 @@ describe('invites, join requests, presence', () => {
     const inv = await api('POST', '/v1/invites', a.token, { userId: b.id, code: json.code });
     expect(inv.json).toEqual({ ok: true, letIn: true });
     await hb.until(() => hb.got(m => m.t === 'note' && m.note.kind === 'let_in' && m.note.code === json.code), 'let in');
-    expect((await api('GET', '/v1/notifications', a.token)).json.notifications).toEqual([]);  // the request was answered
+    // the request was answered: kept 24 h in the bell as "Let in", read-only, not counted
+    expect((await api('GET', '/v1/notifications', a.token)).json).toMatchObject({ unread: 0, notifications: [{ kind: 'join_request', result: 'let_in', read: true }] });
     const bell = await api('GET', '/v1/notifications', b.token);
     expect(bell.json).toMatchObject({ unread: 1, notifications: [{ kind: 'let_in', from: { id: a.id } }] });
     expect(JSON.stringify(bell.json)).not.toContain('@');

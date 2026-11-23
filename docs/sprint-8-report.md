@@ -72,7 +72,7 @@ Run as the three personas. Committed together with Sprint 7.
   - the plurals;
   - the updater: card, download with progress, allow installs, failure fallback, the push topics by language.
 - **Engines:** unchanged (35 TypeScript + 6 Dart groups).
-- **Emulator, here** (Pixel 6, Android 14, a local Worker with 5 seeded accounts and 14 games): see the exploratory session below. The full emulator suite (account, chat, online, Wi-Fi, Wi-Fi approval) runs on CI with the push of this sprint.
+- **Emulator, here** (Pixel 6, Android 14, a local Worker with 5 seeded accounts and 14 games): see the exploratory session below. The full emulator suite (account, chat, online, Wi-Fi, Wi-Fi approval) passed on CI with the push of this sprint (05067b3); deploy green too.
 
 ## [QA] Exploratory session on the emulator (driven by hand, like a tester)
 1. Install, open:
