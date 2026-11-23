@@ -745,5 +745,76 @@
   "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
   "gTipsT": "Tips",
   "gTips": "Keep your role secret. Out players stay quiet. One phone for the table, or each on their own phone online.",
-  "gotIt": "Got it"
+  "gotIt": "Got it",
+  "wifi": "Wi‑Fi / Hotspot",
+  "wifiSub": "Same Wi-Fi or a phone hotspot. No internet needed.",
+  "hostRoom": "Host a room",
+  "joinRoom": "Join a room",
+  "yourName": "Your name",
+  "searching": "Looking for rooms on this network…",
+  "nothingFound": "No rooms found.",
+  "nothingFoundTips": "Be on the same Wi-Fi or hotspot as the host, and make sure the host's room is open.",
+  "searchAgain": "Search again",
+  "manualAddress": "Or enter the host's address",
+  "addressHint": "e.g. 192.168.43.1",
+  "hostAddress": "Players join at {a}",
+  "@hostAddress": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      }
+    }
+  },
+  "noWifi": "This phone isn't on a Wi-Fi network or hotspot.",
+  "roomPlayers": "{n} players · {s}",
+  "@roomPlayers": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "s": {
+        "type": "String"
+      }
+    }
+  },
+  "statusLobby": "waiting",
+  "statusGame": "playing",
+  "resumeHosting": "Resume hosting room {c}",
+  "@resumeHosting": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "backToWifi": "Back to the Wi‑Fi room {c}",
+  "@backToWifi": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "hostingTitle": "Hosting a Mafia Dealer room",
+  "hostingText": "Room {c} · players are connected over Wi-Fi",
+  "@hostingText": {
+    "placeholders": {
+      "c": {
+        "type": "String"
+      }
+    }
+  },
+  "tabOnline": "Online",
+  "tabWifi": "Wi‑Fi",
+  "noWifiGames": "No Wi-Fi games yet.",
+  "cantHost": "Couldn't start the room on this network.",
+  "chooseReason": "Choose a reason",
+  "noAnswer": "Nothing answered at {a}. Check the address on the host's screen.",
+  "@noAnswer": {
+    "placeholders": {
+      "a": {
+        "type": "String"
+      }
+    }
+  }
 }

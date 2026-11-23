@@ -24,7 +24,8 @@ Future<bool> confirmBlock(BuildContext context, Account a, String userId, String
 /// Report a player or one of their messages: a reason, an optional note, and "also block". Returns true when sent.
 Future<bool> reportDialog(BuildContext context, Account a, String userId, String name, {String? room, int? msgId, String? text}) async {
   final l = L.of(context), note = TextEditingController();
-  var reason = 'harassment', alsoBlock = true;
+  String? reason; // no preselected reason: "Send report" waits for a choice
+  var alsoBlock = true;
   final ok = await showDialog<bool>(context: context, builder: (c) => StatefulBuilder(builder: (c, set) => AlertDialog(
         title: Text(l.reportQ(name), style: head.copyWith(fontSize: 20)),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -34,7 +35,7 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
           ],
           RadioGroup<String>(
             groupValue: reason,
-            onChanged: (v) => set(() => reason = v ?? reason),
+            onChanged: (v) => set(() => reason = v),
             child: Column(children: [
               for (final (k, t) in [('spam', l.reasonSpam), ('harassment', l.reasonHarassment), ('hate', l.reasonHate), ('other', l.reasonOther)])
                 RadioListTile<String>(key: Key('reason_$k'), value: k, title: Text(t), dense: true, contentPadding: EdgeInsets.zero),
@@ -46,12 +47,12 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel, style: const TextStyle(color: C.mute))),
-          TextButton(key: const Key('sendReport'), onPressed: () => Navigator.pop(c, true), child: Text(l.sendReport, style: const TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
+          TextButton(key: const Key('sendReport'), onPressed: reason == null ? null : () => Navigator.pop(c, true), child: Text(l.sendReport, style: const TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
         ],
       )));
   if (ok != true || !context.mounted) return false;
   try {
-    await a.report(userId, reason, note: note.text, room: room, msgId: msgId);
+    await a.report(userId, reason!, note: note.text, room: room, msgId: msgId);
     if (alsoBlock) await a.block(userId);
     if (context.mounted) toast(context, l.reportSent);
     return true;
@@ -63,7 +64,8 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
 
 /// A "⋮" menu with Block and Report for another player (lobby, friends, chat).
 class SafetyMenu extends StatelessWidget {
-  const SafetyMenu({super.key, required this.account, required this.userId, required this.name, this.extra = const [], this.onExtra});
+  const SafetyMenu({super.key, required this.account, required this.userId, required this.name, this.extra = const [], this.onExtra, this.safety = true});
+  final bool safety; // block / report need accounts: not on Wi-Fi
   final Account account;
   final String userId, name;
   final List<PopupMenuEntry<String>> extra;
@@ -78,7 +80,7 @@ class SafetyMenu extends StatelessWidget {
       onSelected: (x) {
         if (x == 'block') { confirmBlock(context, account, userId, name); } else if (x == 'report') { reportDialog(context, account, userId, name); } else { onExtra?.call(x); }
       },
-      itemBuilder: (_) => [...extra, PopupMenuItem(value: 'block', child: Text(l.block)), PopupMenuItem(value: 'report', child: Text(l.report))],
+      itemBuilder: (_) => [...extra, if (safety) ...[PopupMenuItem(value: 'block', child: Text(l.block)), PopupMenuItem(value: 'report', child: Text(l.report))]],
     );
   }
 }

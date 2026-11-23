@@ -8,6 +8,7 @@ import 'api.dart';
 import 'audio.dart';
 import 'game.dart';
 import 'guide.dart';
+import 'lan/wifi_screen.dart';
 import 'game_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'online.dart';
@@ -138,15 +139,28 @@ class Home extends StatelessWidget {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (room != null) Padding(padding: const EdgeInsets.only(bottom: 10),
                 child: Btn(l.backToRoom(room), key: const Key('backToRoom'), icon: Icons.meeting_room_outlined, onTap: () => _room(context, room))),
+            if (prefs.lanHost?['code'] case final String c) Padding(padding: const EdgeInsets.only(bottom: 10), child: Btn(l.resumeHosting(c), key: const Key('resumeHosting'),
+                icon: Icons.wifi_tethering, onTap: () async {
+                  final code = await LanHost.start(prefs, restore: prefs.lanHost, title: l.hostingTitle, text: l.hostingText(c));
+                  if (code != null && context.mounted) {
+                    openLanRoom(context, prefs: prefs, audio: audio, account: account, address: '127.0.0.1', code: code, name: prefs.lanName, host: true);
+                  }
+                })),
+            if (prefs.lanJoin case {'address': final String a, 'code': final String c}) Padding(padding: const EdgeInsets.only(bottom: 10), child: Btn(l.backToWifi(c),
+                key: const Key('backToWifi'), icon: Icons.wifi, onTap: () => openLanRoom(context, prefs: prefs, audio: audio, account: account, address: a, code: c,
+                    name: (prefs.lanJoin?['name'] as String?) ?? prefs.lanName))),
+            Btn(l.wifi, key: const Key('wifi'), ghost: true, icon: Icons.wifi, onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => WifiScreen(prefs: prefs, audio: audio, account: account)))),
+            Padding(padding: const EdgeInsets.only(top: 8, bottom: 18), child: Text(l.wifiSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
             Btn(l.online, key: const Key('online'), ghost: true, icon: Icons.public, onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => OnlineHome(account: account, prefs: prefs, audio: audio)))),
             Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.onlineSub, textAlign: TextAlign.center, style: const TextStyle(color: C.dim))),
-            Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
+            if (prefs.guideSeen) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
                 icon: const Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: const TextStyle(color: C.mute)),
                 onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); })),
             if (account.signedIn) Padding(padding: const EdgeInsets.only(top: 4), child: TextButton.icon(key: const Key('history'),
                 icon: const Icon(Icons.history, color: C.mute), label: Text(l.historyT, style: const TextStyle(color: C.mute)),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HistoryScreen(account: account))))),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HistoryScreen(account: account, prefs: prefs))))),
           ]);
         }),
       ]),

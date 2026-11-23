@@ -10,7 +10,9 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'account.dart';
 import 'account_screens.dart';
+import 'api.dart';
 import 'chat.dart';
+import 'lan/lan.dart' show localAddresses;
 import 'safety.dart';
 import 'audio.dart';
 import 'game_screen.dart' show RoleCard;
@@ -83,7 +85,12 @@ class _OnlineHomeState extends State<OnlineHome> {
 
 // ---------------------------------------------------------------- the room
 class RoomScreen extends StatefulWidget {
-  const RoomScreen({super.key, required this.account, required this.prefs, required this.audio, required this.code, this.connect});
+  const RoomScreen({super.key, required this.account, required this.prefs, required this.audio, required this.code, this.connect,
+      this.api, this.lan = false, this.lanHost = false, this.relocate, this.onClose});
+  final Api? api; // Wi-Fi: the host phone's server
+  final bool lan, lanHost; // a Wi-Fi room / this phone hosts it
+  final Future<Api?> Function()? relocate; // Wi-Fi: find the host again if its address changed
+  final VoidCallback? onClose; // Wi-Fi host: stop the server when leaving
   final Account account;
   final Prefs prefs;
   final Audio audio;
@@ -94,11 +101,12 @@ class RoomScreen extends StatefulWidget {
 }
 
 class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
-  late final RoomConn c = RoomConn(widget.account.api, widget.code, connect: widget.connect ?? ioConnect);
+  late final RoomConn c = RoomConn(widget.api ?? widget.account.api, widget.code, connect: widget.connect ?? ioConnect, relocate: widget.relocate);
   StreamSubscription<dynamic>? _n, _s;
   Timer? _tick, _arm;
   bool revealed = true; // the morning / verdict / end result is held until my narrator says the name
   bool _timeUpSaid = false;
+  String? _myAddress; // Wi-Fi host: where players join (shown under the code)
   Object? _pick;
   Audio get audio => widget.audio;
   RoomConn get conn => c; // for the tests
@@ -107,11 +115,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    audio.muted = !widget.prefs.narrate;
+    // Wi-Fi is one room: only the host's phone narrates unless someone switches theirs on
+    audio.muted = widget.lan ? !widget.lanHost : !widget.prefs.narrate;
     _n = c.narration.listen(_narrate);
     _s = c.side.listen(_onSide);
     c.addListener(_changed);
     c.start();
+    if (widget.lanHost) localAddresses().then((a) { if (mounted && a.isNotEmpty) setState(() => _myAddress = a.first); });
     _tick = Timer.periodic(const Duration(seconds: 1), (_) { _checkTimeUp(); if (mounted) setState(() {}); });
     WakelockPlus.enable().catchError((_) {});
   }
@@ -125,7 +135,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     audio.stop();
     audio.muted = false;
     WakelockPlus.disable().catchError((_) {});
-    widget.account.reloadMe();
+    if (!widget.lan) widget.account.reloadMe();
+    widget.onClose?.call();
     super.dispose();
   }
 
@@ -149,6 +160,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final who = c.members.where((x) => x['uid'] == m['from']).firstOrNull;
       toast(context, l.buzzed((who?['display'] as String?) ?? '?'));
       HapticFeedback.heavyImpact();
+    } else if (m['t'] == 'record' && widget.lan) {
+      // a Wi-Fi game ended: this phone keeps it (History → Wi-Fi)
+      final seats = (m['seats'] as List).cast<String>();
+      widget.prefs.addWifiGame({'id': '${m['code']}-${m['at']}', 'record': m['record'], 'names': m['names'], 'mySeat': seats.indexOf(c.myUid ?? ''), 'at': m['at'], 'code': m['code']});
     } else if (m['t'] == 'mention') {
       toast(context, l.mentionedYou(c.members.where((x) => x['cn'] == m['from']).firstOrNull?['display'] as String? ?? '?'));
       HapticFeedback.mediumImpact();
@@ -225,7 +240,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   Future<void> _leave() async {
     final l = L.of(context);
     if (c.bye != null || await ask(context, l.leaveRoomQ, l.leaveRoomD, l.leaveRoom)) {
-      if (c.bye == null) c.send({'t': 'leave'});
+      if (c.bye == null) c.send({'t': widget.lanHost ? 'close' : 'leave'}); // the Wi-Fi host leaving ends the room
+      if (widget.lan && !widget.lanHost) widget.prefs.lanJoin = null;
       if (mounted) Navigator.of(context).pop();
     }
   }
@@ -245,10 +261,14 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             if (c.room != null) IconButton(key: const Key('chat'), tooltip: l.chatT,
                 icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: const Icon(Icons.chat_bubble_outline, color: C.mute)),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
-                    out: c.room?['status'] == 'game' && v?['alive'] == false)))),
+                    out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))),
             IconButton(key: const Key('narrate'), tooltip: l.narrateHere,
-                icon: Icon(widget.prefs.narrate ? Icons.volume_up_outlined : Icons.volume_off_outlined, color: C.mute),
-                onPressed: () => setState(() { widget.prefs.narrate = !widget.prefs.narrate; audio.muted = !widget.prefs.narrate; if (audio.muted) audio.stop(); })),
+                icon: Icon(!audio.muted ? Icons.volume_up_outlined : Icons.volume_off_outlined, color: C.mute),
+                onPressed: () => setState(() {
+                  audio.muted = !audio.muted;
+                  if (!widget.lan) widget.prefs.narrate = !audio.muted; // online: remembered; Wi-Fi: this room only
+                  if (audio.muted) audio.stop();
+                })),
             if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: const Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'buzz'}))),
             if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: const Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() => c.send({'t': 'ping'}))),
             IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: const Icon(Icons.logout, color: C.mute), onPressed: _leave),
@@ -327,8 +347,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         if (ms.length < minPlayers) Text(l.eNoMembers, textAlign: TextAlign.center, style: const TextStyle(color: C.red2)),
         Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null ? _h(() => c.send({'t': 'deal'})) : null),
         Row(children: [
-          Expanded(child: Btn(l.inviteFriends, key: const Key('inviteFriends'), ghost: true, onTap: () => _inviteSheet(l))),
-          const SizedBox(width: 10),
+          if (!widget.lan) ...[
+            Expanded(child: Btn(l.inviteFriends, key: const Key('inviteFriends'), ghost: true, onTap: () => _inviteSheet(l))),
+            const SizedBox(width: 10),
+          ],
           Expanded(child: Btn(l.closeRoom, key: const Key('closeRoom'), ghost: true, onTap: () async {
             if (await ask(context, l.closeRoomQ, l.closeRoomD, l.closeRoom)) c.send({'t': 'close'});
           })),
@@ -338,6 +360,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     ], children: [
       Sec(child: Column(children: [
         Text(widget.code, key: const Key('code'), style: head.copyWith(fontSize: 44, letterSpacing: 10, color: C.gold)),
+        if (_myAddress != null) Text(l.hostAddress(_myAddress!), key: const Key('myAddress'), style: const TextStyle(color: C.mute)), // [QA] U2
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           TextButton.icon(key: const Key('shareCode'), icon: const Icon(Icons.share_outlined), label: Text(l.share),
               onPressed: () => SharePlus.instance.share(ShareParams(text: l.shareRoomTxt(widget.code)))),
@@ -370,7 +393,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ])),
         if (!me)
           SafetyMenu(
-            account: widget.account, userId: m['uid'] as String, name: m['display'] as String,
+            account: widget.account, userId: m['uid'] as String, name: m['display'] as String, safety: !widget.lan,
             extra: [
               if (host) PopupMenuItem(value: 'kick', child: Text(l.kick)),
               if (host && m['muted'] == true) PopupMenuItem(value: 'unmute', child: Text(l.unmute)),
@@ -692,8 +715,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
 // ---------------------------------------------------------------- history
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key, required this.account});
+  const HistoryScreen({super.key, required this.account, required this.prefs});
   final Account account;
+  final Prefs prefs; // Wi-Fi games are kept on the phone
   @override
   State<HistoryScreen> createState() => _HistoryState();
 }
@@ -711,9 +735,47 @@ class _HistoryState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context);
-    return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.historyT, style: head.copyWith(fontSize: 20))),
-      body: error != null ? Center(child: Text(error!, style: const TextStyle(color: C.red2)))
+    final wifi = widget.prefs.wifiGames;
+    return DefaultTabController(length: 2, child: Scaffold(
+      appBar: AppBar(backgroundColor: C.bg, title: Text(l.historyT, style: head.copyWith(fontSize: 20)),
+          bottom: TabBar(indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,
+              tabs: [Tab(key: const Key('tabOnline'), text: l.tabOnline), Tab(key: const Key('tabWifi'), text: l.tabWifi)])),
+      body: TabBarView(children: [_online(l), _wifi(l, wifi)]),
+    ));
+  }
+
+  /// Wi-Fi games on this phone: the detail page is rebuilt from the game's record.
+  Widget _wifi(L l, List<Map<String, Object?>> games) => games.isEmpty
+      ? Center(child: Text(l.noWifiGames, style: const TextStyle(color: C.mute)))
+      : ListView(padding: const EdgeInsets.all(16), children: [
+          for (final g in games)
+            if (_wifiGame(g) case final d?)
+              Card(color: C.card, child: ListTile(
+                key: Key('wifi_${g['id']}'),
+                leading: Icon(d['winner'] == 'mafia' ? Icons.dangerous_outlined : Icons.emoji_events_outlined, color: d['winner'] == 'mafia' ? C.red2 : C.gold),
+                title: Text(d['winner'] == 'mafia' ? l.winMafia : l.winCitizens),
+                subtitle: Text([
+                  if (d['mine'] != null) l.youPlayed(roleName(l, Role.values.byName(d['mine'] as String))),
+                  l.rcSub((d['players'] as List).length, d['days'] as int),
+                ].join(' · '), style: const TextStyle(color: C.mute)),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _GameDetail(account: widget.account, id: '', local: d))),
+              )),
+        ]);
+
+  /// A saved Wi-Fi game in the online detail page's shape (replayed from its record; null if it doesn't replay).
+  static Map<String, Object?>? _wifiGame(Map<String, Object?> g) {
+    final r = replay(g['record']);
+    if (r.error != null) return null;
+    final s = r.state!, my = g['mySeat'] as int? ?? -1;
+    return {
+      'winner': s.winner?.name, 'days': s.day, 'valid': true, 'host': false, 'log': s.log.map((e) => e.toJson()).toList(),
+      'players': [for (var i = 0; i < s.names.length; i++) {'seat': i, 'name': s.names[i], 'role': s.roles[i].name, 'alive': s.alive[i]}],
+      'mine': my >= 0 && my < s.roles.length ? s.roles[my].name : null,
+    };
+  }
+
+  Widget _online(L l) {
+    return error != null ? Center(child: Text(error!, style: const TextStyle(color: C.red2)))
           : games == null ? const Center(child: CircularProgressIndicator(color: C.red2))
           : games!.isEmpty ? Center(child: Text(l.noHistory, style: const TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
@@ -726,15 +788,15 @@ class _HistoryState extends State<HistoryScreen> {
                       '${g['valid'] == true ? '' : ' · ${l.invalid}'}', style: const TextStyle(color: C.mute)),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _GameDetail(account: widget.account, id: g['id'] as String))),
                 )),
-            ]),
-    );
+            ]);
   }
 }
 
 class _GameDetail extends StatefulWidget {
-  const _GameDetail({required this.account, required this.id});
+  const _GameDetail({required this.account, required this.id, this.local});
   final Account account;
   final String id;
+  final Map<String, Object?>? local; // a Wi-Fi game from this phone (no server)
   @override
   State<_GameDetail> createState() => _GameDetailState();
 }
@@ -742,7 +804,11 @@ class _GameDetail extends StatefulWidget {
 class _GameDetailState extends State<_GameDetail> {
   Map<String, Object?>? g;
   @override
-  void initState() { super.initState(); widget.account.game(widget.id).then((x) { if (mounted) setState(() => g = x); }).catchError((_) {}); }
+  void initState() {
+    super.initState();
+    if (widget.local != null) { g = widget.local; return; }
+    widget.account.game(widget.id).then((x) { if (mounted) setState(() => g = x); }).catchError((_) {});
+  }
 
   @override
   Widget build(BuildContext context) {

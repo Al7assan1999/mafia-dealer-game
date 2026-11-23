@@ -15,6 +15,8 @@ import '../test/driver.dart';
 import '../test/fake_server.dart';
 import '../test/harness.dart';
 import '../test/online_test.dart' show FakeRoom, member, nightOpts, openRoom, roomMsg, view;
+import 'package:mafia_dealer/lan/lan.dart';
+import 'package:mafia_dealer/lan/wifi_screen.dart';
 
 Future<void> shot(WidgetTester t, String name) async {
   await t.pump(const Duration(milliseconds: 500));
@@ -98,6 +100,21 @@ void main() {
       await t.pump(const Duration(milliseconds: 500));
       await tapKey(t, 'bell');
       await shot(t, '${lang}_24_bell');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('$lang: Wi-Fi', (t) async {
+      WifiScreen.testAddresses = ['192.168.43.20'];
+      WifiScreen.testScan = () async => [FoundRoom('192.168.43.1', '482913', 'Sami', 4, 'lobby'), FoundRoom('192.168.43.7', '119034', 'Hokan', 7, 'game')];
+      addTearDown(() { WifiScreen.testScan = null; WifiScreen.testAddresses = null; });
+      final app = await launch(t, size: const Size(360, 640), lang: lang, stored: {'guideSeen': true, 'lanJoin': '{"address":"192.168.43.1","code":"482913","name":"Sami"}'});
+      await shot(t, '${lang}_05_home_wifi');
+      await tapKey(t, 'wifi');
+      await shot(t, '${lang}_41_wifi_found');
+      WifiScreen.testScan = () async => [];
+      await tapKey(t, 'searchAgain');
+      await shot(t, '${lang}_42_wifi_nothing');
+      app.prefs.addWifiGame({'id': 'none'});
       await t.pumpWidget(const SizedBox());
     });
 

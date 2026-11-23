@@ -1,6 +1,7 @@
 // What this phone remembers (device data only): language, volumes, recent names while not signed in, and the
 // offline game in progress (its engine record plus where the phone is in it).
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +41,32 @@ class Prefs extends ChangeNotifier {
   /// The signed-in profile as last seen (shown while offline). The session token itself is in secure storage.
   Map<String, Object?>? get me => _json('me');
   set me(Map<String, Object?>? v) => _put('me', v);
+
+  // ---------------------------------------------------------------- Wi-Fi / Hotspot (device data: no server involved)
+  /// This phone's Wi-Fi identity (a random id kept on the phone) and the name it plays under when not signed in.
+  String get deviceId {
+    var id = _sp.getString('deviceId');
+    if (id == null) { final r = Random.secure(); id = List.generate(16, (_) => r.nextInt(36).toRadixString(36)).join(); _sp.setString('deviceId', id); }
+    return id;
+  }
+  String get lanName => _sp.getString('lanName') ?? '';
+  set lanName(String v) => _sp.setString('lanName', v);
+  /// The hosted room's snapshot for "Resume hosting" (null when not hosting).
+  Map<String, Object?>? get lanHost => _json('lanHost');
+  set lanHost(Map<String, Object?>? v) { _put('lanHost', v); Future.microtask(notifyListeners); }
+  /// The Wi-Fi room this phone last joined as a player ({address, code}), for "Back to the Wi-Fi room".
+  Map<String, Object?>? get lanJoin => _json('lanJoin');
+  set lanJoin(Map<String, Object?>? v) { _put('lanJoin', v); Future.microtask(notifyListeners); }
+  /// Finished Wi-Fi games played on this phone, newest first, at most 100 (kept on the phone: decision of 2026-11-22).
+  List<Map<String, Object?>> get wifiGames {
+    final s = _sp.getString('wifiGames');
+    if (s == null) return [];
+    try { return (jsonDecode(s) as List).map((x) => Map<String, Object?>.from(x as Map)).toList(); } catch (_) { return []; }
+  }
+  void addWifiGame(Map<String, Object?> g) {
+    final all = [g, ...wifiGames.where((x) => x['id'] != g['id'])].take(100).toList();
+    _sp.setString('wifiGames', jsonEncode(all));
+  }
 
   /// The offline game in progress, or null.
   Map<String, Object?>? get game => _json('game');

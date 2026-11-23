@@ -139,6 +139,7 @@ void main() {
       await frames(t);
       await tapKey(t, 'menuReport');
       expect(find.text('you are all idiots'), findsWidgets, reason: 'the message is shown in the report');
+      expect(t.widget<TextButton>(find.byKey(const Key('sendReport'))).onPressed, isNull, reason: 'no reason chosen yet (S6-5)');
       await tapKey(t, 'reason_hate');
       await tapKey(t, 'sendReport');
       await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));

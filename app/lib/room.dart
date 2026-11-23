@@ -34,8 +34,11 @@ Future<Sock> ioConnect(Uri url, List<String> protocols) async => _IoSock(await W
 enum Link { ok, down, weak, back }
 
 class RoomConn extends ChangeNotifier {
-  RoomConn(this.api, this.code, {this.connect = ioConnect});
-  final Api api;
+  RoomConn(this.api, this.code, {this.connect = ioConnect, this.relocate});
+  Api api;
+  /// Wi-Fi: after a few failed reconnects, look for the host again (its address may have changed). Online: null.
+  final Future<Api?> Function()? relocate;
+  int _fails = 0;
   final String code;
   final Connector connect;
 
@@ -95,6 +98,7 @@ class RoomConn extends ChangeNotifier {
       _sub = ws.stream.listen(_onMsg, onDone: _lost, onError: (_) => _lost(), cancelOnError: true);
       _downT?.cancel(); _downT = null;
       _backoff = 1;
+      _fails = 0;
       if (link == Link.down) { link = Link.back; _backT?.cancel(); _backT = Timer(const Duration(seconds: 2), () { link = Link.ok; notifyListeners(); }); }
       _ping?.cancel();
       _ping = Timer.periodic(const Duration(seconds: 10), (_) => _sendPing());
@@ -119,6 +123,11 @@ class RoomConn extends ChangeNotifier {
     if (_closed || bye != null) return;
     _downT ??= Timer(const Duration(seconds: 3), () { if (!open && !_closed) { link = Link.down; notifyListeners(); } });
     _retry?.cancel();
+    if (relocate != null && ++_fails % 3 == 0) {
+      // three tries at the last address: scan the network for the room (the host's address may have changed)
+      relocate!().then((a) { if (a != null) api = a; }).whenComplete(() { if (!_closed && _ws == null) _retry = Timer(Duration(seconds: _backoff), _connect); });
+      return;
+    }
     _retry = Timer(Duration(seconds: _backoff), _connect);
     _backoff = min(_backoff * 2, 10);
     notifyListeners();

@@ -9,12 +9,13 @@ import 'safety.dart';
 import 'ui.dart';
 
 /// The old app's reactions: the quick six (👍 ❤️ 😂 😮 🔪 suspicious, 🤫 lying), then the rest (🐀 = snitch).
-const reactions = ['👍', '❤️', '😂', '😮', '🔪', '🤫', '😡', '🤬', '😢', '😭', '💔', '🖕', '🙏', '🔥', '💀', '🤔', '🙄', '😱', '🤡', '👀',
+const reactions = ['👍', '❤️', '😂', '😮', '🔪', '🤫', '😡', '🤬', '😢', '😭', '💔', '🤨', '🙏', '🔥', '💀', '🤔', '🙄', '😱', '🤡', '👀',
   '👏', '😈', '🥲', '😴', '🤝', '💯', '🎯', '🐀', '🕵️', '🩸'];
 const editWindowMs = 15 * 60 * 1000;
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.conn, required this.account, required this.out});
+  const ChatScreen({super.key, required this.conn, required this.account, required this.out, this.safety = true});
+  final bool safety; // block / report (online only: Wi-Fi players may have no account)
   final RoomConn conn;
   final Account account;
   final bool out; // I'm out of the running game: Everyone reaches only out players
@@ -70,7 +71,7 @@ class _ChatState extends State<ChatScreen> {
       ListTile(key: const Key('menuReply'), leading: const Icon(Icons.reply), title: Text(l.replyTo), onTap: () { Navigator.pop(ctx); setState(() => replyTo = m); }),
       if (canEdit) ListTile(key: const Key('menuEdit'), leading: const Icon(Icons.edit_outlined), title: Text(l.editMsg),
           onTap: () { Navigator.pop(ctx); setState(() { editing = m; replyTo = null; text.text = m['text'] as String; }); }),
-      if (!mine && sender != null) ...[
+      if (!mine && sender != null && widget.safety) ...[
         ListTile(key: const Key('menuReport'), leading: const Icon(Icons.flag_outlined, color: C.red2), title: Text(l.report), onTap: () {
           Navigator.pop(ctx);
           reportDialog(context, widget.account, sender['uid'] as String, sender['display'] as String, room: c.code, msgId: m['id'] as int, text: m['text'] as String);

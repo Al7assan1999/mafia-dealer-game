@@ -96,6 +96,13 @@ files are copied from there only when a phase needs them.
    presets, lobby summary + offline warning, LTR @handles in Arabic, host controls off during a drop, How to play,
    offline night number). His answers: admin = his account only; keep reports about deleted accounts; no word
    filter; neutral avatars; guide in this sprint.
+   Sprint 5 committed and green on CI 2026-11-22 (eb6fd15, migration 0005 live). Admin queue waits for his Account ID.
+   **Sprint 6, Wi-Fi / Hotspot play** (`docs/sprint-6-prd.md`, built 2026-11-23, not committed): `app/lib/lan/` (the
+   Room ported to Dart, the host server on port 8765 + discovery `/mafia`, subnet scan, identity tokens), Kotlin
+   `KeepService` (connectedDevice FGS + wake lock + Wi-Fi lock, channel `mafia/keep`), "Resume hosting" from a
+   snapshot, players relocating a moved host, Wi-Fi history on the phone (History tabs), host narrates by default.
+   His answers: approval process in Sprint 7; own keep-alive plugin; no host takeover yet; 🖕 replaced by 🤨.
+   Next: Sprint 7 approval process, Sprint 8 push + Play readiness.
    Next sprints (proposed): 3 sign-in and friends; 4 online rooms in the
    app; 5 Wi-Fi play + approval; 6 push, Play updates, app links, Play readiness. Groups wait for his prompt.
 5. Play readiness. 6. Migration of old users (optional).
