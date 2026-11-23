@@ -16,7 +16,7 @@ Future<bool> confirmBlock(BuildContext context, Account a, String userId, String
     if (context.mounted) toast(context, l.blockedToast(name));
     return true;
   } catch (e) {
-    if (context.mounted) toast(context, errText(l, e));
+    if (context.mounted) toastErr(context, errText(l, e));
     return false;
   }
 }
@@ -57,7 +57,7 @@ Future<bool> reportDialog(BuildContext context, Account a, String userId, String
     if (context.mounted) toast(context, l.reportSent);
     return true;
   } catch (e) {
-    if (context.mounted) toast(context, errText(l, e));
+    if (context.mounted) toastErr(context, errText(l, e));
     return false;
   }
 }

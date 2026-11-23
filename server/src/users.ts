@@ -11,7 +11,7 @@ export const MAX_FRIENDS = 300;
 
 /** Their friend request in my bell, answered from anywhere: kept 24 h as Accepted / Declined. */
 const answered = (c: Ctx, from: string, result: 'accepted' | 'declined') => c.env.DB.prepare(
-  "UPDATE notifications SET handled_at = ?, result = ? WHERE kind = 'friend_request' AND user_id = ? AND from_id = ? AND handled_at IS NULL")
+  "UPDATE notifications SET handled_at = ?1, result = ?2, read_at = COALESCE(read_at, ?1) WHERE kind = 'friend_request' AND user_id = ?3 AND from_id = ?4 AND handled_at IS NULL")
   .bind(c.var.deps.now(), result, c.var.user.id, from).run();
 
 export async function meOf(db: D1Database, u: UserRow, env: { ADMIN_IDS?: string }): Promise<Me> {

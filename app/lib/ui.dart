@@ -101,6 +101,10 @@ ThemeData noir() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 20 : 3))),
     dialogTheme: DialogThemeData(backgroundColor: C.card, shape: RoundedRectangleBorder(borderRadius: r)),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: C.card, modalBackgroundColor: C.card),
+    // [N1] the message bar kept Flutter's dark text on our dark card: unreadable. Light text, a border, floating.
+    snackBarTheme: SnackBarThemeData(backgroundColor: C.card2, contentTextStyle: TextStyle(color: C.text, fontFamily: C.p.body, fontSize: 14),
+        actionTextColor: C.red2, behavior: SnackBarBehavior.floating, insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        shape: RoundedRectangleBorder(side: BorderSide(color: C.line2), borderRadius: BorderRadius.circular(C.neon ? 14 : 4))),
   );
 }
 

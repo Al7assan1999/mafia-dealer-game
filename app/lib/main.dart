@@ -9,6 +9,7 @@ import 'audio.dart';
 import 'drawer.dart';
 import 'game.dart';
 import 'guide.dart';
+import 'intro.dart';
 import 'lan/wifi_screen.dart';
 import 'game_screen.dart';
 import 'l10n/app_localizations.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final prefs = await Prefs.load(), audio = Audio(prefs), account = Account(Api(), SecureTokens(), prefs);
+  prefs.firstLaunch(); // a brand-new install hasn't seen the intro; an update counts as seen (S10-2 AC5)
   await audio.init();
   account.restore(); // silently, in the background: the app never waits for the network
   final updater = Updater(prefs);
@@ -65,10 +67,13 @@ class _AppState extends State<App> {
           navigatorKey: ActiveRoom.navigatorKey,
           scaffoldMessengerKey: ActiveRoom.messengerKey,
           // the room bar while minimized; a long-press opens the friends drawer with Invite ready (P4)
-          builder: (context, child) => RoomBarFrame(child: child!, onLongPress: (_) {
-            final ctx = ActiveRoom.navigatorKey.currentContext;
-            if (ctx != null) openFriendsDrawer(ctx, account: widget.account, prefs: prefs, audio: widget.audio);
-          }),
+          builder: (context, child) => Stack(children: [
+            RoomBarFrame(account: widget.account, child: child!, onLongPress: (_) {
+              final ctx = ActiveRoom.navigatorKey.currentContext;
+              if (ctx != null) openFriendsDrawer(ctx, account: widget.account, prefs: prefs, audio: widget.audio);
+            }),
+            NoteBanner(account: widget.account), // N5: an invite or a request pops up while the app is open
+          ]),
           theme: noir(),
           locale: Locale(prefs.lang),
           supportedLocales: L.supportedLocales,
@@ -100,6 +105,11 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+    // the intro (S10-2): once on the first launch, later only with Settings → Show the intro at start; once per run
+    if (!IntroScreen.ran && (!prefs.introSeen || prefs.introAtStart)) {
+      IntroScreen.ran = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) showIntro(context, prefs, first: !prefs.introSeen); });
+    }
     // "Updated to vX" once, the first start of a newer build (S8-4 AC4)
     final u = updater?.takeUpdated();
     if (u != null) {
@@ -135,6 +145,7 @@ class _HomeBody extends StatelessWidget {
 
   // an invite into the room I'm minimized in just reopens it; another room asks to leave mine first (S9-1 AC5)
   Future<void> _room(BuildContext context, String code) async {
+    IntroScreen.stop(); // S10-2 AC4
     final a = ActiveRoom.instance;
     if (a.minimized && a.code == code) return a.reopen();
     if (!await leaveRoomFirst(context) || !context.mounted) return;
@@ -145,6 +156,7 @@ class _HomeBody extends StatelessWidget {
 
   /// A tapped notification: an invite opens its room (or says it expired); friends open Friends; the rest the bell.
   Future<void> _openPush(BuildContext context, Map<String, String> d) async {
+    IntroScreen.stop(); // S10-2 AC4
     final kind = d['kind'], code = d['code'];
     if ((kind == 'invite' || kind == 'let_in') && code != null) {
       final open = await account.roomOpen(code);
@@ -176,7 +188,7 @@ class _HomeBody extends StatelessWidget {
         Row(children: [
           Expanded(child: AccountBar(account: account)),
           IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: Icon(Icons.settings_outlined, color: C.mute),
-              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater))),
+              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account))),
         ]),
         const SizedBox(height: 24),
         Center(
@@ -194,14 +206,18 @@ class _HomeBody extends StatelessWidget {
         const SizedBox(height: 24),
         if (updater != null) UpdateCard(updater: updater!),
         if (!prefs.guideSeen)
-          Sec(color: C.card2, child: Row(children: [
+          ValueListenableBuilder(valueListenable: guideGlow, builder: (context, glow, child) => AnimatedContainer(
+              key: Key(glow ? 'guideGlow' : 'guideOffer'), duration: const Duration(milliseconds: 600),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(C.p.radius + 2),
+                  boxShadow: glow ? [BoxShadow(color: C.gold.withValues(alpha: .55), blurRadius: 18, spreadRadius: 1)] : const []),
+              child: child), child: Sec(color: C.card2, child: Row(children: [
             Icon(Icons.menu_book_outlined, color: C.gold),
             const SizedBox(width: 10),
             Expanded(child: Text(l.newToMafia)),
-            TextButton(key: const Key('openGuide'), onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); },
+            TextButton(key: const Key('openGuide'), onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); },
                 child: Text(l.howToPlay, style: TextStyle(color: C.red2))),
             IconButton(key: const Key('dismissGuide'), icon: Icon(Icons.close, size: 18, color: C.dim), onPressed: () => prefs.guideSeen = true),
-          ])),
+          ]))),
         const SizedBox(height: 12),
         if (saved)
           Sec(
@@ -250,7 +266,7 @@ class _HomeBody extends StatelessWidget {
             Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.onlineSub, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
             if (prefs.guideSeen) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
                 icon: Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: TextStyle(color: C.mute)),
-                onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GuideScreen())); })),
+                onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); })),
             // P1: Stats and History as two tiles (History is open to guests: their Wi-Fi games)
             Padding(padding: const EdgeInsets.only(top: 18), child: Row(children: [
               if (account.signedIn) ...[
@@ -269,9 +285,10 @@ class _HomeBody extends StatelessWidget {
 }
 
 class SettingsSheet extends StatefulWidget {
-  const SettingsSheet({super.key, required this.prefs, this.updater});
+  const SettingsSheet({super.key, required this.prefs, this.updater, this.account});
   final Prefs prefs;
   final Updater? updater;
+  final Account? account; // the test notification (P5)
   @override
   State<SettingsSheet> createState() => _SettingsState();
 }
@@ -311,6 +328,11 @@ class _SettingsState extends State<SettingsSheet> {
                     if (k == 'noir') const SizedBox(width: 10),
                   ],
                 ]),
+                SwitchListTile(key: const Key('introAtStart'), contentPadding: EdgeInsets.zero, value: prefs.introAtStart, onChanged: (v) => prefs.introAtStart = v,
+                    title: Text(l.sIntro), subtitle: Text(l.sIntroD, style: TextStyle(color: C.dim, fontSize: 12))),
+                ListTile(key: const Key('watchIntro'), contentPadding: EdgeInsets.zero, title: Text(l.sWatchIntro),
+                    trailing: Icon(Icons.play_circle_outline, color: C.mute, size: 20),
+                    onTap: () { final nav = Navigator.of(context)..pop(); showIntro(nav.context, prefs); }),
                 const SizedBox(height: 14),
                 Text(l.sHost, style: head.copyWith(fontSize: 16)),
                 Row(children: [
@@ -329,6 +351,14 @@ class _SettingsState extends State<SettingsSheet> {
                       selected: {prefs.hostKick}, onSelectionChanged: (s) => prefs.hostKick = s.first,
                       style: SegmentedButton.styleFrom(selectedBackgroundColor: C.red, selectedForegroundColor: C.priText, side: BorderSide(color: C.line2)))),
                 const SizedBox(height: 6),
+                if (widget.account?.signedIn == true) ListTile(key: const Key('testPush'), contentPadding: EdgeInsets.zero, title: Text(l.sTestPush),
+                    trailing: Icon(Icons.send_outlined, color: C.mute, size: 18),
+                    onTap: () async {
+                      try {
+                        final r = await widget.account!.testPush();
+                        if (mounted) setState(() => _checked = r['thisPhone'] == true ? l.testSent : l.testNotHere);
+                      } catch (e) { if (mounted) setState(() => _checked = errText(l, e)); }
+                    }),
                 ListTile(key: const Key('notifSettings'), contentPadding: EdgeInsets.zero, title: Text(l.sNotif),
                     subtitle: Text(l.sNotifD, style: TextStyle(color: C.dim, fontSize: 12)),
                     trailing: Icon(Icons.open_in_new, color: C.mute, size: 18), onTap: openNotificationSettings),

@@ -40,6 +40,18 @@ class Prefs extends ChangeNotifier {
   bool get guideSeen => _sp.getBool('guideSeen') ?? false;
   set guideSeen(bool v) { _sp.setBool('guideSeen', v); notifyListeners(); }
 
+  /// The intro (S10-2). Seen = it played once to the end; a missing key means "seen" so updates and tests skip it,
+  /// and main() marks a brand-new install as not seen (firstLaunch).
+  bool get introSeen => _sp.getBool('introSeen') ?? true;
+  set introSeen(bool v) => _sp.setBool('introSeen', v);
+  void firstLaunch() { if (!_sp.containsKey('introSeen')) _sp.setBool('introSeen', _sp.getKeys().isNotEmpty); }
+  /// Settings → Show the intro at start (off by default, as the old app after its first run).
+  bool get introAtStart => _sp.getBool('introAtStart') ?? false;
+  set introAtStart(bool v) { _sp.setBool('introAtStart', v); notifyListeners(); }
+  /// The intro's own mute button (remembered).
+  bool get introMute => _sp.getBool('introMute') ?? false;
+  set introMute(bool v) => _sp.setBool('introMute', v);
+
   /// The last setup's names, and recently used names (chips), newest first, at most 30.
   List<String> get players => _sp.getStringList('players') ?? const [];
   set players(List<String> v) => _sp.setStringList('players', v);

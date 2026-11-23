@@ -13,6 +13,7 @@ import 'account.dart';
 import 'api.dart';
 import 'l10n/app_localizations.dart';
 import 'safety.dart';
+import 'online.dart' show ActiveRoom, onlineLobby;
 import 'stats.dart';
 import 'ui.dart';
 
@@ -23,8 +24,16 @@ String errText(L l, Object e) => switch (e is ApiError ? e.code : '') {
       'too_big' => l.eTooBig, 'auth' => l.eSignedOut, 'banned' => l.eBanned, 'blocked' => l.eBlocked, _ => l.eOther,
     };
 
-void toast(BuildContext context, String text) =>
-    ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(text), backgroundColor: C.card2));
+void toast(BuildContext context, String text, {bool error = false}) =>
+    ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(
+      content: Row(children: [
+        Icon(error ? Icons.error_outline : Icons.check_circle_outline, color: error ? C.red2 : C.green, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: TextStyle(color: C.text))),
+      ]),
+      backgroundColor: C.card2));
+/// A failure: the same message bar with the red mark.
+void toastErr(BuildContext context, String text) => toast(context, text, error: true);
 
 final _handleRx = RegExp(r'^@?[A-Za-z0-9_.]{3,20}$');
 
@@ -264,7 +273,7 @@ class _ProfileState extends State<ProfileScreen> {
     if (busy) return;
     setState(() => busy = true);
     final l = L.of(context);
-    try { await f(); if (ok != null && mounted) toast(context, ok); } catch (e) { if (mounted) toast(context, errText(l, e)); }
+    try { await f(); if (ok != null && mounted) toast(context, ok); } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
     if (mounted) setState(() => busy = false);
   }
 
@@ -408,27 +417,28 @@ class _FriendsState extends State<FriendsScreen> {
     if (busy) return;
     setState(() => busy = true);
     final l = L.of(context);
-    try { await f(); } catch (e) { if (mounted) toast(context, errText(l, e)); }
+    try { await f(); } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
     if (mounted) setState(() => busy = false);
   }
 
   String _status(L l, Person p) => !p.online ? l.fOffline : p.status == 'game' ? l.fInGame : p.status == 'lobby' ? l.fInRoom : l.fOnline;
 
-  Widget _row(Person p, List<Widget> actions, {String? sub}) => Padding(
+  // [N2] the whole row (avatar included) opens the friend's profile
+  Widget _row(Person p, List<Widget> actions, {String? sub}) => InkWell(
+        key: Key('friendStats_${p.handle}'),
+        onTap: () => openProfile(context, a, p),
+        child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(children: [
           AvatarView.of(a.api, p, size: 40, online: sub != null ? p.online : null),
           const SizedBox(width: 10),
-          Expanded(child: InkWell(
-            key: Key('friendStats_${p.handle}'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a, playerKey: 'u:${p.id}', filter: const StatsFilter(board: 'all')))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(p.display, style: const TextStyle(fontWeight: FontWeight.w700)),
               Text([if (p.handle != null) atHandle(p.handle), ?sub].join(' · '), style: TextStyle(color: C.mute, fontSize: 12)),
-            ]))),
+            ])),
           ...actions,
         ]),
-      );
+      ));
 
   @override
   Widget build(BuildContext context) {
@@ -475,10 +485,12 @@ class _FriendsState extends State<FriendsScreen> {
               if (a.offline) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.eOffline, style: TextStyle(color: C.red2))),
               Expanded(child: TabBarView(children: [
                 _list(l.fNone, [for (final p in a.friends) _row(p, [
-                  if (a.roomCode != null && p.status != 'lobby' && p.status != 'game')
-                    TextButton(onPressed: () => _do(() async { await a.invite(p.id, a.roomCode!); if (context.mounted) toast(context, l.invited); }),
+                  if (onlineLobby() case final room? when room.members.any((m) => m['uid'] == p.id))
+                    Text(l.inYourRoom, style: TextStyle(color: C.green, fontSize: 12))
+                  else if (onlineLobby() case final room?)
+                    TextButton(key: Key('fInvite_${p.handle}'), onPressed: () => _do(() async { await a.invite(p.id, room.code); if (context.mounted) toast(context, l.invited); }),
                         child: Text(l.invite, style: TextStyle(color: C.red2)))
-                  else if (p.j['op'] == true && a.roomCode == null)
+                  else if (p.j['op'] == true && a.roomCode == null && ActiveRoom.instance.conn == null)
                     TextButton(key: Key('askJoin_${p.handle}'), onPressed: () => _do(() async { await a.askToJoin(p.id); if (context.mounted) toast(context, l.asked); }),
                         child: Text(l.askJoin, style: TextStyle(color: C.red2))),
                   SafetyMenu(account: a, userId: p.id, name: p.display, extra: [PopupMenuItem(value: 'remove', child: Text(l.fRemove))],
@@ -515,8 +527,22 @@ String _result(L l, String r) => switch (r) {
       'joined' => l.rJoined, 'let_in' => l.rLetIn, 'accepted' => l.rAccepted, 'declined' => l.rDeclined, 'dismissed' => l.rDismissed, _ => l.rExpired };
 
 class _BellState extends State<BellSheet> {
+  // [N8] what was unread when the bell opened stays marked while it's open; after a moment on screen it counts as read
+  Set<String> _unread = {};
+  Timer? _seen;
   @override
-  void initState() { super.initState(); widget.account.loadNotes().then((_) => widget.account.readAll()).catchError((_) {}); }
+  void initState() {
+    super.initState();
+    widget.account.loadNotes().then((_) {
+      if (!mounted) return;
+      setState(() => _unread = {for (final n in widget.account.notes) if (!n.read) n.id});
+      _seen = Timer(const Duration(seconds: 2), () => widget.account.markRead(_unread.toList()));
+    }).catchError((_) {});
+  }
+  @override
+  void dispose() { _seen?.cancel(); super.dispose(); }
+  Future<void> _readAll() async { await widget.account.readAll(); if (mounted) setState(() => _unread = {}); }
+  bool _isNew(Note n) => _unread.contains(n.id);
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: widget.account, builder: (context, _) {
@@ -527,6 +553,7 @@ class _BellState extends State<BellSheet> {
           child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
               Expanded(child: Text(l.notifT, style: head.copyWith(fontSize: 22))),
+              if (_unread.isNotEmpty) TextButton(key: const Key('markAllRead'), onPressed: _readAll, child: Text(l.markAllRead, style: TextStyle(color: C.red2))),
               if (notes.isNotEmpty) TextButton(key: const Key('clearNotes'), onPressed: () => a.deleteNote(null).catchError((_) {}), child: Text(l.nClear, style: TextStyle(color: C.mute))),
             ]),
             if (notes.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text(l.nNone, style: TextStyle(color: C.mute))),
@@ -535,8 +562,8 @@ class _BellState extends State<BellSheet> {
                 if (n.wifi != null) _WifiNote(account: a, note: n) else
                 ListTile(
                   key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,
-                  leading: AvatarView.of(a.api, n.from, size: 36),
-                  title: Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
+                  leading: Badge(isLabelVisible: _isNew(n), smallSize: 9, backgroundColor: C.red2, child: AvatarView.of(a.api, n.from, size: 36)),
+                  title: Text(n.from.display, key: _isNew(n) ? Key('unread_${n.id}') : null, style: TextStyle(fontWeight: _isNew(n) ? FontWeight.w700 : FontWeight.w400)),
                   subtitle: Text(switch (n.kind) {
                     'friend_request' => l.nReq, 'friend_accept' => l.nAcc, 'invite' => l.nInvite(n.code ?? ''),
                     'let_in' => l.nLetIn(n.code ?? ''),
@@ -549,18 +576,19 @@ class _BellState extends State<BellSheet> {
                       : n.kind == 'friend_request' && a.incoming.any((p) => p.id == n.from.id)
                       ? Row(mainAxisSize: MainAxisSize.min, children: [
                           TextButton(key: Key('accept_${n.from.handle}'), onPressed: () async {
-                            try { await a.accept(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                            try { await a.accept(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toastErr(context, errText(l, e)); }
                           }, child: Text(l.fAccept, style: TextStyle(color: C.green))),
                           IconButton(key: Key('decline_${n.from.handle}'), tooltip: l.fDecline, icon: Icon(Icons.close, color: C.dim), onPressed: () async {
-                            try { await a.decline(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                            try { await a.decline(n.from.id); await a.loadNotes(); } catch (e) { if (context.mounted) toastErr(context, errText(l, e)); }
                           }),
                         ])
                       : n.kind == 'join_request' && a.roomCode != null
                       ? TextButton(key: Key('letIn_${n.from.handle}'), onPressed: () async {
-                          try { await a.invite(n.from.id, a.roomCode!); await a.loadNotes(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                          try { await a.invite(n.from.id, a.roomCode!); await a.loadNotes(); } catch (e) { if (context.mounted) toastErr(context, errText(l, e)); }
                         }, child: Text(l.letIn, style: TextStyle(color: C.green)))
                       : IconButton(icon: Icon(Icons.close, color: C.dim), onPressed: () => a.deleteNote(n.id).catchError((_) {})),
                   onTap: () {
+                    if (_isNew(n)) { setState(() => _unread.remove(n.id)); a.markRead([n.id]); }
                     if (n.result != null) return; // read-only
                     if ((n.kind == 'invite' || n.kind == 'let_in') && n.code != null) a.handled(n.id, 'joined');
                     Navigator.of(context).pop();
@@ -601,7 +629,7 @@ class _WifiNoteState extends State<_WifiNote> {
     }
     Future<void> answer(bool yes) async {
       setState(() => busy = true);
-      try { await a.answerWifi(w['request'] as String, yes); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+      try { await a.answerWifi(w['request'] as String, yes); } catch (e) { if (context.mounted) toastErr(context, errText(l, e)); }
       if (mounted) setState(() => busy = false);
     }
     return Padding(key: Key('note_${n.id}'), padding: const EdgeInsets.symmetric(vertical: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -618,5 +646,71 @@ class _WifiNoteState extends State<_WifiNote> {
         ]),
       ])),
     ]));
+  }
+}
+
+/// A player's profile: their card and their verified games (all of them, not only mine).
+void openProfile(BuildContext context, Account a, Person p) => Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => PlayerScreen(account: a, playerKey: 'u:${p.id}', filter: const StatsFilter(board: 'all'), person: p)));
+
+/// [N5] An invite, a request to join, "let you in" or a friend request pops up on top while the app is open (the old
+/// app's banner): the person, what they want and the one action, for 6 seconds. It stays in the bell either way.
+class NoteBanner extends StatefulWidget {
+  const NoteBanner({super.key, required this.account});
+  final Account account;
+  @override
+  State<NoteBanner> createState() => _NoteBannerState();
+}
+
+class _NoteBannerState extends State<NoteBanner> {
+  Timer? _hide;
+  @override
+  void initState() { super.initState(); widget.account.banner.addListener(_arm); }
+  @override
+  void dispose() { widget.account.banner.removeListener(_arm); _hide?.cancel(); super.dispose(); }
+  void _arm() { _hide?.cancel(); if (widget.account.banner.value != null) _hide = Timer(const Duration(seconds: 6), _close); if (mounted) setState(() {}); }
+  void _close() => widget.account.banner.value = null;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.account.banner.value, a = widget.account;
+    if (n == null || n.wifi != null && n.kind != 'wifi_confirm') return const SizedBox.shrink();
+    final l = L.of(context);
+    final text = switch (n.kind) {
+      'invite' => l.nInvite(n.code ?? ''), 'let_in' => l.nLetIn(n.code ?? ''), 'join_request' => l.nJoinReq, 'friend_request' => l.nReq,
+      'friend_accept' => l.nAcc,
+      'title_lost' => l.nTitleLost(switch (n.j['title']) { 'best' => l.tBest, 'mafia' => l.tMafia, 'det' => l.tDet, 'doc' => l.tDoc, _ => l.tFirst }),
+      _ => l.notifT };
+    Future<void> act() async {
+      _close();
+      final nav = ActiveRoom.navigatorKey.currentContext;
+      switch (n.kind) {
+        case 'invite' || 'let_in' when n.code != null:
+          await a.handled(n.id, 'joined');
+          a.openRoom?.call(n.code!);
+        case 'join_request':
+          final room = onlineLobby();
+          if (room != null) await a.invite(n.from.id, room.code).catchError((_) {});
+        case 'friend_request':
+          await a.accept(n.from.id).catchError((_) {});
+        default:
+          if (nav != null && nav.mounted) showModalBottomSheet(context: nav, backgroundColor: C.card, isScrollControlled: true, builder: (_) => BellSheet(account: a));
+      }
+    }
+    final label = switch (n.kind) { 'invite' || 'let_in' => l.bJoin, 'join_request' => l.letIn, 'friend_request' => l.fAccept, _ => l.bOpen };
+    return Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: Padding(padding: const EdgeInsets.all(10), child: Material(
+      key: const Key('noteBanner'), color: C.card2, elevation: 8,
+      shape: RoundedRectangleBorder(side: BorderSide(color: C.red), borderRadius: BorderRadius.circular(C.neon ? 16 : 6)),
+      child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 4, 8), child: Row(children: [
+        AvatarView.of(a.api, n.from, size: 36),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(n.from.display, style: TextStyle(color: C.text, fontWeight: FontWeight.w700)),
+          Text(text, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: C.mute, fontSize: 13)),
+        ])),
+        TextButton(key: const Key('bannerAct'), onPressed: act, child: Text(label, style: TextStyle(color: C.red2, fontWeight: FontWeight.w700))),
+        IconButton(key: const Key('bannerClose'), icon: Icon(Icons.close, color: C.dim, size: 18), onPressed: _close),
+      ])),
+    ))));
   }
 }

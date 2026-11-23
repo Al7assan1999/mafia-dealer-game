@@ -58,7 +58,7 @@ class FakeServer {
     final pend = friendships.where((f) => f.$1 == a.$1 && f.$2 == a.$2).firstOrNull;
     final rel = friends.contains(a) ? 'friends' : pend == null ? 'none' : pend.$3 == me ? 'requested' : 'incoming';
     return {'id': id, 'handle': u['handle'], 'display': u['display'], 'avatar': u['avatar'], 'fav': u['fav'], 'rel': id == me ? 'me' : rel,
-      if (rel == 'friends') ...{'on': true, 'st': '', 'op': false}};
+      if (rel == 'friends') ...{'on': true, 'st': u['st'] ?? '', 'op': u['op'] ?? false}};
   }
 
   Future<http.Response> _handle(http.Request r) async {
@@ -206,7 +206,12 @@ class FakeServer {
       final l = notes.where((n) => n['to'] == me).toList();
       return ok({'notifications': l, 'unread': l.where((n) => n['read'] != true).length});
     }
-    if (path == '/v1/notifications/read') { for (final n in notes) { if (n['to'] == me) n['read'] = true; } return ok({'ok': true}); }
+    if (path == '/v1/notifications/read') {
+      final ids = (body['ids'] as List?)?.cast<String>(); // the given ones (N8), or all
+      for (final n in notes) { if (n['to'] == me && (ids == null || ids.contains(n['id']))) n['read'] = true; }
+      return ok({'ok': true});
+    }
+    if (path == '/v1/me/push/test') { final has = pushTokens.containsKey(me); return ok({'devices': has ? 1 : 0, 'thisPhone': has}); }
     if (path.startsWith('/v1/notifications') && m == 'DELETE') {
       final id = path.split('/').length > 3 ? path.split('/').last : null;
       notes.removeWhere((n) => n['to'] == me && (id == null || n['id'] == id));

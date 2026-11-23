@@ -207,7 +207,7 @@ statsRoutes.get('/player', async c => {
 
 // ---------------------------------------------------------------- P4: a title taken from you (Everyone board)
 const TITLE_NAMES: Record<TitleKey, string> = { best: 'Best player', mafia: 'Best Mafia', det: 'Best Detective', doc: 'Best Doctor', first: 'Most killed first' };
-export const TITLE_NOTE_TTL = 7 * DAY;
+export const TITLE_NOTE_TTL = 30 * DAY;  // N8
 
 /** After a game counts (or stops counting): works out the Everyone titles and tells anyone who lost one. */
 export async function refreshTitles(env: Env, deps: Pick<Deps, 'push' | 'now'>) {

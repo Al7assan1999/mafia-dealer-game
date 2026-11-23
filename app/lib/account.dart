@@ -110,6 +110,8 @@ class Account extends ChangeNotifier {
   List<Person> friends = [], incoming = [], outgoing = [];
   List<Note> notes = [];
   int unread = 0;
+  /// The note that just arrived live (N5 banner); null once it is gone.
+  final banner = ValueNotifier<Note?>(null);
   List<String>? names; // the account's saved names (null until loaded / signed out)
   Map<String, Object?>? setup;
 
@@ -260,6 +262,13 @@ class Account extends ChangeNotifier {
     unread = r['unread'] as int? ?? 0;
     notifyListeners();
   }
+  /// P5: a push to every device of mine. {devices, thisPhone}
+  Future<Map<String, Object?>> testPush() async { await _pushRegister(); return (await _try(() => api.post('/v1/me/push/test')))!; }
+  Future<void> markRead(List<String> ids) async {
+    if (ids.isEmpty) return;
+    await _try(() => api.post('/v1/notifications/read', {'ids': ids})).catchError((_) => null);
+    await loadNotes().catchError((_) {});
+  }
   Future<void> handled(String id, String result) async { await _try(() => api.post('/v1/notifications/$id/handled', {'result': result})).catchError((_) => null); await loadNotes(); }
   Future<void> readAll() async { if (unread == 0) return; await _try(() => api.post('/v1/notifications/read')); await loadNotes(); }
   Future<void> deleteNote(String? id) async { await _try(() => api.delete(id == null ? '/v1/notifications' : '/v1/notifications/$id')); await loadNotes(); }
@@ -402,8 +411,10 @@ class Account extends ChangeNotifier {
     switch (m['t']) {
       case 'unread': unread = m['n'] as int? ?? 0;
       case 'note':
-        notes = [Note(Map<String, Object?>.from(m['note'] as Map)), ...notes];
+        final n = Note(Map<String, Object?>.from(m['note'] as Map));
+        notes = [n, ...notes];
         unread++;
+        banner.value = n; // N5: shown on top while the app is open (the old app's banner)
         loadFriends().catchError((_) {}); // a request or an accept changes the lists
       case 'presence':
         for (final f in friends) {

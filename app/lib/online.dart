@@ -97,13 +97,13 @@ class ActiveRoom extends ChangeNotifier {
 
   RoomConn? conn;
   String code = '';
-  bool lanHost = false;
+  bool lanHost = false, lan = false;
   RoomScreen Function(RoomConn c)? _reopen; // the same room screen again, on the same connection
   VoidCallback? _onLeave; // Wi-Fi host: stop the server when the room is left for good
   bool get minimized => conn != null;
 
-  void hold(RoomConn c, String code, RoomScreen Function(RoomConn c) reopen, {bool lanHost = false, VoidCallback? onLeave}) {
-    conn = c; this.code = code; this.lanHost = lanHost; _reopen = reopen; _onLeave = onLeave;
+  void hold(RoomConn c, String code, RoomScreen Function(RoomConn c) reopen, {bool lanHost = false, bool lan = false, VoidCallback? onLeave}) {
+    conn = c; this.code = code; this.lanHost = lanHost; this.lan = lan; _reopen = reopen; _onLeave = onLeave;
     c.addListener(_watch);
     notifyListeners();
   }
@@ -155,6 +155,13 @@ class ActiveRoom extends ChangeNotifier {
   }
 }
 
+/// The online lobby I'm in right now: the room screen open, or the minimized one (null in a game, a Wi-Fi room, or none).
+RoomConn? onlineLobby() {
+  final c = _openRoom ?? (ActiveRoom.instance.lan ? null : ActiveRoom.instance.conn);
+  return c != null && c.room != null && c.view == null && c.bye == null ? c : null;
+}
+RoomConn? _openRoom; // the online room screen on top, while it's mounted
+
 /// While minimized, starting something else asks first. True when nothing is held (or it was left).
 Future<bool> leaveRoomFirst(BuildContext context) async {
   final a = ActiveRoom.instance;
@@ -167,8 +174,9 @@ Future<bool> leaveRoomFirst(BuildContext context) async {
 
 /// The room bar on every screen while minimized (MaterialApp.builder puts it above the pages).
 class RoomBarFrame extends StatelessWidget {
-  const RoomBarFrame({super.key, required this.child, this.onLongPress});
+  const RoomBarFrame({super.key, required this.child, this.onLongPress, this.account});
   final Widget child;
+  final Account? account; // the chat button (N7)
   final void Function(BuildContext context)? onLongPress; // P4: the friends drawer with Invite ready
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: ActiveRoom.instance, builder: (context, _) {
@@ -184,8 +192,11 @@ class RoomBarFrame extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(child: Text(mine ? l.roomBarHost(n) : l.roomBarIn((host?['display'] as String?) ?? '?', n),
                   style: TextStyle(color: C.priText, fontWeight: FontWeight.w700))),
-              if (c.unreadTotal > 0) Badge(label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.priText, size: 20)),
-              const SizedBox(width: 8),
+              // [N7] the room chat straight from Home, without going back to the room
+              if (account != null) IconButton(key: const Key('barChat'), visualDensity: VisualDensity.compact,
+                  icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.priText, size: 20)),
+                  onPressed: () => ActiveRoom.navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: account!, out: false, safety: !a.lan)))),
+              const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: C.priText),
             ])),
           ))),
@@ -236,6 +247,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _s = c.side.listen(_onSide);
     c.addListener(_changed);
     if (widget.existing == null) c.start();
+    if (!widget.lan) _openRoom = c;
     if (widget.lanHost) localAddresses().then((a) { if (mounted && a.isNotEmpty) setState(() => _myAddress = a.first); });
     _tick = Timer.periodic(const Duration(seconds: 1), (_) { _checkTimeUp(); if (mounted) setState(() {}); });
     WakelockPlus.enable().catchError((_) {});
@@ -246,6 +258,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _n?.cancel(); _s?.cancel(); _tick?.cancel(); _arm?.cancel();
     c.removeListener(_changed);
+    if (identical(_openRoom, c)) _openRoom = null;
     if (!_minimized) c.dispose(); // minimized: ActiveRoom keeps the connection
     audio.stop();
     audio.muted = false;
@@ -260,7 +273,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _minimized = true;
     final w = widget;
     ActiveRoom.instance.hold(c, w.code, (conn) => RoomScreen(account: w.account, prefs: w.prefs, audio: w.audio, code: w.code, connect: w.connect,
-        api: w.api, lan: w.lan, lanHost: w.lanHost, relocate: w.relocate, onClose: w.onClose, existing: conn), lanHost: w.lanHost, onLeave: w.onClose);
+        api: w.api, lan: w.lan, lanHost: w.lanHost, relocate: w.relocate, onClose: w.onClose, existing: conn), lanHost: w.lanHost, lan: w.lan, onLeave: w.onClose);
     Navigator.of(context).pop();
   }
 
@@ -274,7 +287,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _defaults = false;
   void _changed() {
     final err = c.error;
-    if (err != null && mounted && c.room != null) { toast(context, roomErr(L.of(context), err)); c.error = null; }
+    if (err != null && mounted && c.room != null) { toastErr(context, roomErr(L.of(context), err)); c.error = null; }
     final room = c.room;
     if (room != null && c.isHost && !_defaults) {
       _defaults = true;
@@ -527,7 +540,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   Widget _member(L l, Map<String, Object?> m, bool host) {
     final me = m['uid'] == c.myUid, av = Map<String, Object?>.from(m['avatar'] as Map);
-    return Padding(
+    // N2: in an online room every member is an account: a tap opens their profile
+    return InkWell(key: Key('member_${m['cn']}'), onTap: widget.lan ? null : () => openProfile(context, widget.account,
+        Person({'id': m['uid'], 'handle': m['handle'], 'display': m['display'], 'avatar': av, 'fav': '', 'rel': me ? 'me' : 'none'})), child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
         AvatarView(api: widget.account.api, id: m['uid'] as String, preset: av['preset'] as int?, photo: av['photo'] as int?, size: 36, online: m['online'] == true),
@@ -555,7 +570,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             },
           ),
       ]),
-    );
+    ));
   }
 
   Future<void> _inviteSheet(L l) async {

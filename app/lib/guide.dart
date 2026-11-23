@@ -2,11 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
+import 'intro.dart';
 import 'l10n/app_localizations.dart';
+import 'prefs.dart';
 import 'ui.dart';
 
 class GuideScreen extends StatelessWidget {
-  const GuideScreen({super.key});
+  const GuideScreen({super.key, this.prefs});
+  final Prefs? prefs; // for "Watch the intro" at the top
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +18,9 @@ class GuideScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(backgroundColor: C.bg, title: Text(l.howToPlay, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [Btn(l.gotIt, key: const Key('guideDone'), onTap: () => Navigator.of(context).pop())], children: [
+        if (prefs != null) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const Key('guideIntro'),
+            icon: Icon(Icons.play_circle_outline, color: C.red2), label: Text(l.sWatchIntro, style: TextStyle(color: C.red2)),
+            onPressed: () => showIntro(context, prefs!))),
         part(l.gGoalT, l.gGoal),
         Sec(title: l.gRolesT, child: Column(children: [
           for (final (r, d) in [(Role.mafia, l.dMafia), (Role.doctor, l.dDoctor), (Role.detective, l.dDetective), (Role.citizen, l.dCitizen)])

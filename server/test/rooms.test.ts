@@ -143,6 +143,19 @@ describe('the room', () => {
     await again.until(() => again.got(m => m.t === 'err' && m.error === 'kicked'), 'kicked');
   });
 
+  it('a kicked player stays out, until the host invites them back (Sprint 10 N5)', async () => {
+    const t = await table(4), [host, , , d] = t.players;
+    host.send({ t: 'kick', uid: t.accts[3].id });  // in the lobby: allowed
+    await d.until(() => d.got(m => m.t === 'bye' && m.why === 'kicked'), 'bye');
+    let again = await connect(`/v1/rooms/${t.code}/ws`, t.accts[3].token);
+    await again.until(() => again.got(m => m.t === 'err' && m.error === 'kicked'), 'still kicked');
+    await befriend(t.accts[0], t.accts[3]);
+    await DB().prepare('UPDATE users SET room_code = ? WHERE id = ?').bind(t.code, t.accts[0].id).run();  // the host is in this room
+    expect((await api('POST', '/v1/invites', t.accts[0].token, { userId: t.accts[3].id, code: t.code })).json).toMatchObject({ ok: true });
+    again = await connect(`/v1/rooms/${t.code}/ws`, t.accts[3].token);
+    await again.until(() => again.room?.members.some((m: any) => m.uid === t.accts[3].id), 'back in');
+  });
+
   it('the night timer skips unfinished turns, even with every phone gone; "continue" skips offline players', async () => {
     const t = await table(4), [host] = t.players;
     await deal(t, { rules: rules({ nightT: 30 }), counts: { mafia: 1, detective: 0 } });

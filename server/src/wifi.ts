@@ -12,7 +12,7 @@ import { ApiErr, body, card, DAY, HOUR, sha256, type AppEnv, type Deps, type Env
 
 export interface WifiRules { version: number; minPlayers: number; maxPlayers: number; minSecondsPerRound: number; maxAgeDays: number; perHostPerDay: number; confirmHours: number }
 const FALLBACK: WifiRules = { version: 1, minPlayers: 4, maxPlayers: 20, minSecondsPerRound: 60, maxAgeDays: 7, perHostPerDay: 10, confirmHours: 48 };
-export const RESULT_TTL = 7 * DAY;  // a decided request stays in the host's bell this long
+export const RESULT_TTL = 30 * DAY;  // a decided request stays in the host's bell this long (N8)
 
 export async function wifiRules(db: D1Database): Promise<WifiRules> {
   const r = await db.prepare("SELECT value FROM settings WHERE key = 'wifi_rules'").first<{ value: string }>();

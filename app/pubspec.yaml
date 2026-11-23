@@ -1,7 +1,7 @@
 name: mafia_dealer
 description: "Mafia Dealer: Party Game. The Mafia party game on one phone, over Wi-Fi or online."
 publish_to: 'none'
-version: 0.2.0+1
+version: 0.3.0+1
 
 environment:
   sdk: ^3.13.7
@@ -39,6 +39,7 @@ flutter:
   assets:
     - assets/voice/
     - assets/sfx/
+    - assets/intro/
     - assets/fonts/
   fonts:
     - family: Plex

@@ -174,7 +174,10 @@ void main() {
     await tapKey(t, 'bell');
     await settleUi(t);
     expect(find.text('wants to be your friend'), findsOneWidget);
-    expect(app.account.unread, 0, reason: 'opening the bell reads the notes');
+    await t.pump(const Duration(seconds: 3)); // the bell's "seen" moment
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await settleUi(t);
+    expect(app.account.unread, 0, reason: 'after a moment on screen the bell counts as read (N8)');
     await t.tapAt(const Offset(200, 40)); // close the sheet
     await settleUi(t);
     await tapKey(t, 'friends');

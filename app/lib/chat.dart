@@ -143,7 +143,7 @@ class _ChatState extends State<ChatScreen> {
   }
 
   Widget _bubble(L l, Map<String, Object?> m, {String? cid}) {
-    final mine = m['from'] == c.myCn, rtl = Directionality.of(context) == TextDirection.rtl;
+    final mine = m['from'] == c.myCn;
     final reply = m['reply'] == null ? null : c.chat[m['reply'] as int];
     final rx = ((m['rx'] as Map?) ?? const {}).entries.where((e) => (e.value as List).isNotEmpty).toList();
     final failed = cid != null && c.outbox[cid]?['failed'] == true;
@@ -166,14 +166,18 @@ class _ChatState extends State<ChatScreen> {
         ])),
       ]),
     );
-    Widget w = GestureDetector(
+    final w = GestureDetector(
       key: Key('msg_${m['id'] ?? cid}'),
       onLongPress: cid == null ? () => _menu(m) : null,
       onTap: failed ? () => c.retryChat(cid) : null,
-      // swipe toward the middle to reply: right in left-to-right, left in right-to-left
-      onHorizontalDragEnd: cid == null ? (d) { final v = d.primaryVelocity ?? 0; if (rtl ? v < -200 : v > 200) setState(() => replyTo = m); } : null,
       child: bubble,
     );
-    return Align(alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: w);
+    // [N3] swipe anywhere on the message's line, either direction, to reply (like Telegram and the old v2.19.1)
+    return GestureDetector(
+      key: Key('row_${m['id'] ?? cid}'),
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: cid == null ? (d) { if ((d.primaryVelocity ?? 0).abs() > 200) setState(() => replyTo = m); } : null,
+      child: SizedBox(width: double.infinity, child: Align(alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart, child: w)),
+    );
   }
 }

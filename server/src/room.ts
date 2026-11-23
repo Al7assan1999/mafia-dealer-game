@@ -193,6 +193,9 @@ export class Room extends DurableObject<Env> {
     const st = await this.load();
     if (!st) return Response.json(null, { status: 404 });
     if (req.headers.get('x-op') === 'blocks') { await this.loadBlocks(st); await this.save(st); return new Response(null, { status: 204 }); }
+    if (req.headers.get('x-op') === 'unkick') { // [N5] the host invited a kicked player back in
+      st.kicked = st.kicked.filter(u => u !== req.headers.get('x-uid')); await this.save(st); return new Response(null, { status: 204 });
+    }
     const id = Number(req.headers.get('x-id')), reporter = st.members.find(m => m.uid === req.headers.get('x-uid'));
     const chat = (await this.ctx.storage.get<ChatState>('chat')) ?? newChat(), msg = chat.msgs.find(m => m.id === id);
     if (!msg || !reporter || !canSee(msg, reporter.cn, this.who(st))) return Response.json(null, { status: 404 });

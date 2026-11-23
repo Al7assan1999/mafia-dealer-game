@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_dealer/account.dart';
 import 'package:mafia_dealer/game.dart';
+import 'package:mafia_dealer/intro.dart';
 
 import '../test/driver.dart';
 import '../test/fake_server.dart';
@@ -171,6 +172,18 @@ void main() {
     });
 
     for (final theme in ['noir', 'neon']) {
+      testWidgets('$lang $theme: Sprint 10 the intro, each scene at its moment', (t) async {
+        IntroScreen.ran = false;
+        await launch(t, size: const Size(393, 851), lang: lang, stored: {'introAtStart': true, 'theme': theme});
+        // (scene, when in it): dawn, CRACK!, the blood, the three roles, the title
+        for (final (i, at) in [(1, 3.0), (2, 1.85), (3, 3.4), (4, 3.0), (5, 1.6), (6, 3.2), (7, 1.6)]) {
+          for (var n = 0; n < (at * 10).round(); n++) { await t.pump(const Duration(milliseconds: 100)); }
+          await expectLater(find.byWidgetPredicate((w) => w is MaterialApp).first, matchesGoldenFile('../build/screens/${lang}_${theme}_8${i}_intro.png'));
+          if (i < 7) { await t.tap(find.byKey(const Key('intro'))); await t.pump(); }
+        }
+        await t.pumpWidget(const SizedBox());
+      });
+
       testWidgets('$lang $theme: Sprint 9 (Home with the tab, the drawer, Settings, the room bar)', (t) async {
         final s = FakeServer(), tok = s.user('Sami');
         for (final h in ['Dareer', 'Hokan', 'Halawy']) { s.user(h); }

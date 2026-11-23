@@ -91,16 +91,13 @@ class _Drawer extends StatefulWidget {
 class _DrawerState extends State<_Drawer> {
   final _sent = <String, DateTime>{}; // Invited / Asked for 5 s, then "again" (the old app's rule)
 
-  RoomConn? get _room => widget.room ?? ActiveRoom.instance.conn;
-  /// My online lobby I can invite into (not a Wi-Fi room, not a game).
-  String? get _lobby {
-    final r = _room, code = widget.account.roomCode;
-    return r != null && r.room != null && r.view == null && code != null && r.code == code ? code : null;
-  }
+  RoomConn? get _room => widget.room ?? onlineLobby();
+  /// [N6] my online lobby, from the room actually on screen (or minimized), not from the server's view that lags behind
+  String? get _lobby => onlineLobby()?.code ?? (widget.room != null && widget.room!.view == null ? widget.room!.code : null);
 
   Future<void> _do(String id, Future<void> Function() f) async {
     final l = L.of(context);
-    try { await f(); if (mounted) setState(() => _sent[id] = DateTime.now()); } catch (e) { if (mounted) toast(context, errText(l, e)); }
+    try { await f(); if (mounted) setState(() => _sent[id] = DateTime.now()); } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
   }
   bool _recent(String id) => _sent[id] != null && DateTime.now().difference(_sent[id]!) < const Duration(seconds: 5);
 
@@ -111,18 +108,18 @@ class _DrawerState extends State<_Drawer> {
       final code = await widget.account.createRoom();
       nav.pop();
       nav.push(MaterialPageRoute(builder: (_) => RoomScreen(account: widget.account, prefs: widget.prefs, audio: widget.audio, code: code, inviteOnJoin: f.id)));
-    } catch (e) { if (mounted) toast(context, errText(l, e)); }
+    } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: widget.account, builder: (context, _) {
         final l = L.of(context), a = widget.account, lobby = _lobby, inRoom = {for (final m in _room?.members ?? const []) m['uid']};
         final friends = [...a.friends]..sort((x, y) => (y.online ? 1 : 0) - (x.online ? 1 : 0));
-        final noRoom = _room == null && a.roomCode == null;
+        final noRoom = _room == null && a.roomCode == null && ActiveRoom.instance.conn == null;
         Widget action(Person f) {
           if (lobby != null && inRoom.contains(f.id)) return Text(l.inYourRoom, key: Key('inRoom_${f.handle}'), style: TextStyle(color: C.green, fontSize: 12));
           if (lobby != null) return TextButton(key: Key('dInvite_${f.handle}'), onPressed: () => _do(f.id, () => a.invite(f.id, lobby)), child: Text(_recent(f.id) ? l.invited : l.invite));
-          if (f.online && f.status == 'lobby' && f.j['op'] == true) {
+          if (noRoom && f.online && f.status == 'lobby' && f.j['op'] == true) { // only when I'm in no room (N6)
             return TextButton(key: Key('dAsk_${f.handle}'), onPressed: () => _do(f.id, () => a.askToJoin(f.id)), child: Text(_recent(f.id) ? l.asked : l.askJoin));
           }
           if (noRoom && f.online) return TextButton(key: Key('dInviteNew_${f.handle}'), onPressed: () => _inviteNew(f), child: Text(l.invite));
@@ -153,6 +150,7 @@ class _DrawerState extends State<_Drawer> {
               if (friends.isEmpty) Padding(padding: const EdgeInsets.all(20), child: Text(l.fAdd, textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
               for (final f in friends)
                 ListTile(key: Key('dFriend_${f.handle}'), contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  onTap: () { Navigator.of(context).pop(); openProfile(context, a, f); }, // N2
                   leading: AvatarView.of(a.api, f, size: 36, online: f.online),
                   title: Text(f.display, style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Text(!f.online ? l.fOffline : f.status == 'game' ? l.fInGame : f.status == 'lobby' ? l.fInRoom : l.fOnline,

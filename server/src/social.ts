@@ -6,7 +6,7 @@ import { dismissWifi, expire, readWifi, wifiNotes } from './wifi.ts';
 import { bellNotes, dismissBell, readBell, refreshTitles } from './stats.ts';
 import { allow, ApiErr, body, card, HOUR, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
-export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3, HISTORY_MS = 24 * HOUR;
+export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3, BELL_KEEP_MS = 30 * 24 * HOUR, BELL_MAX = 200;
 
 const friendsWith = async (c: Ctx, other: string) => {
   const [a, b] = c.var.user.id < other ? [c.var.user.id, other] : [other, c.var.user.id];
@@ -54,10 +54,12 @@ invites.post('/', async c => {
   await inviteLimit(c, now);
   await db.batch([
     // their request to me is answered (kept in my bell as "Let in"); my older invites to them are replaced
-    db.prepare("UPDATE notifications SET handled_at = ?3, result = 'let_in' WHERE kind = 'join_request' AND from_id = ?1 AND user_id = ?2 AND handled_at IS NULL").bind(userId, me.id, now),
+    db.prepare("UPDATE notifications SET handled_at = ?3, result = 'let_in', read_at = COALESCE(read_at, ?3) WHERE kind = 'join_request' AND from_id = ?1 AND user_id = ?2 AND handled_at IS NULL").bind(userId, me.id, now),
     db.prepare("DELETE FROM notifications WHERE kind IN ('invite', 'let_in') AND from_id = ?2 AND user_id = ?1 AND room_code = ?3").bind(userId, me.id, code),
   ]);
   await notify(c.env, c.var.deps, userId, me, kind, code, now);
+  // [N5] an invite from the room lets a player kicked from it back in
+  await c.env.ROOM.get(c.env.ROOM.idFromName(code)).fetch('https://room/op', { method: 'POST', headers: { 'x-op': 'unkick', 'x-uid': userId } }).catch(() => null);
   return c.json({ ok: true, letIn: !!asked });
 });
 
@@ -78,17 +80,22 @@ joinRequests.post('/', async c => {
 
 export const notes = new Hono<AppEnv>();
 notes.get('/', async c => {
-  const now = c.var.deps.now();
+  const now = c.var.deps.now(), db = c.env.DB, uid = c.var.user.id;
+  // [N8] at most 200 per account: beyond that, the oldest answered or lapsed ones go first, then the oldest
+  await db.prepare(`DELETE FROM notifications WHERE user_id = ?1 AND (created_at <= ?2 - ?3 OR id IN (
+      SELECT id FROM notifications WHERE user_id = ?1 ORDER BY (handled_at IS NULL AND expires_at > ?2) ASC, created_at ASC
+      LIMIT MAX(0, (SELECT COUNT(*) FROM notifications WHERE user_id = ?1) - ?4)))`).bind(uid, now, BELL_KEEP_MS, BELL_MAX).run();
   const { results } = await c.env.DB.prepare(
-    // live items, plus handled or expired ones for 24 h (read-only, with their result)
+    // [N8] everything from the last 30 days stays (answered ones with their result, lapsed invites as Expired) until Cleared
     `SELECT n.id AS nid, n.kind, n.room_code, n.created_at AS nat, n.expires_at, n.read_at, n.handled_at, n.result, u.* FROM notifications n JOIN users u ON u.id = n.from_id
-     WHERE n.user_id = ?1 AND ((n.handled_at IS NULL AND n.expires_at > ?2) OR n.handled_at > ?2 - ?3 OR (n.handled_at IS NULL AND n.expires_at <= ?2 AND n.expires_at > ?2 - ?3))  -- [QA] S9 #1: a day after it lapses
-     ORDER BY n.created_at DESC LIMIT 50`).bind(c.var.user.id, now, HISTORY_MS)
+     WHERE n.user_id = ?1 AND n.created_at > ?2 - ?3
+     ORDER BY n.created_at DESC LIMIT ?4`).bind(c.var.user.id, now, BELL_KEEP_MS, BELL_MAX)
     .all<UserRow & { nid: string; kind: Notification['kind']; room_code: string | null; nat: number; expires_at: number; read_at: number | null; handled_at: number | null; result: Notification['result'] }>();
   await expire(c.env, c.var.deps, now);
   const list: Notification[] = [...results.map(r => {
-    const result = r.handled_at != null ? r.result : r.expires_at <= now ? 'expired' as const : null;
-    return { id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null || result != null, result };
+    const lapses = r.kind === 'invite' || r.kind === 'join_request' || r.kind === 'let_in';  // a friend request waits until answered
+    const result = r.handled_at != null ? r.result : lapses && r.expires_at <= now ? 'expired' as const : null;
+    return { id: r.nid, kind: r.kind, from: card(r, 'none'), code: r.room_code, at: r.nat, expiresAt: r.expires_at, read: r.read_at != null, result };
   }),
     ...await wifiNotes(c.env.DB, c.var.user.id, now), ...await bellNotes(c.env.DB, c.var.user.id, now)].sort((a, b) => b.at - a.at);
   return c.json({ notifications: list, unread: list.filter(n => !n.read).length });
@@ -110,7 +117,7 @@ notes.post('/:id/handled', async c => {
 });
 /** Clear: everything already handled or expired (anything still waiting for an answer stays). */
 notes.delete('/', async c => {
-  await c.env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND (handled_at IS NOT NULL OR expires_at <= ? OR kind = 'friend_accept')").bind(c.var.user.id, c.var.deps.now()).run();
+  await c.env.DB.prepare("DELETE FROM notifications WHERE user_id = ? AND (handled_at IS NOT NULL OR kind = 'friend_accept' OR (kind IN ('invite', 'join_request', 'let_in') AND expires_at <= ?))").bind(c.var.user.id, c.var.deps.now()).run();
   await dismissWifi(c.env.DB, c.var.user.id, null);
   await dismissBell(c.env.DB, c.var.user.id, null);
   return c.json({ ok: true });
@@ -120,8 +127,8 @@ notes.delete('/:id', async c => {
   if (id.startsWith('w:')) { await dismissWifi(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
   if (id.startsWith('b:')) { await dismissBell(c.env.DB, c.var.user.id, id.slice(2)); return c.json({ ok: true }); }
   // ✕ on a live item = Dismissed (kept 24 h); on a handled one it goes for good
-  const r = await c.env.DB.prepare("UPDATE notifications SET handled_at = ?, result = 'dismissed' WHERE id = ? AND user_id = ? AND handled_at IS NULL AND expires_at > ?")
-    .bind(c.var.deps.now(), id, c.var.user.id, c.var.deps.now()).run();
+  const r = await c.env.DB.prepare("UPDATE notifications SET handled_at = ?, result = 'dismissed', read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ? AND handled_at IS NULL")
+    .bind(c.var.deps.now(), c.var.deps.now(), id, c.var.user.id).run();
   if (r.meta.changes) return c.json({ ok: true });
   await c.env.DB.prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?').bind(c.req.param('id'), c.var.user.id).run();
   return c.json({ ok: true });

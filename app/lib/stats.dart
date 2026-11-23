@@ -165,9 +165,10 @@ class _StatsState extends State<StatsScreen> {
 
 /// A player's profile (S8-2): the old app's, plus the best partner and a card to share.
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.account, required this.playerKey, this.filter = const StatsFilter()});
+  const PlayerScreen({super.key, required this.account, required this.playerKey, this.filter = const StatsFilter(), this.person});
   final Account account;
   final String playerKey;
+  final Person? person; // [N2] a friend or a player: their card shows even with no games yet
   final StatsFilter filter;
   @override
   State<PlayerScreen> createState() => _PlayerState();
@@ -176,6 +177,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerState extends State<PlayerScreen> {
   Map<String, Object?>? p;
   String? error;
+  bool none = false; // no counted games (yet)
   final _card = GlobalKey();
 
   @override
@@ -184,7 +186,10 @@ class _PlayerState extends State<PlayerScreen> {
     final f = widget.filter;
     widget.account.player(widget.playerKey, board: f.board, source: f.source, days: f.days)
         .then((x) { if (mounted) setState(() => p = x); })
-        .catchError((Object e) { if (mounted) setState(() => error = errText(L.of(context), e)); });
+        .catchError((Object e) {
+          if (!mounted) return;
+          setState(() => e is ApiError && e.code == 'not_found' ? none = true : error = errText(L.of(context), e));
+        });
   }
 
   /// P3: the profile card as a picture, to the share sheet.
@@ -202,16 +207,34 @@ class _PlayerState extends State<PlayerScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), x = p;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(x?['name'] as String? ?? '', style: head.copyWith(fontSize: 20)), actions: [
+      appBar: AppBar(backgroundColor: C.bg, title: Text(x?['name'] as String? ?? widget.person?.display ?? '', style: head.copyWith(fontSize: 20)), actions: [
         if (x != null) IconButton(key: const Key('shareProfile'), tooltip: l.shareProfile, icon: Icon(Icons.ios_share, color: C.mute), onPressed: _share),
       ]),
-      body: error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
+      body: none ? _nobody(l)
+          : error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
           : x == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : ListView(padding: const EdgeInsets.all(16), children: [
               RepaintBoundary(key: _card, child: Container(color: C.bg, child: _card_(l, x))),
               ..._rest(l, x),
             ]),
     );
+  }
+
+  /// A player with no counted games: their card and "No games yet".
+  Widget _nobody(L l) {
+    final f = widget.person;
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      if (f != null) Row(children: [
+        AvatarView.of(widget.account.api, f, size: 56, online: f.rel == 'friends' ? f.online : null),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(f.display, style: head.copyWith(fontSize: 22)),
+          if (f.handle != null) Text(atHandle(f.handle), style: TextStyle(color: C.mute)),
+          if (f.fav.isNotEmpty) Text(roleName(l, Role.values.byName(f.fav)), style: TextStyle(color: roleColor(Role.values.byName(f.fav)))),
+        ])),
+      ]),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 40), child: Text(l.noGamesYet, key: const Key('noGamesYet'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
+    ]);
   }
 
   /// The shareable part: who, the win rate and the four headline numbers.
@@ -343,7 +366,7 @@ class _ImportState extends State<ImportScreen> {
             for (final n in list)
               ChoiceChip(key: Key('claim_${n['name']}'), label: Text(n['taken'] == true ? '${n['name']} · ${l.nameTaken}' : n['name'] as String),
                   selected: mine == n['name'], onSelected: n['taken'] == true ? null : (_) async {
-                    try { await widget.account.claimOldName(n['name'] as String); await _names(); } catch (e) { if (context.mounted) toast(context, errText(l, e)); }
+                    try { await widget.account.claimOldName(n['name'] as String); await _names(); } catch (e) { if (context.mounted) toastErr(context, errText(l, e)); }
                   }),
           ]),
         ])),

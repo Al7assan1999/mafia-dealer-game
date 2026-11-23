@@ -11,7 +11,7 @@ export interface PushMsg { token: string; title: string; body: string; channel: 
 /** Sends pushes; returns the tokens FCM says are gone (the app was uninstalled), which are then deleted. */
 export type PushSender = (env: Env, msgs: PushMsg[]) => Promise<string[]>;
 
-export type PushKind = 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'approved' | 'declined' | 'expired' | 'title_lost';
+export type PushKind = 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'approved' | 'declined' | 'expired' | 'title_lost' | 'test';
 const RLM = String.fromCharCode(0x200f);  // keeps an Arabic line right-to-left when it starts with a Latin name
 const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => string>> = {
   en: {
@@ -25,6 +25,7 @@ const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => st
     declined: () => 'Your Wi-Fi game was not added: a player said Not me',
     expired: () => 'Your Wi-Fi game was not added: not everyone confirmed in time',
     title_lost: (n, t) => `${n} took ${t} from you`,
+    test: () => 'Notifications work on this phone ✓',
   },
   ar: {
     invite: (n, c) => `${RLM}${n} دعاك إلى الغرفة ${c}`,
@@ -37,12 +38,13 @@ const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => st
     declined: () => 'لم تُضف لعبة الواي فاي: أحد اللاعبين قال «لست أنا»',
     expired: () => 'لم تُضف لعبة الواي فاي: لم يؤكد الجميع في الوقت المحدد',
     title_lost: (n, t) => `${RLM}${n} أخذ منك لقب ${TITLE_AR[t] ?? t}`,
+    test: () => 'الإشعارات تعمل على هذا الهاتف ✓',
   },
 };
 const TITLE_AR: Record<string, string> = { 'Best player': 'أفضل لاعب', 'Best Mafia': 'أفضل مافيا', 'Best Detective': 'أفضل محقق', 'Best Doctor': 'أفضل طبيب', 'Most killed first': 'الأكثر قتلًا أولًا' };
 const CHANNEL: Record<PushKind, PushMsg['channel']> = {
   invite: 'invites', join_request: 'invites', let_in: 'invites', friend_request: 'friends', friend_accept: 'friends',
-  wifi_confirm: 'approvals', approved: 'approvals', declined: 'approvals', expired: 'approvals', title_lost: 'titles',
+  wifi_confirm: 'approvals', approved: 'approvals', declined: 'approvals', expired: 'approvals', title_lost: 'titles', test: 'friends',
 };
 
 /** Pushes to every device of `uid`. `tag` makes a newer push replace an older one (one per sender and kind). */
@@ -96,6 +98,13 @@ pushRoutes.put('/', async c => {
       .bind(c.var.sid, c.var.user.id, token, lang, now),
   ]);
   return c.json({ ok: true });
+});
+/** P5: "Send me a test notification": a push to every device of mine, whether the app is open or not. */
+pushRoutes.post('/test', async c => {
+  const n = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM push_tokens WHERE user_id = ?').bind(c.var.user.id).first<{ n: number }>();
+  const mine = await c.env.DB.prepare('SELECT 1 FROM push_tokens WHERE session_id = ?').bind(c.var.sid).first();
+  await sendPush(c.env, c.var.deps, c.var.user.id, 'test', { tag: 'test', data: {} });
+  return c.json({ devices: n?.n ?? 0, thisPhone: !!mine });
 });
 pushRoutes.delete('/', async c => {
   await c.env.DB.prepare('DELETE FROM push_tokens WHERE session_id = ?').bind(c.var.sid).run();

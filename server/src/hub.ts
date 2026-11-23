@@ -4,9 +4,10 @@ import { DurableObject } from 'cloudflare:workers';
 import type { HubOut, Notification } from '@mafia/protocol';
 import { card, presenceOf, type Deps, type Env, type UserRow } from './lib.ts';
 import { sendPush } from './push.ts';
+import { BELL_KEEP_MS } from './social.ts';
 import { wifiNotes } from './wifi.ts';
 
-export const INVITE_TTL = 30 * 60e3, NOTE_TTL = 7 * 24 * 3600e3;
+export const INVITE_TTL = 30 * 60e3, NOTE_TTL = 7 * 24 * 3600e3, HUB_STALE_MS = 30e3;
 
 export class Hub extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -22,18 +23,26 @@ export class Hub extends DurableObject<Env> {
       const first = this.ctx.getWebSockets().length === 0;
       await this.ctx.storage.put('uid', uid);
       this.ctx.acceptWebSocket(server);
+      server.serializeAttachment({ at: Date.now() });
       if (first) await setOnline(this.env, uid, true);
       server.send(JSON.stringify({ t: 'unread', n: await unread(this.env.DB, uid, Date.now()) } satisfies HubOut));
       return new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': 'mafia.v1' } });
     }
     // internal: send a message to this person's open app(s); answers how many got it (0 = the app is closed)
     const msg = await req.text();
+    // [N4] a phone swiped away or out of signal leaves its socket "open" for a while: only one heard from in the last 30 s
+    // (the app pings every 10 s, answered by Cloudflare) counts as an open app; a silent one is closed and the push goes out
     let open = 0;
-    for (const ws of this.ctx.getWebSockets()) try { if (ws.readyState === WebSocket.OPEN) { ws.send(msg); open++; } } catch { /* closing */ }
+    const now = Date.now();
+    for (const ws of this.ctx.getWebSockets()) try {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      if (now - this.seen(ws) > HUB_STALE_MS) { try { ws.close(4001, 'stale'); } catch { /* gone */ } continue; }
+      ws.send(msg); open++;
+    } catch { /* closing */ }
     return Response.json({ open });
   }
   async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer) {
-    if (msg === 'ping') ws.send('pong');  // normally answered by Cloudflare before it gets here
+    if (msg === 'ping') { ws.send('pong'); ws.serializeAttachment({ at: Date.now() }); }  // normally answered by Cloudflare before it gets here
   }
   async webSocketClose(ws: WebSocket, code: number) {
     try { ws.close(code === 1005 ? 1000 : code, 'bye'); } catch { /* already closed */ }
@@ -42,6 +51,11 @@ export class Hub extends DurableObject<Env> {
     }
   }
   async webSocketError(ws: WebSocket) { await this.webSocketClose(ws, 1011); }
+  /** When this socket last showed life: connected, or answered a ping (Cloudflare's auto-response keeps the time). */
+  private seen(ws: WebSocket) {
+    const a = ws.deserializeAttachment() as { at?: number } | null;
+    return Math.max(a?.at ?? 0, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0);
+  }
   /** The hub's account id (its name). Kept in storage so it survives hibernation. */
   private async uid() { return this.ctx.storage.get<string>('uid'); }
 }
@@ -54,7 +68,7 @@ export async function pushTo(env: Env, uid: string, msg: HubOut) {
 
 /** Unread bell items: notes plus the Wi-Fi confirmations and results. */
 export async function unread(db: D1Database, uid: string, now: number) {
-  const n = await db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND handled_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
+  const n = await db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND created_at > ?').bind(uid, now - BELL_KEEP_MS).first<{ n: number }>();
   const b = await db.prepare('SELECT COUNT(*) AS n FROM bell_notes WHERE user_id = ? AND read_at IS NULL AND expires_at > ?').bind(uid, now).first<{ n: number }>();
   return (n?.n ?? 0) + (b?.n ?? 0) + (await wifiNotes(db, uid, now)).filter(x => !x.read).length;
 }
