@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mafia_dealer/core/api.dart';
 
@@ -15,10 +16,21 @@ abstract class TokenStore {
 
 class SecureTokens implements TokenStore {
   static const _s = FlutterSecureStorage();
+  // [hotfix 0.4.9] On some phones Android's secure storage fails quietly (his: signed out at every start, a new "device"
+  // per sign-in). The session is also kept in the app's private storage and read from there when secure storage fails.
+  // ponytail: app-private, not encrypted; drop the copy once secure storage is proven on his phone.
   @override
-  Future<String?> read() async { try { return await _s.read(key: 'session'); } catch (_) { return null; } }
+  Future<String?> read() async {
+    String? t;
+    try { t = await _s.read(key: 'session'); } catch (_) {}
+    return t ?? (await SharedPreferences.getInstance()).getString('session');
+  }
   @override
-  Future<void> write(String? t) async { try { t == null ? await _s.delete(key: 'session') : await _s.write(key: 'session', value: t); } catch (_) {} }
+  Future<void> write(String? t) async {
+    try { t == null ? await _s.delete(key: 'session') : await _s.write(key: 'session', value: t); } catch (_) {}
+    final p = await SharedPreferences.getInstance();
+    t == null ? await p.remove('session') : await p.setString('session', t);
+  }
 }
 
 class MemoryTokens implements TokenStore {
