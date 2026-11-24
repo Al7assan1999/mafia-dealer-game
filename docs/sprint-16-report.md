@@ -5,15 +5,15 @@ Emulator shots: `docs/qa/journey16/` (k01-k05).
 
 ## Rollback
 Each proposal is its own change, to be committed as its own commit, so one can be undone without the others:
-`git revert <that commit>`, then a release. The table gets the commit ids when they're committed.
+`git revert <commit>`, then a release.
 
-| # | Change | Files |
-| --- | --- | --- |
-| S16-1 | Side tabs clear of the lobby's controls | `room_lobby.dart` |
-| S16-2 | Wi-Fi "Your name" card and tip | `wifi_screen.dart`, ARB (`wifiNameTip`) |
-| S16-3 | How to Play: the game options | `guide_screen.dart`, ARB (`gOptions`) |
-| S16-4 | Done after signing in | `profile_screen.dart`, `sign_in_screen.dart`, ARB (`aDone`) |
-| S16-5 | Readable role colours on the paper recap | `recap_card.dart` |
+| # | Commit | Change | Files |
+| --- | --- | --- | --- |
+| S16-1 | `f6b1d4b` | Side tabs clear of the lobby's controls | `room_lobby.dart` |
+| S16-2 | `256424e` | Wi-Fi "Your name" card and tip | `wifi_screen.dart`, ARB (`wifiNameTip`) |
+| S16-3 | `7e63675` | How to Play: the game options | `guide_screen.dart`, ARB (`gOptions`) |
+| S16-4 | `2275ff6` | Done after signing in | `profile_screen.dart`, `sign_in_screen.dart`, ARB (`aDone`) |
+| S16-5 | `bab2029` | Readable role colours on the paper recap | `recap_card.dart` |
 
 Each one's test is in its own file (`test/s16_*_test.dart`; S16-4's in `account_test.dart`) and in the same commit,
 so a revert takes its test out with it. Checked before committing: each of the five reverses cleanly on top of all the
