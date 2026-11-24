@@ -5,7 +5,7 @@ import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/features/intro/intro_screen.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
-// How to play: the goal, the roles, night, day, tips (English + Arabic). Offered once on first launch.
+// How to play: the goal, the roles, night, day, table rules, suggested setup, tips (English + Arabic). Offered once on first launch.
 
 class GuideScreen extends StatelessWidget {
   const GuideScreen({super.key, this.prefs});
@@ -35,6 +35,8 @@ class GuideScreen extends StatelessWidget {
         ])),
         part(l.gNightT, l.gNight),
         part(l.gDayT, l.gDay),
+        part(l.gTableT, l.gTable), // [S15] the old guide's table rules and suggested setup
+        part(l.gSetupT, l.gSetup),
         part(l.gTipsT, l.gTips),
       ]),
     );

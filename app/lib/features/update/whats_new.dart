@@ -54,7 +54,8 @@ Future<void> whatsNewSheet(BuildContext context, Updater u, {List<String> fallba
   final rels = list.isNotEmpty ? list : [if (fallback.isNotEmpty) ReleaseNote(appVersion, appBuild, null, fallback)];
   if (rels.isEmpty) { toast(context, l.noNotes); return; }
   final newer = u.latest, loc = Localizations.localeOf(context).languageCode;
-  String day(DateTime d) => DateFormat('d MMM y', loc).format(d); // "20 Nov 2026", as the old app
+  // "20 Nov 2026", as the old app; [S15] the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)
+  String day(DateTime d) => '${d.day} ${DateFormat.MMM(loc).format(d)} ${d.year}';
   await showDialog(context: context, builder: (ctx) => Dialog(
     key: const Key('whatsNewSheet'), backgroundColor: C.card, insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
     shape: RoundedRectangleBorder(side: BorderSide(color: C.line), borderRadius: BorderRadius.circular(C.neon ? 22 : 6)),

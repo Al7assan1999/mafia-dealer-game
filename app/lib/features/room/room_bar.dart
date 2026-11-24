@@ -29,7 +29,7 @@ class RoomBarFrame extends StatelessWidget {
         final l = L.of(context), ms = c.members, host = ms.where((m) => m['host'] == true).firstOrNull, n = ms.where((m) => m['online'] != false).length;
         final mine = c.isHost, lost = c.link == Link.down;
         return Column(children: [
-          Material(color: C.red, elevation: 6, shadowColor: Colors.black, child: SafeArea(bottom: false, child: InkWell(
+          Semantics(container: true, child: Material(color: C.red, elevation: 6, shadowColor: Colors.black, child: SafeArea(bottom: false, child: InkWell(
             key: const Key('roomBar'), onTap: a.reopen, onLongPress: onLongPress == null ? null : () => onLongPress!(context),
             // [S13-2 / #18] as the old app's bar: a live dot, who and how many, a clear "Back to room →", and a dropped
             // connection said in the bar itself
@@ -45,11 +45,12 @@ class RoomBarFrame extends StatelessWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text(l.rbBack, style: TextStyle(color: C.priText, fontWeight: FontWeight.w800, fontSize: 13)),
                   const SizedBox(width: 2),
-                  Icon(Directionality.of(context) == TextDirection.rtl ? Icons.arrow_back : Icons.arrow_forward, color: C.priText, size: 16),
+                  Icon(Icons.arrow_forward, color: C.priText, size: 16), // mirrors itself in Arabic
                 ])),
             ])),
-          ))),
-          Expanded(child: MediaQuery.removePadding(context: context, removeTop: true, child: child)),
+          )))),
+          // [QA] S15: the pages get their own semantics container: a page's BlockSemantics dropped the bar for TalkBack
+          Expanded(child: Semantics(container: true, child: MediaQuery.removePadding(context: context, removeTop: true, child: child))),
         ]);
       });
 }

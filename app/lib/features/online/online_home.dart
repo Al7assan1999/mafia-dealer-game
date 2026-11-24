@@ -66,17 +66,16 @@ class _OnlineHomeState extends State<OnlineHome> {
             if (mounted) setState(() => busy = false);
           }),
           const SizedBox(height: 22),
-          Text(l.joinCode, style: head.copyWith(fontSize: 18)),
-          const SizedBox(height: 8),
-          Row(children: [
+          // [S15] as the old app: the join in its own card, with a 000000 hint (the spaced-out "6-digit code" read badly)
+          Sec(title: l.joinCode, child: Row(children: [
             Expanded(child: TextField(key: const Key('roomCode'), controller: code, maxLength: 6, keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(hintText: l.codeHint, counterText: '', helperText: code.text.isNotEmpty && code.text.length < 6 ? l.code6 : null),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], textAlign: TextAlign.center,
+                decoration: InputDecoration(hintText: '000000', hintStyle: head.copyWith(fontSize: 22, letterSpacing: 6, color: C.dim), counterText: '', helperText: code.text.isNotEmpty && code.text.length < 6 ? l.code6 : null),
                 style: head.copyWith(fontSize: 22, letterSpacing: 6))),
             const SizedBox(width: 10),
             FilledButton(key: const Key('joinRoom'), style: FilledButton.styleFrom(backgroundColor: C.red),
                 onPressed: code.text.length == 6 && !busy ? _join : null, child: Text(l.join)), // S12-2: off until 6 digits
-          ]),
+          ])),
         ],
         if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, key: const Key('error'), style: TextStyle(color: C.red2))),
       ]),

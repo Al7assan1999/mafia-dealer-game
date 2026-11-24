@@ -463,7 +463,6 @@
   "onlineSub": "Friends anywhere. Join with a 6-digit room code.",
   "createRoom": "Create a room",
   "joinCode": "Join with a code",
-  "codeHint": "6-digit code",
   "join": "Join",
   "roomCode": "Room {c}",
   "@roomCode": {
@@ -632,6 +631,7 @@
   "editMsg": "Edit",
   "edited": "edited",
   "save": "Save",
+  "send": "Send",
   "outOnlyNote": "You are out: only players who are out see what you write here.",
   "mentionedYou": "{n} mentioned you",
   "@mentionedYou": {
@@ -744,7 +744,11 @@
   "gDayT": "Day and reveals",
   "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
   "gTipsT": "Tips",
-  "gTips": "Keep your role secret. Out players stay quiet. One phone for the table, or each on their own phone online.",
+  "gTips": "Keep your role secret. One phone for the table, or each on their own phone online.",
+  "gTableT": "Table rules",
+  "gTable": "Out players stay silent and don't hint at their role. Never show your screen, and never look at someone else's turn. You may claim any role out loud, true or false: lying is part of the game.",
+  "gSetupT": "Suggested setup",
+  "gSetup": "4-5 players: 1 Mafia, 1 Doctor. 6-9 players: 2 Mafia, 1 Doctor, 1 Detective. 10-13 players: 3 Mafia, 1 Doctor, 1 Detective. About one Mafia for every four players; the setup screen suggests it for you.",
   "gotIt": "Got it",
   "wifi": "Wi‑Fi / Hotspot",
   "wifiSub": "Same Wi-Fi or a phone hotspot. No internet needed.",
@@ -1299,7 +1303,7 @@
       }
     }
   },
-  "searchHint": "Search by name or @username",
+  "searchHint": "Name or @username",
   "searchMin": "Type 2 letters or more of a name or an @username.",
   "searchNone": "Nobody found for \"{q}\"",
   "@searchNone": {

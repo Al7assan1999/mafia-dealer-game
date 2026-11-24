@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/guide/guide_screen.dart';
 import 'package:mafia_dealer/features/history/history_screen.dart';
 import 'package:mafia_dealer/features/offline/recap_card.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
@@ -12,6 +13,7 @@ import 'driver.dart';
 import 'fake_server.dart';
 import 'harness.dart';
 import 'online_test.dart' show frames, openRoom, roomMsg, view;
+import 'sprint10_fixes_test.dart' show roomShell;
 
 void main() {
   setUpAll(setUpHarness);
@@ -39,6 +41,13 @@ void main() {
     final dead = t.widget<Text>(find.text('Dareer'));
     expect(dead.style?.decoration, TextDecoration.lineThrough);
     expect(find.text('Day 1: Dareer out'), findsOneWidget);
+    // [QA] S15 Arabic pass: the date came in Arabic-Indic digits (٢٤ … ٢٠٢٦) next to 0-9 everywhere else
+    await t.pumpWidget(MaterialApp(locale: const Locale('ar'), supportedLocales: L.supportedLocales, localizationsDelegates: L.localizationsDelegates,
+        home: Scaffold(body: SingleChildScrollView(child: RecapCard(mafia: true, days: 1, players: const [(name: 'Dareer', role: Role.mafia, alive: true)],
+            best: null, lines: const [])))));
+    await frames(t, 2);
+    final now = DateTime.now();
+    expect(find.textContaining(RegExp('^${now.day} .+ ${now.year}\$')), findsOneWidget);
   });
 
   testWidgets('S15-5: History: search by a player\'s name, the Winner filter, the count; a name nobody had: none', (t) async {
@@ -74,5 +83,46 @@ void main() {
     r.last.push(view(2, 'night', extra: {'day': 2, 'roster': [for (var i = 0; i < 4; i++) {'name': 'P${i + 1}', 'alive': i != 3}]}));
     await frames(t);
     expect(find.text('Round 2 · 3/4 alive'), findsOneWidget);
+  });
+
+  // [QA] S15 emulator pass: TalkBack found neither the red room bar (the page above it hid it) nor the chat's Send
+  testWidgets('the room bar and the chat Send button have labels a screen reader finds', (t) async {
+    final h = t.ensureSemantics();
+    await roomShell(t, (s, me) {});
+    await tapKey(t, 'chat');
+    await frames(t);
+    expect(find.byTooltip('Send'), findsOneWidget);
+    await t.binding.handlePopRoute();
+    await frames(t);
+    await tapKey(t, 'minimize');
+    await frames(t);
+    final bar = t.getSemantics(find.byKey(const Key('roomBar')));
+    expect(bar.getSemanticsData().label, contains('Back to room'));
+    expect(bar.rect.height, lessThan(120), reason: 'its own node, not the whole screen (the emulator showed [0,0][1080,2337])');
+    await tapKey(t, 'roomBar'); // back in the room, so the teardown's leave closes it
+    await frames(t);
+    h.dispose();
+  });
+
+  // [QA] S15 Arabic pass: the back chevron pointed left on the right edge (the icon mirrors itself and the code mirrored it again)
+  testWidgets('Arabic: the back button and "Back to room" use the self-mirroring icons, not a second swap', (t) async {
+    final s = FakeServer(), tok = s.user('Sami');
+    await launch(t, server: s, tokens: MemoryTokens()..t = tok, lang: 'ar');
+    await frames(t);
+    await tapKey(t, 'friends');
+    await frames(t);
+    expect(Directionality.of(t.element(find.byType(BackButtonIcon).first)), TextDirection.rtl);
+    expect(find.byIcon(Icons.chevron_left), findsWidgets); // drawn pointing right in Arabic
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  // [BA] S15-5 old-look compare: the old guide had table rules and a suggested setup; its numbers follow the engine
+  testWidgets('How to Play has the table rules and a suggested setup that matches what the setup screen suggests', (t) async {
+    expect([for (final n in [4, 5, 6, 9, 10, 13]) recMafia(n)], [1, 1, 2, 2, 3, 3]); // "4-5: 1 · 6-9: 2 · 10-13: 3"
+    await t.pumpWidget(MaterialApp(localizationsDelegates: L.localizationsDelegates, home: const GuideScreen()));
+    await frames(t, 2);
+    expect(find.text('TABLE RULES'), findsOneWidget);
+    await t.scrollUntilVisible(find.textContaining('6-9 players: 2 Mafia'), 300);
+    expect(find.text('SUGGESTED SETUP'), findsOneWidget);
   });
 }

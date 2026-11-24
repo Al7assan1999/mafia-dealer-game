@@ -121,7 +121,7 @@ ThemeData noir() {
         foregroundColor: C.text, titleTextStyle: head.copyWith(fontSize: 22)),
     actionIconTheme: ActionIconThemeData(backButtonIconBuilder: (context) => Container(width: 40, height: 40, alignment: Alignment.center,
         decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.neon ? 12 : 2)),
-        child: Icon(Directionality.of(context) == TextDirection.rtl ? Icons.chevron_right : Icons.chevron_left, color: C.text, size: 22))),
+        child: Icon(Icons.chevron_left, color: C.text, size: 22))), // mirrors itself in Arabic (matchTextDirection)
     dividerColor: C.line,
     dividerTheme: DividerThemeData(color: C.line, space: 24),
     tabBarTheme: TabBarThemeData(dividerColor: C.line, indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,

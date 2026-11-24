@@ -156,7 +156,7 @@ class _ChatState extends State<ChatScreen> {
                     decoration: InputDecoration(hintText: l.typeMsg)),
               ])),
               const SizedBox(width: 4),
-              ListenableBuilder(listenable: text, builder: (context, _) => SizedBox(height: 48, child: IconButton(key: const Key('chatSend'), // S12-6: dimmed while empty
+              ListenableBuilder(listenable: text, builder: (context, _) => SizedBox(height: 48, child: IconButton(key: const Key('chatSend'), tooltip: editing != null ? l.save : l.send, // S12-6: dimmed while empty; [S15] a label for TalkBack
                   icon: Icon(editing != null ? Icons.check : Icons.send, color: text.text.trim().isEmpty ? C.dim : C.red2), onPressed: text.text.trim().isEmpty ? null : _send))),
             ]))),
           ]),

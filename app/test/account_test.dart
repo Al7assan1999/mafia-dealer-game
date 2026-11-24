@@ -160,6 +160,23 @@ void main() {
     expect(app.account.card!.photo, 1);
   });
 
+  testWidgets('profile: devices that fail to load say why and load on Try again (not an empty list)', (t) async {
+    final s = FakeServer(), tok = s.user('Sami');
+    await launch(t, server: s, tokens: MemoryTokens()..t = tok);
+    await settleUi(t);
+    s.offline = true;
+    await tapKey(t, 'profile');
+    await settleUi(t);
+    expect(find.byKey(const Key('devicesErr')), findsOneWidget);
+    expect(find.textContaining('Android phone'), findsNothing);
+    s.offline = false;
+    await t.ensureVisible(find.byKey(const Key('devicesErr')));
+    await t.tap(find.descendant(of: find.byKey(const Key('devicesErr')), matching: find.byType(TextButton)));
+    await settleUi(t);
+    expect(find.byKey(const Key('devicesErr')), findsNothing);
+    expect(find.textContaining('Android phone'), findsOneWidget);
+  });
+
   testWidgets('friends: add by @handle, accept, asked both ways at once, unfriend asks first; the bell', (t) async {
     final s = FakeServer(), tok = s.user('Sami');
     s.user('Hokan');

@@ -42,11 +42,15 @@ class _ProfileState extends State<ProfileScreen> {
   late String fav = (a.me?['fav'] as String?) ?? '';
   late bool showOn = a.me?['showOnline'] != false;
   List<Map<String, Object?>>? devices;
+  Object? devicesErr; // [S15] his phone showed an empty list: the reason is shown now, with Try again
   bool busy = false;
 
   @override
   void initState() { super.initState(); _loadDevices(); }
-  Future<void> _loadDevices() async { try { final d = await a.sessions(); if (mounted) setState(() => devices = d); } catch (_) {} }
+  Future<void> _loadDevices() async {
+    try { final d = await a.sessions(); if (mounted) setState(() { devices = d; devicesErr = null; }); }
+    catch (e) { if (mounted) setState(() => devicesErr = e); }
+  }
 
   Future<void> _do(Future<void> Function() f, [String? ok]) async {
     if (busy) return;
@@ -123,6 +127,11 @@ class _ProfileState extends State<ProfileScreen> {
                   title: l.onBoardT, subtitle: l.onBoardD),
             ])),
             Sec(title: l.aDevices, child: Column(children: [
+              if (devicesErr != null)
+                Row(key: const Key('devicesErr'), children: [
+                  Expanded(child: Text(errText(l, devicesErr!), style: TextStyle(color: C.mute))),
+                  TextButton(onPressed: _loadDevices, child: Text(l.retry)),
+                ]),
               for (final d in devices ?? const <Map<String, Object?>>[])
                 Row(children: [
                   Icon(Icons.smartphone, color: C.mute, size: 18),

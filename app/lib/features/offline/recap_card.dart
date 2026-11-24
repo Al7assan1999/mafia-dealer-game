@@ -40,7 +40,7 @@ class RecapCard extends StatelessWidget {
           const SizedBox(width: 6),
           Text('Mafia Dealer', style: head.copyWith(fontSize: 13.5, color: ink)),
           const Spacer(),
-          Text(DateFormat('d MMM y', Localizations.localeOf(context).languageCode).format(DateTime.now()), style: TextStyle(fontSize: 12, color: soft)),
+          Text(_date(DateTime.now(), Localizations.localeOf(context).languageCode), style: TextStyle(fontSize: 12, color: soft)),
         ]),
         const SizedBox(height: 14),
         Center(child: Container(width: 76, height: 76, alignment: Alignment.center,
@@ -94,3 +94,6 @@ class RecapCard extends StatelessWidget {
   // the role's colour on paper (the citizen's gold is too light on Noir's paper)
   static Color _rc(Role r) => !C.neon && r == Role.citizen ? const Color(0xFFB0873A) : roleColor(r);
 }
+
+/// [S15] "24 Nov 2026"; the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)
+String _date(DateTime d, String lang) => '${d.day} ${DateFormat.MMM(lang).format(d)} ${d.year}';
