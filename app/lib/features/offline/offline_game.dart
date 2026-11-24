@@ -71,7 +71,7 @@ class OfflineGame extends ChangeNotifier {
   void _save() {
     prefs.game = s.phase == Phase.end && screen == Screen.end && revealed
         ? null // a finished game is not kept (and never logged)
-        : {'rec': rec.toJson(), 'screen': screen.name, 'who': who};
+        : {'rec': rec.toJson(), 'screen': screen.name, 'who': who, 'day': s.day < 1 ? 1 : s.day}; // day: Home's "Resume game · Round N"
   }
 
   void _go(Screen to, {int? seat}) {

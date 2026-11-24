@@ -10,7 +10,9 @@ import 'package:mafia_dealer/features/friends/friends_drawer.dart';
 import 'package:mafia_dealer/features/friends/friends_screen.dart';
 import 'package:mafia_dealer/features/guide/guide_screen.dart';
 import 'package:mafia_dealer/features/history/history_screen.dart';
+import 'package:mafia_dealer/features/account/sign_in_screen.dart';
 import 'package:mafia_dealer/features/home/account_bar.dart';
+import 'package:mafia_dealer/features/home/best_line.dart';
 import 'package:mafia_dealer/features/intro/intro_screen.dart';
 import 'package:mafia_dealer/features/notifications/bell_sheet.dart';
 import 'package:mafia_dealer/features/offline/game_screen.dart';
@@ -22,6 +24,7 @@ import 'package:mafia_dealer/features/room/room_screen.dart';
 import 'package:mafia_dealer/features/settings/settings_sheet.dart';
 import 'package:mafia_dealer/features/stats/stats_screen.dart';
 import 'package:mafia_dealer/features/update/updater.dart';
+import 'package:mafia_dealer/features/update/whats_new.dart';
 import 'package:mafia_dealer/features/wifi/wifi_screen.dart';
 import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/state/active_room.dart';
@@ -60,7 +63,8 @@ class _HomeState extends State<Home> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final l = L.of(context);
-        u.notes.isEmpty ? toast(context, l.updUpdated(u.version)) : notesSheet(context, l.updUpdated(u.version), u.notes);
+        // [S14-4] as the old app: What's new opens by itself once, this version marked Installed; offline, the short line
+        updater!.releases().then((r) { if (!mounted) return; r.isEmpty && u.notes.isEmpty ? toast(context, l.updUpdated(u.version)) : whatsNewSheet(context, updater!, fallback: u.notes); });
       });
     }
   }
@@ -73,11 +77,13 @@ class _HomeBody extends StatelessWidget {
   final Account account;
   final Updater? updater;
 
-  Widget _tile(BuildContext context, Key key, IconData icon, String label, Widget Function() page) => Material(
-        color: C.card, shape: RoundedRectangleBorder(side: BorderSide(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
-        child: InkWell(key: key, borderRadius: BorderRadius.circular(C.p.radius), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page())),
-          child: Padding(padding: const EdgeInsets.symmetric(vertical: 14), child: Column(children: [
-            Icon(icon, color: C.gold), const SizedBox(height: 4), Text(label, style: TextStyle(color: C.text, fontWeight: FontWeight.w700)),
+  // the old .row3 tile: a bold label, a count under it when there is one
+  Widget _tile(BuildContext context, Key key, String label, int? count, Widget Function() page, {VoidCallback? before}) => Material(
+        color: C.card, shape: RoundedRectangleBorder(side: BorderSide(color: C.line), borderRadius: BorderRadius.circular(C.neon ? 18 : 3)),
+        child: InkWell(key: key, borderRadius: BorderRadius.circular(C.neon ? 18 : 3), onTap: () { before?.call(); Navigator.of(context).push(MaterialPageRoute(builder: (_) => page())); },
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(label, textAlign: TextAlign.center, style: TextStyle(color: C.text, fontWeight: FontWeight.w700, fontSize: 14)),
+            if (count != null) Text('$count', key: const Key('historyCount'), style: TextStyle(color: C.mute, fontWeight: FontWeight.w700, fontSize: 12.5)),
           ]))),
       );
 
@@ -153,22 +159,10 @@ class _HomeBody extends StatelessWidget {
     }, child: Scaffold(
       // [QA] S9 #4: Home starts at the top (centred, the icon row moved with the screen height and the friends tab hid the gear)
       body: Stack(children: [Stage(center: false, children: [
-        Row(children: [
-          Expanded(child: AccountBar(account: account)),
-          IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: Icon(Icons.settings_outlined, color: C.mute),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account)))),
-        ]),
-        const SizedBox(height: 24),
-        Center(
-          child: Transform.rotate(
-            angle: -.1,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(border: Border.all(color: C.red, width: 2), borderRadius: BorderRadius.circular(6)),
-              child: Icon(Icons.theater_comedy_outlined, color: C.red, size: 48),
-            ),
-          ),
-        ),
+        AccountBar(account: account, prefs: prefs,
+            onSettings: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account)))),
+        const SizedBox(height: 36),
+        const Center(child: HomeLogo()), // [S14-3] the old app's mark
         const SizedBox(height: 22),
         Big(l.appName, sub: l.tag, size: 38),
         const SizedBox(height: 24),
@@ -187,21 +181,17 @@ class _HomeBody extends StatelessWidget {
             IconButton(key: const Key('dismissGuide'), visualDensity: VisualDensity.compact, icon: Icon(Icons.close, size: 18, color: C.dim), onPressed: () => prefs.guideSeen = true),
           ]))),
         const SizedBox(height: 12),
-        if (saved)
-          Sec(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text(l.resumeQ, style: TextStyle(color: C.mute)),
-              const SizedBox(height: 12),
-              Btn(l.resumeGame, key: const Key('resume'), icon: Icons.play_arrow, onTap: () {
-                final g = OfflineGame.resume(prefs, audio);
-                if (g != null) _play(context, g);
-              }),
-              const SizedBox(height: 10),
-              Btn(l.discard, ghost: true, onTap: () async {
-                if (await ask(context, l.discardQ, l.discardD, l.discard)) prefs.game = null;
-              }),
-            ]),
-          ),
+        // [S14-3] as the old app: a gold "Resume game · Round N" and a small Discard link (it was a card)
+        if (saved) ...[
+          Btn('${l.resumeGame} · ${l.roundN(prefs.game?['day'] as int? ?? 1)}', key: const Key('resume'), gold: true, onTap: () {
+            final g = OfflineGame.resume(prefs, audio);
+            if (g != null) _play(context, g);
+          }),
+          Center(child: TextButton(key: const Key('discard'), onPressed: () async {
+            if (await ask(context, l.discardQ, l.discardD, l.discard)) prefs.game = null;
+          }, child: Text(l.discard, style: TextStyle(color: C.mute)))),
+          const SizedBox(height: 6),
+        ],
         _mode(const Key('newGame'), Icons.smartphone_outlined, l.newGame, l.newGameSub, primary: true, () async {
           if (!await leaveRoomFirst(context) || !context.mounted) return;
           if (saved && !await ask(context, l.discardQ, l.discardD, l.discard)) return;
@@ -229,17 +219,15 @@ class _HomeBody extends StatelessWidget {
                 builder: (_) => WifiScreen(prefs: prefs, audio: audio, account: account))) : null),
             _mode(const Key('online'), Icons.public, l.online, l.onlineSub, () async => (await leaveRoomFirst(context)) && context.mounted ? Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => OnlineHome(account: account, prefs: prefs, audio: audio))) : null),
-            if (prefs.guideSeen) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
-                icon: Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: TextStyle(color: C.mute)),
-                onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); })),
-            // P1: Stats and History as two tiles (History is open to guests: their Wi-Fi games)
-            Padding(padding: const EdgeInsets.only(top: 18), child: Row(children: [
-              if (account.signedIn) ...[
-                Expanded(child: _tile(context, const Key('stats'), Icons.leaderboard_outlined, l.statsT, () => StatsScreen(account: account))),
-                const SizedBox(width: 10),
-              ],
-              Expanded(child: _tile(context, const Key('history'), Icons.history, l.historyT, () => HistoryScreen(account: account, prefs: prefs))),
+            // [S14-3 / his #3] as the old app: Game History (its count), Player Stats, How to Play; then the best player
+            IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: _tile(context, const Key('history'), l.historyT, account.signedIn ? prefs.homeGames : null, () => HistoryScreen(account: account, prefs: prefs))),
+              const SizedBox(width: 8),
+              Expanded(child: _tile(context, const Key('stats'), l.homeStats, null, () => account.signedIn ? StatsScreen(account: account) : SignInScreen(account: account))),
+              const SizedBox(width: 8),
+              Expanded(child: _tile(context, const Key('howToPlay'), l.howToPlay, null, () => GuideScreen(prefs: prefs), before: () => prefs.guideSeen = true)),
             ])),
+            BestLine(account: account, prefs: prefs),
             if (updater != null) HomeFooter(updater: updater!), // S13-5
           ]);
         }),

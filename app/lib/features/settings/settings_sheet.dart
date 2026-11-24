@@ -4,6 +4,8 @@ import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/push.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/core/version.dart';
+import 'package:mafia_dealer/features/account/profile_screen.dart';
+import 'package:mafia_dealer/features/account/sign_in_screen.dart';
 import 'package:mafia_dealer/features/intro/intro_screen.dart';
 import 'package:mafia_dealer/features/update/updater.dart';
 import 'package:mafia_dealer/state/account.dart';
@@ -48,7 +50,17 @@ class _SettingsState extends State<SettingsSheet> {
           // [his look note] a full page of section cards, as the old app's Settings (it was a bottom sheet)
           return Scaffold(
             appBar: AppBar(leading: BackButton(key: const Key('closeSettings')), title: Text(l.settingsT)),
-            body: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
+            body: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [ // all built: short, and every row findable
+              // [S14 / BA] the old app's Account section: sign in from Settings too (a guest found it only on Home)
+              if (widget.account case final a?) ListenableBuilder(listenable: a, builder: (context, _) => Sec(title: l.acctT, icon: Icons.person_outline,
+                  child: !a.signedIn
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          Text(l.sAccountD, style: TextStyle(color: C.mute, fontSize: 14, height: 1.4)),
+                          const SizedBox(height: 12),
+                          Btn(l.sSignInCreate, key: const Key('settingsSignIn'), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SignInScreen(account: a)))),
+                        ])
+                      : OptRow(a.display, key: const Key('settingsProfile'), desc: a.handle != null ? atHandle(a.handle) : null, trailing: Icon(Icons.chevron_right, color: C.mute),
+                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => a.needsHandle ? HandleScreen(account: a) : ProfileScreen(account: a)))))),
               Sec(title: l.sLook, icon: Icons.palette_outlined, child: Column(children: [
                 OptRow(l.language, trailing: Seg(key: const Key('lang'), value: prefs.lang, onChanged: (v) => prefs.lang = v,
                     options: const [('en', 'English', Key('lang_en')), ('ar', 'العربية', Key('lang_ar'))])),
@@ -96,7 +108,7 @@ class _SettingsState extends State<SettingsSheet> {
                 OptRow(l.sVersionT, onLongPress: updater == null ? null : () => _storage(context),
                     trailing: Text('v$appVersion · b$appBuild', key: const Key('version'), textDirection: TextDirection.ltr, style: TextStyle(color: C.mute, fontSize: 13))),
               ])),
-            ]),
+            ])),
           );
         },
       );

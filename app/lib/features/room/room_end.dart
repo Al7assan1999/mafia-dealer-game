@@ -9,7 +9,7 @@ extension _EndViews on _RoomScreenState {
     final stats = Stats(first: st['first'] as int?, kills: (st['kills'] as List).cast<int>(), outs: (st['outs'] as List).cast<int>(),
         saves: (st['saves'] as List).cast<int>(), caught: [for (final p in (st['caught'] as List)) ((p as List)[0] as int, p[1] as int)]);
     final best = mvp(mafia ? Winner.mafia : Winner.citizens, roles, alive, stats), valid = c.room?['valid'];
-    return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
+    return Stage(card: true, color: mafia ? C.blood : C.glory, center: false, bottom: [
       if (c.isHost) ...[
         if (c.room?['gameId'] != null) Row(children: [
           Expanded(child: Btn(l.valid, key: const Key('markValid'), ghost: valid != true, onTap: _h(() => c.send({'t': 'mark', 'valid': true})))),

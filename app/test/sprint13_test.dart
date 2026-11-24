@@ -183,7 +183,7 @@ void main() {
     expect(find.text('v$appVersion'), findsOneWidget);
     await tapKey(t, 'whatsNew');
     await frames(t);
-    expect(find.text('• One board for everyone'), findsOneWidget);
+    expect(find.text('One board for everyone'), findsOneWidget); // [S14-4] a dot, not a '• ' in the text
   });
 
   test('#11: What\'s new with nothing kept: read once from this version\'s GitHub Release; nothing there: none', () async {

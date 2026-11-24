@@ -601,7 +601,7 @@
   "invalid": "Invalid game",
   "countQ": "Count this game in the records?",
   "toLobby": "Back to lobby",
-  "historyT": "Game history",
+  "historyT": "Game History",
   "noHistory": "No online games yet.",
   "youPlayed": "You played {r}",
   "@youPlayed": {
@@ -734,7 +734,7 @@
       }
     }
   },
-  "howToPlay": "How to play",
+  "howToPlay": "How to Play",
   "newToMafia": "New to Mafia? Learn it in a minute.",
   "gGoalT": "The goal",
   "gGoal": "A town hides a few Mafia. The Mafia win when they are as many as everyone else. The town wins when every Mafia is out.",
@@ -1329,5 +1329,53 @@
   "sSound": "Sound",
   "sMore": "More",
   "sTheme": "Theme",
-  "sVersionT": "Version"
+  "sVersionT": "Version",
+  "bestNow": "Best player: {n}",
+  "@bestNow": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "seeAll": "See all",
+  "relAvailable": "Available",
+  "relInstalled": "Installed",
+  "roundAlive": "Round {r} · {a}/{n} alive",
+  "@roundAlive": {
+    "placeholders": {
+      "r": {
+        "type": "int"
+      },
+      "a": {
+        "type": "int"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "classified": "CLASSIFIED",
+  "homeStats": "Player Stats",
+  "cardOf": "Card {i} of {n}",
+  "@cardOf": {
+    "placeholders": {
+      "i": {
+        "type": "int"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "roundN": "Round {n}",
+  "@roundN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sAccountD": "An account is needed to play online. Offline and Wi-Fi/Hotspot games work without one.",
+  "sSignInCreate": "Sign in / Create account"
 }

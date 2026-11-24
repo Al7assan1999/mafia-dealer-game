@@ -110,12 +110,12 @@ void main() {
     final s = FakeServer(), tok = s.user('Sami'), tokens = MemoryTokens()..t = tok;
     final app = await launch(t, server: s, tokens: tokens);
     await settleUi(t);
-    expect(find.text(atHandle('Sami')), findsOneWidget);
+    expect(find.byTooltip(atHandle('Sami')), findsOneWidget); // [S14-3] the avatar's tooltip (Home shows no name, as the old app)
     // offline at the next start: the cached profile, marked offline; offline play still works
     s.offline = true;
     final again = await launch(t, server: s, tokens: tokens, prefs: app.prefs);
     await settleUi(t);
-    expect(find.text(atHandle('Sami')), findsOneWidget);
+    expect(find.byTooltip(atHandle('Sami')), findsOneWidget); // [S14-3] the avatar's tooltip (Home shows no name, as the old app)
     expect(find.text('Offline'), findsOneWidget);
     expect(again.account.signedIn, isTrue);
     await setUpGame(t, ['Dareer', 'Halawy', 'Farouq', 'Sami']);
@@ -180,7 +180,7 @@ void main() {
     expect(app.account.unread, 0, reason: 'after a moment on screen the bell counts as read (N8)');
     await t.tapAt(const Offset(200, 40)); // close the sheet
     await settleUi(t);
-    await tapKey(t, 'friends');
+    await openFriends(t);
     await type(t, 'addHandle', '@hokan');
     await tapKey(t, 'addFriend');
     await settleUi(t);
@@ -252,7 +252,7 @@ void main() {
       await t.scrollUntilVisible(find.byKey(const Key('deleteAccount')), 300, scrollable: find.byType(Scrollable).first);
       await t.binding.handlePopRoute();
       await settleUi(t);
-      await tapKey(t, 'friends');
+      await openFriends(t);
       await settleUi(t);
       await tapKey(t, 'tabSent');
       await settleUi(t);

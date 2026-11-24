@@ -25,6 +25,7 @@ import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/state/active_room.dart';
 import 'package:mafia_dealer/state/models.dart';
 import 'package:mafia_dealer/state/room_conn.dart';
+import 'package:mafia_dealer/features/room/room_bar.dart' show ChatTab;
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 part 'room_lobby.dart';
@@ -246,10 +247,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           // [QA] S12: in Neon's wider font "Room 438689" was cut to "Room 4386…"; it shrinks to fit instead
           title: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Text(l.roomCode(widget.code), style: head.copyWith(fontSize: 20))),
           actions: [
-            if (c.room != null && c.bye == null) IconButton(key: const Key('chat'), tooltip: l.chatT,
-                icon: Badge(isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.mute)),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
-                    out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))),
             if (c.bye == null) IconButton(key: const Key('narrate'), tooltip: l.narrateHere,
                 icon: Icon(!audio.muted ? Icons.volume_up_outlined : Icons.volume_off_outlined, color: C.mute),
                 onPressed: () => setState(() {
@@ -270,7 +267,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
             Positioned.fill(child: KeyedSubtree(key: ValueKey('${v?['phase']}/${v?['ph']}/${v?['day']}/$revealed'), child: _screen(l))),
             // S9-2: the friends tab in an online lobby (never in a game, never in a Wi-Fi room)
             // [S12-6] never over the room-code card (it starts below it); gone once the room is closed
-            if (!widget.lan && c.room != null && v == null && c.bye == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c, above: 200)),
+            // [S14-1 / his #1] the chat is a side tab under the friends tab, in the lobby and the game (online and Wi-Fi)
+            if (c.room != null && c.bye == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c, above: v == null ? 200 : 160, // in a game: under the screen's header
+                friends: !widget.lan && v == null,
+                extra: ChatTab(key: const Key('chat'), conn: c, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
+                    out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))))),
           ])),
         ]),
       ),

@@ -16,6 +16,7 @@ import 'package:mafia_dealer/l10n/app_localizations_ar.dart';
 import 'package:mafia_dealer/l10n/app_localizations_en.dart';
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/features/update/updater.dart';
+import 'package:mafia_dealer/features/update/whats_new.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';
@@ -236,8 +237,8 @@ void main() {
       final p = await prefs(), inst = FakeInstaller();
       final u = Updater(p, client: github(), installer: inst)..latest = Release('0.3.0', 100005, 'https://github.com/x/MafiaDealer.apk', 'https://github.com/x/releases', ['Stats are back', 'Old history import', 'Update inside the app', 'Fourth point']);
       await t.pumpWidget(MaterialApp(localizationsDelegates: L.localizationsDelegates, home: Scaffold(body: UpdateCard(updater: u))));
-      expect(find.text('• Stats are back'), findsOneWidget);
-      expect(find.text('• Fourth point'), findsNothing);
+      expect(find.text('Stats are back'), findsOneWidget);
+      expect(find.text('Fourth point'), findsNothing);
       expect(find.byKey(const Key('updSeeAll')), findsOneWidget);
       final seen = <double>[];
       u.addListener(() => seen.add(u.progress));

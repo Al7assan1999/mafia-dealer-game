@@ -5,6 +5,7 @@ import 'package:mafia_dealer/core/feedback.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/core/version.dart';
 import 'package:mafia_dealer/features/update/updater.dart';
+import 'package:mafia_dealer/features/update/whats_new.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 class HomeFooter extends StatelessWidget {
@@ -18,9 +19,8 @@ class HomeFooter extends StatelessWidget {
   }
 
   Future<void> _whatsNew(BuildContext context) async {
-    final l = L.of(context), notes = await updater.whatsNew();
-    if (!context.mounted) return;
-    notes.isEmpty ? toast(context, l.noNotes) : notesSheet(context, l.updWhatsNew(appVersion), notes);
+    final notes = await updater.whatsNew(); // this version's kept points, if every release list is out of reach
+    if (context.mounted) await whatsNewSheet(context, updater, fallback: notes); // [S14-4] every recent release
   }
 
   @override

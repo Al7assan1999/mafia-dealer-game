@@ -70,7 +70,10 @@ jobs:
         working-directory: server
         run: |
           tag="v${{ steps.v.outputs.version }}-b${{ steps.v.outputs.build }}"
-          gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '{tag_name, html_url, body, assets: [.assets[] | {name, browser_download_url}]}' > "$RUNNER_TEMP/latest.json"
+          gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '{tag_name, html_url, body, assets: [.assets[] | {name, browser_download_url}]}' > "$RUNNER_TEMP/one.json"
+          # [S14-4] What's new lists the last 10 releases (date and points), as the old app did
+          gh api "repos/${{ github.repository }}/releases?per_page=10" --jq '[.[] | {tag_name, body, published_at}]' > "$RUNNER_TEMP/history.json"
+          jq -c --slurpfile h "$RUNNER_TEMP/history.json" '. + {history: $h[0]}' "$RUNNER_TEMP/one.json" > "$RUNNER_TEMP/latest.json"
           printf "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('latest_release', '%s', %s);" "$(sed "s/'/''/g" "$RUNNER_TEMP/latest.json")" "$(date +%s000)" > "$RUNNER_TEMP/latest.sql"
           npx wrangler d1 execute DB --remote --file "$RUNNER_TEMP/latest.sql"
       - name: Push "new version" to every phone

@@ -18,7 +18,8 @@ import 'package:mafia_dealer/l10n/app_localizations.dart';
 // from Home: a new room), In your room, Ask to join. "+" opens the Friends screen.
 
 class FriendsTab extends StatefulWidget {
-  const FriendsTab({super.key, required this.account, required this.prefs, required this.audio, this.room, this.extra, this.above = 56});
+  const FriendsTab({super.key, required this.account, required this.prefs, required this.audio, this.room, this.extra, this.above = 56, this.friends = true});
+  final bool friends; // [S14-1] false: only the extra (the chat tab) at the drawer's height
   final double above; // the tab never goes higher (Home: the icon row; a lobby: the room-code card)
   final Account account;
   final Prefs prefs;
@@ -35,7 +36,8 @@ class _FriendsTabState extends State<FriendsTab> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: widget.account, builder: (context, _) {
         final a = widget.account;
-        if (!a.signedIn && widget.extra == null) return const SizedBox.shrink();
+        final tab = a.signedIn && widget.friends;
+        if (!tab && widget.extra == null) return const SizedBox.shrink();
         final online = a.friends.where((f) => f.online).toList(), reqs = a.incoming.length;
         return LayoutBuilder(builder: (context, box) {
           // [QA] S9 #3: never over the top icon row; by default right under it, clear of the first Home button (the old v2.9.2 fix)
@@ -43,7 +45,7 @@ class _FriendsTabState extends State<FriendsTab> {
           final top = above + (box.maxHeight - above - 160) * y.clamp(0, 1);
           return Stack(children: [
             PositionedDirectional(end: 0, top: top, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              if (a.signedIn) GestureDetector(
+              if (tab) GestureDetector(
                 key: const Key('friendsTab'),
                 onTap: () => openFriendsDrawer(context, account: a, prefs: widget.prefs, audio: widget.audio, room: widget.room),
                 onHorizontalDragEnd: (d) {
@@ -64,7 +66,7 @@ class _FriendsTabState extends State<FriendsTab> {
                   ]),
                 ),
               ),
-              if (widget.extra != null) Padding(padding: EdgeInsets.only(top: a.signedIn ? 8 : 0), child: widget.extra!),
+              if (widget.extra != null) Padding(padding: EdgeInsets.only(top: tab ? 8 : 0), child: widget.extra!),
             ])),
           ]);
         });

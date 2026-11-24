@@ -109,3 +109,11 @@ Future<int> playToEnd(WidgetTester t) async {
   }
   throw TestFailure('the game did not end');
 }
+
+/// [S14-3] Friends: Home has no friends button any more (as the old app); the side tab's drawer → Add opens the screen.
+Future<void> openFriends(WidgetTester t) async {
+  await tapKey(t, 'friendsTab');
+  await t.pump(const Duration(milliseconds: 400));
+  await tapKey(t, 'drawerAdd');
+  await t.pump(const Duration(milliseconds: 400));
+}

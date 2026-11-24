@@ -611,5 +611,16 @@
   "sSound": "الصوت",
   "sMore": "المزيد",
   "sTheme": "المظهر",
-  "sVersionT": "الإصدار"
+  "sVersionT": "الإصدار",
+  "bestNow": "أفضل لاعب: {n}",
+  "seeAll": "عرض الكل",
+  "relAvailable": "متاح",
+  "relInstalled": "مثبّت",
+  "roundAlive": "الجولة {r} · {a}/{n} أحياء",
+  "classified": "سرّي",
+  "homeStats": "إحصائيات اللاعبين",
+  "cardOf": "البطاقة {i} من {n}",
+  "roundN": "الجولة {n}",
+  "sAccountD": "تحتاج حسابًا للعب عبر الإنترنت. ألعاب بدون إنترنت والواي فاي تعمل بدونه.",
+  "sSignInCreate": "تسجيل الدخول / إنشاء حساب"
 }

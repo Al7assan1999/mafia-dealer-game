@@ -66,35 +66,39 @@ class _GameScreenState extends State<GameScreen> {
   String _name(int seat) => g.s.names[seat];
 
   Widget _screen(L l) => switch (g.screen) {
-        Screen.dealPass => _pass(l, l.iam(_name(g.who)), () => g.dealOpen(g.who)),
-        Screen.dealCard => RoleCard(key: ValueKey('card${g.who}'), name: _name(g.who), role: g.s.roles[g.who],
+        Screen.dealPass => _pass(l, l.iam(_name(g.who)), () => g.dealOpen(g.who), top: l.cardOf(g.who + 1, g.s.alive.length), glyph: Icons.smartphone_outlined),
+        Screen.dealCard => RoleCard(key: ValueKey('card${g.who}'), foot: _foot(l), name: _name(g.who), role: g.s.roles[g.who],
             mates: [for (final j in g.view(g.who).mates) _name(j)], done: g.who == g.n - 1 ? l.memorizedLast : l.memorized,
             onDone: () => g.dealDone(g.who)),
-        Screen.nightPass => _pass(l, l.open(_name(g.who)), () => g.nightOpen(g.who), color: C.night, top: l.night(g.s.day)),
+        Screen.nightPass => _pass(l, l.open(_name(g.who)), () => g.nightOpen(g.who), color: C.night, top: l.night(g.s.day), glyph: Icons.nightlight_outlined),
         Screen.nightPick => _nightPick(l),
         Screen.nightLocked => _nightLocked(l),
-        Screen.dawn => Stage(color: C.night, bottom: [Btn(l.dawn, key: const Key('dawn'), icon: Icons.wb_twilight, onTap: g.dawn)],
-            children: [Icon(Icons.nightlight_round, color: C.blue, size: 56), const SizedBox(height: 16), Big(l.allDone, sub: l.allDoneHint)]),
+        Screen.dawn => Stage(card: true, foot: _foot(L.of(context)), color: C.night, bottom: [Btn(l.dawn, key: const Key('dawn'), icon: Icons.wb_twilight, onTap: g.dawn)],
+            children: [GlyphBox(Icons.nightlight_round, color: C.blue), const SizedBox(height: 16), Big(l.allDone, sub: l.allDoneHint)]),
         Screen.morning => _morning(l),
         Screen.day => _day(l),
-        Screen.ballotPass => _pass(l, l.open(_name(g.who)), () => g.ballotOpen(g.who), top: l.startBallot),
+        Screen.ballotPass => _pass(l, l.open(_name(g.who)), () => g.ballotOpen(g.who), top: l.startBallot, glyph: Icons.how_to_vote_outlined),
         Screen.ballotPick => _ballotPick(l),
-        Screen.ballotVoted => Stage(bottom: [Btn(l.done, key: const Key('ballotNext'), onTap: () => g.ballotNext(g.who))],
-            children: [Icon(Icons.how_to_vote_outlined, color: C.green, size: 56), const SizedBox(height: 16), Big(l.voted, sub: l.lockedHint)]),
+        Screen.ballotVoted => Stage(card: true, foot: _foot(L.of(context)), bottom: [Btn(l.done, key: const Key('ballotNext'), onTap: () => g.ballotNext(g.who))],
+            children: [GlyphBox(Icons.how_to_vote_outlined, color: C.green), const SizedBox(height: 16), Big(l.voted, sub: l.lockedHint)]),
         Screen.verdict => _verdict(l),
         Screen.end => _end(l),
       };
 
   // ---------------------------------------------------------------- shared
-  Widget _pass(L l, String button, VoidCallback onTap, {Color? color, String? top}) => Stage(
+  // [S14-6] under every game screen, as the old app
+  String _foot(L l) => l.roundAlive(g.s.day < 1 ? 1 : g.s.day, g.s.alive.where((x) => x).length, g.s.alive.length);
+  // [S14-6] as the old app: a boxed tag ("Card 1 of 6"), the icon in a box, "PASS THE PHONE TO" in small caps, the name
+  Widget _pass(L l, String button, VoidCallback onTap, {Color? color, String? top, IconData? glyph}) => Stage(card: true, foot: _foot(L.of(context)),
         color: color,
-        bottom: [Btn(button, key: const Key('open'), icon: Icons.visibility_outlined, onTap: onTap)],
+        bottom: [Btn(button, key: const Key('open'), onTap: onTap)],
         children: [
-          if (top != null) Text(top.toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.mute, letterSpacing: 3)),
-          if (top != null) const SizedBox(height: 18),
-          Text(l.passTo, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
-          const SizedBox(height: 8),
-          Big(_name(g.who), size: 40, color: C.gold),
+          if (top != null) Tag(top),
+          if (glyph != null) ...[const SizedBox(height: 18), GlyphBox(glyph)],
+          const SizedBox(height: 20),
+          Text(l.passTo.toUpperCase(), textAlign: TextAlign.center, style: capStyle.copyWith(fontSize: 14)),
+          const SizedBox(height: 4),
+          Big(_name(g.who), size: 40),
           const SizedBox(height: 18),
           Text(l.tiltHint, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
           if (g.s.phase == Phase.night && g.s.night.endsAt != 0) _nightClock(l),
@@ -119,7 +123,7 @@ class _GameScreenState extends State<GameScreen> {
       'citizen' => (l.aCitizen, l.aCitizenD), _ => (l.aNone, l.aNoneD),
     };
     final none = no.key == 'none';
-    return Stage(color: C.night, center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () { final c = none ? null : _pick; if (none || c != null) _do(() => g.nightPick(seat, c)); } : null),
     ], children: [
       Row(children: [
@@ -150,7 +154,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _nightLocked(L l) {
     final seat = g.who, check = g.s.roles[seat] == Role.detective ? g.s.night.detective[seat] : null, last = g.s.phase != Phase.night;
-    return Stage(color: C.night, bottom: [Btn(last ? l.doneLast : l.done, key: const Key('nightNext'), onTap: () => g.nightNext(seat))], children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.night, bottom: [Btn(last ? l.doneLast : l.done, key: const Key('nightNext'), onTap: () => g.nightNext(seat))], children: [
       Icon(Icons.lock_outline, color: C.mute, size: 48),
       const SizedBox(height: 14),
       Big(l.locked, sub: l.lockedHint),
@@ -167,7 +171,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   // ---------------------------------------------------------------- morning
-  Widget _suspense(L l, String text, Color color, IconData icon) => Stage(color: color, bottom: [
+  Widget _suspense(L l, String text, Color color, IconData icon) => Stage(card: true, foot: _foot(L.of(context)), color: color, bottom: [
         Btn(l.skipWait, key: const Key('revealNow'), ghost: true, onTap: g.reveal),
       ], children: [
         Icon(icon, color: C.gold, size: 60),
@@ -180,8 +184,8 @@ class _GameScreenState extends State<GameScreen> {
   Widget _morning(L l) {
     if (!g.revealed) return _suspense(l, l.sunrise, C.day, Icons.wb_sunny_outlined);
     final m = g.s.morning!, d = m.dead;
-    return Stage(color: d != null ? C.blood : C.day, bottom: [Btn(l.startDay(g.s.day), key: const Key('startDay'), onTap: g.startDay)], children: [
-      Text(l.morningOf(g.s.day).toUpperCase(), textAlign: TextAlign.center, style: head.copyWith(color: C.mute, letterSpacing: 3)),
+    return Stage(card: true, foot: _foot(L.of(context)), color: d != null ? C.blood : C.day, bottom: [Btn(l.startDay(g.s.day), key: const Key('startDay'), onTap: g.startDay)], children: [
+      Tag(l.morningOf(g.s.day)),
       const SizedBox(height: 24),
       if (d != null) ...[
         Text(l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
@@ -212,7 +216,7 @@ class _GameScreenState extends State<GameScreen> {
       ]),
     );
     if (_deciding) {
-      return Stage(color: C.day, center: false, bottom: [
+      return Stage(card: true, foot: _foot(L.of(context)), color: C.day, center: false, bottom: [
         Btn(l.confirmDay, key: const Key('decide'), onTap: _pick == null ? null : () { final c = _pick; if (c != null) _do(() => g.decide(c)); }),
         Btn(l.back, key: const Key('decideBack'), ghost: true, onTap: () => setState(() { _deciding = false; _pick = null; })),
       ], children: [
@@ -222,7 +226,7 @@ class _GameScreenState extends State<GameScreen> {
         _option(l.noOne, 'none'),
       ]);
     }
-    return Stage(color: C.day, center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.day, center: false, bottom: [
       Text(l.howDecide, textAlign: TextAlign.center, style: head.copyWith(fontSize: 18)),
       Btn(l.decideTogether, key: const Key('decideTogether'), onTap: () => setState(() => _deciding = true)),
       Text(l.decideTogetherD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
@@ -244,7 +248,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _ballotPick(L l) {
     final seat = g.who;
-    return Stage(center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), center: false, bottom: [
       Btn(l.castVote, key: const Key('castVote'), onTap: _pick == null ? null : () { final c = _pick; if (c != null) _do(() => g.ballotCast(seat, c)); }),
     ], children: [
       Text(_name(seat), style: TextStyle(color: C.mute)),
@@ -259,7 +263,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _verdict(L l) {
     if (!g.revealed) return _suspense(l, l.deciding, C.day, Icons.gavel);
     final v = g.s.verdict!;
-    return Stage(color: v.out != null ? C.blood : C.day, bottom: [Btn(l.nextNight(g.s.day + 1), key: const Key('nextNight'), onTap: g.nextNight)], children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: v.out != null ? C.blood : C.day, bottom: [Btn(l.nextNight(g.s.day + 1), key: const Key('nextNight'), onTap: g.nextNight)], children: [
       if (v.out != null) ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(v.out!), size: 42, color: C.red2),
@@ -280,7 +284,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _end(L l) {
     if (!g.revealed) return _suspense(l, l.gameOver, C.glory, Icons.emoji_events_outlined);
     final s = g.s, mafia = s.winner == Winner.mafia, best = mvp(s.winner!, s.roles, s.alive, s.stats);
-    return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: mafia ? C.blood : C.glory, center: false, bottom: [
       Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: () {
         final n = g.playAgain();
         if (n != null) setState(() => g = n);

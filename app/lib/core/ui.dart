@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
+import 'package:mafia_dealer/core/look.dart';
+export 'package:mafia_dealer/core/look.dart';
 
 // The Noir look (the old app's theme: dark paper, typewriter headings, hard black shadows) and shared pieces.
 
@@ -36,7 +38,7 @@ const neonPalette = Palette(name: 'neon',
     gold: Color(0xFFFFB547), green: Color(0xFF3CE0A0), blue: Color(0xFF5AA2FF), priText: Color(0xFFFFFFFF), alt: Color(0xFF2B2440),
     altText: Color(0xFFF4F2F8), night: Color(0xFF0F1433), day: Color(0xFF2A1A12), blood: Color(0xFF2A0B16), glory: Color(0xFF2A2010),
     roles: {Role.mafia: Color(0xFFFF4D7D), Role.doctor: Color(0xFF3CE0A0), Role.detective: Color(0xFF5AA2FF), Role.citizen: Color(0xFFFFC65A)},
-    body: 'Readex', head: 'Readex', headFallback: [], headLs: 0, headWeight: FontWeight.w700, radius: 16, neon: true);
+    body: 'Readex', head: 'Readex', headFallback: [], headLs: 0, headWeight: FontWeight.w700, radius: 22, neon: true);
 
 /// The current look's colours. Set from Prefs.theme by the app before it builds.
 abstract final class C {
@@ -70,17 +72,29 @@ TextStyle get head => TextStyle(fontFamily: C.p.head, fontFamilyFallback: C.p.he
 
 /// Neon's gradients (the old app's CSS): the primary button and each backdrop.
 const neonPrimary = LinearGradient(colors: [Color(0xFFFF2E63), Color(0xFFFF6A3D)], begin: Alignment.topLeft, end: Alignment.bottomRight);
-BoxDecoration neonBackdrop(Color base) {
-  final glow = base == neonPalette.night ? const Color(0xAA2A3AA0) : base == neonPalette.day ? const Color(0x66FF9A3D)
-      : base == neonPalette.blood ? const Color(0x66FF2E63) : base == neonPalette.glory ? const Color(0x66FFB547) : const Color(0x44FF2E63);
-  return BoxDecoration(gradient: RadialGradient(center: const Alignment(-.6, -1.1), radius: 1.1, colors: [glow, base], stops: const [0, .7]));
+/// [S14-7 / his #6] Neon's backdrops, as the old CSS (--bgfx, --bg-night …): a dark violet gradient with a pink glow at
+/// the top start and a blue one at the top end (Home and pages); the game screens: one coloured glow from the top centre.
+Widget neonBackdrop(Color base, Widget child) {
+  RadialGradient glow(Alignment at, double r, Color c) => RadialGradient(center: at, radius: r, colors: [c, c.withValues(alpha: 0)], stops: const [0, .7]);
+  LinearGradient lin(Color a, Color b, double stop) =>
+      LinearGradient(begin: const Alignment(-.15, -1), end: const Alignment(.15, 1), colors: [a, b], stops: [0, stop]);
+  final (LinearGradient bg, List<RadialGradient> glows) = base == neonPalette.night ? (lin(const Color(0xFF0F1433), const Color(0xFF06070F), .65), [glow(const Alignment(0, -1.16), .8, const Color(0xAA2A3AA0))])
+      : base == neonPalette.day ? (lin(const Color(0xFF2A1A12), const Color(0xFF0D0A08), .65), [glow(const Alignment(0, -1.16), .8, const Color(0x66FF9A3D))])
+      : base == neonPalette.blood ? (lin(const Color(0xFF2A0B16), const Color(0xFF0B0508), .65), [glow(const Alignment(0, -1.16), .85, const Color(0x66FF2E63))])
+      : base == neonPalette.glory ? (lin(const Color(0xFF2A2010), const Color(0xFF0D0A05), .65), [glow(const Alignment(0, -1.16), .85, const Color(0x66FFB547))])
+      : (lin(const Color(0xFF17131F), const Color(0xFF0B0A10), .6),
+          [glow(const Alignment(-.84, -1.12), .62, const Color(0x44FF2E63)), glow(const Alignment(1.08, -.76), .58, const Color(0x303D6BFF))]);
+  Widget w = child;
+  for (final g in glows.reversed) { w = DecoratedBox(decoration: BoxDecoration(gradient: g), child: w); }
+  return DecoratedBox(decoration: BoxDecoration(gradient: bg), child: w);
 }
 
 /// Noir's backdrop as the old app's CSS: a dark glow from the top (red on Home, blue at night, …) over the base colour.
 BoxDecoration noirBackdrop(Color base) {
   final glow = base == noirPalette.night ? const Color(0x9914213D) : base == noirPalette.day ? const Color(0xAA5A4426)
       : base == noirPalette.blood ? const Color(0xAA6B0F0F) : base == noirPalette.glory ? const Color(0xAA5A4A1E) : const Color(0x664A0F0F);
-  return BoxDecoration(color: base, gradient: RadialGradient(center: const Alignment(0, -1.15), radius: .95, colors: [glow, glow.withValues(alpha: 0)], stops: const [0, .7]));
+  // a gradient hides the box's colour: the glow fades into the base colour itself (it faded into nothing: black)
+  return BoxDecoration(gradient: RadialGradient(center: const Alignment(0, -1.15), radius: .95, colors: [Color.alphaBlend(glow, base), base], stops: const [0, .7]));
 }
 
 /// Noir's faint horizontal lines (old CSS: a 2 px light line every 4 px).
@@ -112,13 +126,13 @@ ThemeData noir() {
     dividerTheme: DividerThemeData(color: C.line, space: 24), // Material 3 ignores dividerColor: dividers were white
     // [look] the old app's buttons: square-cornered, red filled, outlined in the line colour
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: C.red, foregroundColor: C.priText,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        textStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700, fontSize: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
     elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: C.red, foregroundColor: C.priText, elevation: 0,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
+        textStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700, fontSize: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: C.text, side: BorderSide(color: C.line2),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
-    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700, fontSize: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(textStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 12 : 3)))),
     textTheme: base.textTheme.apply(bodyColor: C.text, displayColor: C.text),
     inputDecorationTheme: InputDecorationTheme(
@@ -148,22 +162,23 @@ ThemeData noir() {
 /// A button: primary (Noir red with a hard black shadow / Neon pink-orange gradient with a glow), or ghost (outlined).
 /// Disabled when onTap is null.
 class Btn extends StatelessWidget {
-  const Btn(this.label, {super.key, this.onTap, this.ghost = false, this.icon});
+  const Btn(this.label, {super.key, this.onTap, this.ghost = false, this.icon, this.gold = false});
   final String label;
   final VoidCallback? onTap;
   final bool ghost;
+  final bool gold; // [S14] the old .btn.gold (Resume game): gold paper, dark text
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    final on = onTap != null, fg = ghost ? C.text : C.priText, neon = C.neon, r = BorderRadius.circular(neon ? 14 : 4);
+    final on = onTap != null, fg = ghost ? C.text : gold ? (C.neon ? const Color(0xFF1D1206) : C.altText) : C.priText, neon = C.neon, r = BorderRadius.circular(neon ? 14 : 4);
     return Opacity(
       opacity: on ? 1 : .45,
       child: Container(
         decoration: BoxDecoration(
-          color: ghost ? Colors.transparent : neon ? null : C.red,
-          gradient: !ghost && neon ? neonPrimary : null,
-          border: Border.all(color: ghost ? C.line2 : neon ? Colors.transparent : C.red),
+          color: ghost ? Colors.transparent : gold ? (neon ? null : C.alt) : neon ? null : C.red,
+          gradient: ghost ? null : gold && neon ? const LinearGradient(colors: [Color(0xFFFFB547), Color(0xFFFF7A3D)]) : neon ? neonPrimary : null,
+          border: Border.all(color: ghost ? C.line2 : neon ? Colors.transparent : gold ? C.alt : C.red),
           borderRadius: r,
           boxShadow: ghost || !on ? null : neon ? const [BoxShadow(color: Color(0x45FF2E63), blurRadius: 26, offset: Offset(0, 10))]
               : const [BoxShadow(color: Colors.black, offset: Offset(3, 3))],
@@ -217,170 +232,48 @@ class Sec extends StatelessWidget {
       );
 }
 
-/// The old app's small caps title (.sh h3): body font, bold, spaced capitals, muted.
-TextStyle get capStyle => TextStyle(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: C.neon ? 1 : 2.1, color: C.mute, height: 1.3);
-
-/// A small square with an icon (a section's mark, the old .gi).
-class IconBox extends StatelessWidget {
-  const IconBox(this.icon, {super.key, this.size = 26, this.color});
-  final IconData icon;
-  final double size;
-  final Color? color;
-  @override
-  Widget build(BuildContext context) => Container(width: size, height: size, alignment: Alignment.center,
-      decoration: BoxDecoration(color: C.card2, borderRadius: BorderRadius.circular(C.neon ? 8 : 2)),
-      child: Icon(icon, size: size * .58, color: color ?? C.gold));
-}
-
-/// The old app's segmented choice (.seg): a dark well, the chosen option filled red. [keys] name each option.
-class Seg<T> extends StatelessWidget {
-  const Seg({super.key, required this.options, required this.value, required this.onChanged, this.expand = false});
-  final List<(T, String, Key?)> options;
-  final T value;
-  final ValueChanged<T> onChanged;
-  final bool expand; // full width, the options sharing it
-  @override
-  Widget build(BuildContext context) {
-    final r = C.neon ? 12.0 : 3.0;
-    Widget opt((T, String, Key?) o) {
-      final on = o.$1 == value;
-      return Material(color: on ? C.red : Colors.transparent, borderRadius: BorderRadius.circular(r - 1),
-          child: InkWell(key: o.$3, borderRadius: BorderRadius.circular(r - 1), onTap: () => onChanged(o.$1), child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              child: Text(o.$2, textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: on ? C.priText : C.mute)))));
-    }
-    return Container(padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(color: Color.lerp(C.bg, C.card, .5), border: Border.all(color: C.line), borderRadius: BorderRadius.circular(r)),
-        child: Row(mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min, children: [
-          for (final (i, o) in options.indexed) ...[if (i > 0) const SizedBox(width: 3), expand ? Expanded(child: opt(o)) : opt(o)],
-        ]));
-  }
-}
-
-/// The old app's square switch (Noir; Neon keeps Material's): red when on, a light square sliding across.
-class SqSwitch extends StatelessWidget {
-  const SqSwitch({super.key, required this.value, required this.onChanged});
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-  @override
-  Widget build(BuildContext context) {
-    if (C.neon) return Switch(value: value, onChanged: onChanged);
-    return Semantics(toggled: value, child: GestureDetector(onTap: onChanged == null ? null : () => onChanged!(!value), child: AnimatedContainer(
-      duration: const Duration(milliseconds: 160), width: 56, height: 32, padding: const EdgeInsets.all(4),
-      alignment: value ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
-      decoration: BoxDecoration(color: value ? C.red : C.card2, border: Border.all(color: value ? C.red : C.line2), borderRadius: BorderRadius.circular(2)),
-      child: Container(width: 22, height: 22, decoration: BoxDecoration(color: value ? C.priText : C.mute, borderRadius: BorderRadius.circular(1))),
-    )));
-  }
-}
-
-/// A square − / + / × button with a border (the old app's .stp and the remove button).
-class SqBtn extends StatelessWidget {
-  const SqBtn(this.icon, {super.key, this.onTap, this.size = 40, this.tooltip});
-  final IconData icon;
-  final VoidCallback? onTap;
-  final double size;
-  final String? tooltip;
-  @override
-  Widget build(BuildContext context) {
-    final b = Material(color: C.card2, shape: RoundedRectangleBorder(side: BorderSide(color: C.line), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
-        child: InkWell(onTap: onTap, child: SizedBox(width: size, height: size, child: Icon(icon, size: 18, color: onTap == null ? C.dim : C.text))));
-    return tooltip == null ? b : Tooltip(message: tooltip!, child: b);
-  }
-}
-
-/// A number in a small square (a player's seat, the old .num).
-class NumBox extends StatelessWidget {
-  const NumBox(this.n, {super.key, this.size = 30});
-  final int n;
-  final double size;
-  @override
-  Widget build(BuildContext context) => Container(width: size, height: size, alignment: Alignment.center,
-      decoration: BoxDecoration(color: C.card2, borderRadius: BorderRadius.circular(C.neon ? 8 : 2)),
-      child: Text('$n', style: TextStyle(color: C.mute, fontWeight: FontWeight.w700, fontSize: 14)));
-}
-
-/// A settings-style row (the old .tg): a bold label, a muted line under it, a control at the end.
-class OptRow extends StatelessWidget {
-  const OptRow(this.label, {super.key, this.desc, this.trailing, this.onTap, this.onLongPress, this.descKey});
-  final String label;
-  final String? desc;
-  final Widget? trailing;
-  final VoidCallback? onTap, onLongPress;
-  final Key? descKey;
-  @override
-  Widget build(BuildContext context) => InkWell(onTap: onTap, onLongPress: onLongPress, child: Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: C.text)),
-          if (desc != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(desc!, key: descKey, style: TextStyle(fontSize: 13, color: C.mute, height: 1.35))),
-        ])),
-        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-      ])));
-}
-
-/// A player to pick (night, vote), as the old app's .opt: a number box, the name, its tags, a square checkbox.
-/// [seat] shows as the number (null for "skip").
-class PickRow extends StatelessWidget {
-  const PickRow({super.key, required this.label, this.seat, required this.on, this.onTap, this.tags = const [], this.accent});
-  final String label;
-  final int? seat;
-  final bool on;
-  final VoidCallback? onTap; // null = can't be picked
-  final List<String> tags;
-  final Color? accent;
-  @override
-  Widget build(BuildContext context) {
-    final r = BorderRadius.circular(C.p.radius), sq = BorderRadius.circular(C.neon ? 8 : 2);
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Opacity(opacity: onTap == null ? .4 : 1, child: Material(
-      color: on ? (C.neon ? C.red.withValues(alpha: .18) : const Color(0xFF3A1512)) : C.card,
-      shape: RoundedRectangleBorder(side: BorderSide(color: on ? C.red : C.line, width: on ? 2 : 1), borderRadius: r),
-      child: InkWell(borderRadius: r, onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Row(children: [
-        Container(width: 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: C.card2, borderRadius: sq),
-            child: seat == null ? Icon(Icons.block, size: 16, color: C.mute) : NumBox(seat! + 1)),
-        const SizedBox(width: 12),
-        // the tags follow the name and wrap under it on a narrow phone
-        Expanded(child: Wrap(spacing: 8, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          Text(label, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: accent ?? C.text)),
-          for (final t in tags) Text(t, style: TextStyle(color: C.mute, fontSize: 12, fontWeight: FontWeight.w700)),
-        ])),
-        const SizedBox(width: 10),
-        Container(width: 24, height: 24, decoration: BoxDecoration(color: on ? C.red : null, border: Border.all(color: on ? C.red : C.line2, width: 2), borderRadius: sq),
-            child: on ? Icon(Icons.check, size: 16, color: C.priText) : null),
-      ]))),
-    )));
-  }
-}
-
 /// The page backdrop under every screen (Noir: the glow from the top and the faint lines; Neon: its glows).
 class Backdrop extends StatelessWidget {
   const Backdrop({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) => DecoratedBox(decoration: C.neon ? neonBackdrop(C.bg) : noirBackdrop(C.bg),
-      child: CustomPaint(painter: C.neon ? null : const ScanLines(), child: child));
+  Widget build(BuildContext context) => C.neon ? neonBackdrop(C.bg, child)
+      : DecoratedBox(decoration: noirBackdrop(C.bg), child: CustomPaint(painter: const ScanLines(), child: child));
 }
 
-/// Android's own page transition, with the backdrop painted under each page (pages are see-through to show it).
+/// [S14-5 / his #4] A gentle page change: the new page fades in and slides up a little (and back out). The
+/// backdrop is painted under each page (pages are see-through to show it). No motion when Android's animations are off.
 class _BackdropTransitions extends PageTransitionsBuilder {
   const _BackdropTransitions();
   @override
-  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> a, Animation<double> b, Widget child) =>
-      (const PageTransitionsTheme().builders[TargetPlatform.android] ?? const ZoomPageTransitionsBuilder())
-          .buildTransitions(route, context, a, b, Backdrop(child: child));
+  Duration get transitionDuration => const Duration(milliseconds: 280);
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 220);
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> a, Animation<double> b, Widget child) {
+    final page = Backdrop(child: child);
+    if (MediaQuery.of(context).disableAnimations) return page;
+    final inC = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return FadeTransition(opacity: inC, child: SlideTransition(position: Tween(begin: const Offset(0, .04), end: Offset.zero).animate(inC), child: page));
+  }
 }
 
 /// A full screen with a centered column, the night / day / blood / glory backdrop, and a bottom button bar.
 class Stage extends StatelessWidget {
-  const Stage({super.key, required this.children, this.bottom = const [], this.color, this.center = true});
+  const Stage({super.key, required this.children, this.bottom = const [], this.color, this.center = true, this.card = false, this.foot});
   final List<Widget> children, bottom;
   final Color? color;
   final bool center;
+  /// [S14-6] the old app's game screens: everything, buttons included, in one central card; [foot] under the screen
+  /// ("Round 1 · 6/6 alive")
+  final bool card;
+  final String? foot;
 
   @override
   Widget build(BuildContext context) {
     final bg = color ?? C.bg;
-    return Container(
-        decoration: C.neon ? neonBackdrop(bg) : noirBackdrop(bg),
+    final page = Container(
+        decoration: C.neon ? null : noirBackdrop(bg),
         child: CustomPaint(painter: C.neon ? null : const ScanLines(), child: SafeArea(
           child: Column(children: [
             Expanded(
@@ -389,11 +282,20 @@ class Stage extends StatelessWidget {
                     child: ConstrainedBox(
                       constraints: BoxConstraints(minHeight: c.maxHeight - 24),
                       child: Column(mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+                          crossAxisAlignment: CrossAxisAlignment.stretch, children: !card ? children : [
+                            Container(padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+                                decoration: BoxDecoration(color: C.neon ? C.card.withValues(alpha: .86) : C.card, border: Border.all(color: C.line),
+                                    borderRadius: BorderRadius.circular(C.neon ? 22 : 6)),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                  ...children,
+                                  for (final b in bottom) Padding(padding: const EdgeInsets.only(top: 12), child: b),
+                                ])),
+                          ]),
                     ),
                   )),
             ),
-            if (bottom.isNotEmpty)
+            if (foot != null) Padding(padding: const EdgeInsets.only(bottom: 14, top: 4), child: Text(foot!, key: const Key('stageFoot'), style: TextStyle(color: C.mute, fontSize: 14))),
+            if (bottom.isNotEmpty && !card)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -402,6 +304,7 @@ class Stage extends StatelessWidget {
           ]),
         )),
       );
+    return C.neon ? neonBackdrop(bg, page) : page;
   }
 }
 

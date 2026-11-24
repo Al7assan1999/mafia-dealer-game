@@ -8,9 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:mafia_dealer/core/api.dart' show apiBase;
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/push.dart';
-import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/core/version.dart';
-import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 // New builds reach the testers (S8-4), as the old app did until Play: a check of the latest GitHub Release on start and
 // on return (at most every 10 minutes), "Update available · What's new" on Home, the APK downloaded inside the app and
@@ -68,6 +66,22 @@ Map? pickApk(List<Map> assets, String abi) {
       ?? apks.firstOrNull;
 }
 
+/// [S14-4] One release in What's new: its version and build, the day it came out, its points.
+class ReleaseNote {
+  const ReleaseNote(this.version, this.build, this.date, this.notes);
+  final String version;
+  final int build;
+  final DateTime? date;
+  final List<String> notes;
+  /// From GitHub's shape (tag_name v0.4.6-b100010, body "- point" lines, published_at). Null for a tag we can't read.
+  static ReleaseNote? from(Map j) {
+    final m = RegExp(r'^v?([\d.]+)-b(\d+)$').firstMatch(j['tag_name'] as String? ?? '');
+    if (m == null) return null;
+    return ReleaseNote(m.group(1)!, int.parse(m.group(2)!), DateTime.tryParse(j['published_at'] as String? ?? '')?.toLocal(),
+        [for (final line in (j['body'] as String? ?? '').split('\n')) if (line.trim().startsWith('- ')) line.trim().substring(2)]);
+  }
+}
+
 class Updater extends ChangeNotifier {
   Updater(this.prefs, {http.Client? client, Installer? installer, int Function()? clock})
       : _http = client ?? http.Client(), installer = installer ?? AndroidInstaller(), _now = clock ?? (() => DateTime.now().millisecondsSinceEpoch) {
@@ -82,6 +96,7 @@ class Updater extends ChangeNotifier {
   PushService? _push;
 
   Release? latest; // a newer build than this one, or null
+  List<ReleaseNote> history = const []; // [S14-4] the last releases (the server's answer carries them), newest first
   String? state; // null | 'downloading' | 'installing' | 'allow' | 'failed'
   double progress = 0;
   int _checked = 0;
@@ -117,6 +132,7 @@ class Updater extends ChangeNotifier {
       }
       final j = await ask('$apiBase/v1/app/latest') ?? await ask('https://api.github.com/repos/$repo/releases/latest');
       if (j == null) return false;
+      if (j['history'] is List) history = [for (final h in (j['history'] as List).cast<Map>()) ?ReleaseNote.from(h)];
       final m = RegExp(r'^v?([\d.]+)-b(\d+)$').firstMatch(j['tag_name'] as String? ?? ''); // v0.2.0-b100003
       final apk = pickApk((j['assets'] as List? ?? const []).cast<Map>(), abi ?? phoneAbi());
       if (m == null || apk == null) return false;
@@ -154,6 +170,22 @@ class Updater extends ChangeNotifier {
       if (notes.isNotEmpty) { prefs.versionNotes = notes; prefs.versionNotesOf = appVersion; }
       return notes;
     } catch (_) { return const []; }
+  }
+
+  /// [S14-4] What's new as the old app: every recent release. From the last check, else the server, else GitHub; empty
+  /// when nothing answers (Home then falls back to this version's kept notes).
+  Future<List<ReleaseNote>> releases() async {
+    if (history.isNotEmpty) return history;
+    Future<Object?> ask(String url) async {
+      try {
+        final r = await _http.get(Uri.parse(url), headers: {'accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 10));
+        return r.statusCode == 200 ? jsonDecode(r.body) : null;
+      } catch (_) { return null; }
+    }
+    final mine = await ask('$apiBase/v1/app/latest');
+    if (mine is Map && mine['history'] is List) return history = [for (final h in (mine['history'] as List).cast<Map>()) ?ReleaseNote.from(h)];
+    final gh = await ask('https://api.github.com/repos/$repo/releases?per_page=10');
+    return gh is List ? history = [for (final h in gh.cast<Map>()) ?ReleaseNote.from(h)] : const [];
   }
 
   /// [S13-5 / his note 15] The downloaded update stayed in the cache for good (~27 MB each time): gone once the new
@@ -208,49 +240,3 @@ class Updater extends ChangeNotifier {
 }
 
 /// Home's "Update available" card.
-class UpdateCard extends StatelessWidget {
-  const UpdateCard({super.key, required this.updater});
-  final Updater updater;
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(listenable: updater, builder: (context, _) {
-        final r = updater.latest, l = L.of(context);
-        if (r == null) return const SizedBox.shrink();
-        final busy = updater.state == 'downloading' || updater.state == 'installing';
-        return Sec(key: const Key('updateCard'), color: C.card2, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Icon(Icons.system_update, color: C.gold), const SizedBox(width: 10),
-            Expanded(child: Text(l.updAvail, style: head.copyWith(fontSize: 18, color: C.gold))),
-            Text('v${r.version}', style: TextStyle(color: C.mute)),
-          ]),
-          if (r.notes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(l.updWhatsNew(r.version), style: TextStyle(color: C.mute, fontSize: 12)),
-            for (final n in r.notes.take(3)) Padding(padding: const EdgeInsets.only(top: 3), child: Text('• $n')),
-            if (r.notes.length > 3) Align(alignment: AlignmentDirectional.centerStart, child: TextButton(key: const Key('updSeeAll'),
-                onPressed: () => notesSheet(context, l.updWhatsNew(r.version), r.notes), child: Text('${r.notes.length - 3}+', style: TextStyle(color: C.red2)))),
-          ],
-          const SizedBox(height: 10),
-          if (updater.state == 'downloading') ...[
-            LinearProgressIndicator(value: updater.progress, color: C.red, backgroundColor: C.card),
-            Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.updDownloading((updater.progress * 100).round()), key: const Key('updProgress'), style: TextStyle(color: C.mute))),
-          ] else if (updater.state == 'installing')
-            Text(l.updInstalling, style: TextStyle(color: C.mute))
-          else ...[
-            if (updater.state == 'allow') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updAllow, key: const Key('updAllow'), style: TextStyle(color: C.mute))),
-            if (updater.state == 'failed') Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.updFailed, style: TextStyle(color: C.red2))),
-            Btn(l.updBtn, key: const Key('updBtn'), icon: Icons.download, onTap: busy ? null : updater.update),
-          ],
-        ]));
-      });
-}
-
-Future<void> notesSheet(BuildContext context, String title, List<String> notes) => showModalBottomSheet(
-      context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true,
-      builder: (_) => SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(title, style: head.copyWith(fontSize: 20)),
-        const SizedBox(height: 10),
-        for (final n in notes) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('• $n')),
-        const SizedBox(height: 8),
-        Btn(L.of(context).ok, key: const Key('notesOk'), onTap: () => Navigator.of(context).pop()),
-      ]))),
-    );

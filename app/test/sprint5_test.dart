@@ -248,7 +248,7 @@ void main() {
       expect(app.prefs.guideSeen, isTrue);
       expect(find.byKey(const Key('howToPlay')), findsOneWidget, reason: 'still reachable from Home');
       expect(atHandle('Sami'), '\u2066@Sami\u2069');
-      expect(find.text(atHandle('Sami')), findsOneWidget);
+      expect(find.byTooltip(atHandle('Sami')), findsOneWidget); // [S14-3] the avatar's tooltip (Home shows no name, as the old app)
     });
   });
 }

@@ -56,6 +56,21 @@ class RoomBarFrame extends StatelessWidget {
 
 /// [R1] The minimized room's chat on Home, under the friends tab (it was on the red bar at the top, N7), with the unread
 /// count. Shown signed out too (a guest minimized in a Wi-Fi room).
+/// [S14-1 / his #1] The chat as a side tab, under the friends tab (Home: the minimized room's; the room: always).
+class ChatTab extends StatelessWidget {
+  const ChatTab({super.key, required this.conn, required this.onTap});
+  final RoomConn conn;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: conn, builder: (context, _) => Material(
+        color: C.card2, elevation: 6,
+        shape: RoundedRectangleBorder(side: BorderSide(color: C.red),
+            borderRadius: BorderRadiusDirectional.horizontal(start: Radius.circular(C.neon ? 18 : 6)).resolve(Directionality.of(context))),
+        child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10), child: Semantics(label: L.of(context).chatT, child: Badge(
+            isLabelVisible: conn.unreadTotal > 0, label: Text('${conn.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.text, size: 22))))),
+      ));
+}
+
 class RoomChatButton extends StatelessWidget {
   const RoomChatButton({super.key, required this.account});
   final Account account;
@@ -63,14 +78,7 @@ class RoomChatButton extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(listenable: ActiveRoom.instance, builder: (context, _) {
         final a = ActiveRoom.instance, c = a.conn;
         if (c == null || !a.minimized) return const SizedBox.shrink();
-        return ListenableBuilder(listenable: c, builder: (context, _) => Material(
-          color: C.card2, elevation: 6,
-          shape: RoundedRectangleBorder(side: BorderSide(color: C.red),
-              borderRadius: BorderRadiusDirectional.horizontal(start: Radius.circular(C.neon ? 18 : 6)).resolve(Directionality.of(context))),
-          child: InkWell(key: const Key('barChat'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: account, out: false, safety: !a.lan))),
-            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10), child: Semantics(label: L.of(context).chatT, child: Badge(
-                isLabelVisible: c.unreadTotal > 0, label: Text('${c.unreadTotal}'), child: Icon(Icons.chat_bubble_outline, color: C.text, size: 22)))))),
-        );
+        return ChatTab(key: const Key('barChat'), conn: c,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: account, out: false, safety: !a.lan))));
       });
 }

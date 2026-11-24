@@ -116,6 +116,11 @@ class Prefs extends ChangeNotifier {
     _sp.setStringList('hiddenGames', s.toList());
     notifyListeners();
   }
+  /// [S14-3] Home's "Game History" count and best player line, kept from the last time they were read (signed in).
+  int? get homeGames => _sp.getInt('homeGames');
+  set homeGames(int? v) { v == null ? _sp.remove('homeGames') : _sp.setInt('homeGames', v); notifyListeners(); }
+  String get homeBest => _sp.getString('homeBest') ?? '';
+  set homeBest(String v) { _sp.setString('homeBest', v); notifyListeners(); }
   List<String> get pendingNotes => _sp.getStringList('pendingNotes') ?? const [];
   set pendingNotes(List<String> v) => _sp.setStringList('pendingNotes', v);
 

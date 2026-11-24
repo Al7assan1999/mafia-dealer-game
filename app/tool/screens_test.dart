@@ -20,6 +20,7 @@ import '../test/sprint8_test.dart' show row, statsOf;
 import 'package:mafia_dealer/features/stats/stats_screen.dart';
 import 'package:mafia_dealer/features/old_history/import_screen.dart';
 import 'package:mafia_dealer/features/update/updater.dart';
+import 'package:mafia_dealer/features/update/whats_new.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../test/online_test.dart' show FakeRoom, member, nightOpts, openRoom, roomMsg, view;
@@ -96,7 +97,7 @@ void main() {
       await launch(t, size: const Size(360, 640), lang: lang, server: s, tokens: MemoryTokens()..t = tok);
       await t.pump(const Duration(seconds: 1));
       await shot(t, '${lang}_21_home_signed_in');
-      await tapKey(t, 'friends');
+      await openFriends(t);
       await shot(t, '${lang}_22_friends');
       await t.binding.handlePopRoute();
       await t.pump(const Duration(milliseconds: 500));
