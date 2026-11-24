@@ -16,25 +16,26 @@ abstract class TokenStore {
 
 class SecureTokens implements TokenStore {
   static const _s = FlutterSecureStorage();
-  // [hotfix 0.4.9] On some phones Android's secure storage fails quietly (his: signed out at every start, a new "device"
-  // per sign-in). The session is also kept in the app's private storage and read from there when secure storage fails.
+  // [hotfix 0.4.9 → 0.4.10] On his phone Android's secure storage could be read but silently kept an OLD session (its
+  // writes failed): the app read that revoked session first, got "auth" and signed out at every start. The app's own
+  // copy (always written) is read first now; secure storage only as the fallback, and a failed save there also clears
+  // what it holds, so a stale session can't come back.
   // ponytail: app-private, not encrypted; drop the copy once secure storage is proven on his phone.
   @override
   Future<String?> read() async {
-    String? t;
-    try {
-      t = await _s.read(key: 'session');
-    } catch (_) {}
-    if (t != null && t.length == 43) return t;
-
-    final fallback = (await SharedPreferences.getInstance()).getString('session');
-    return (fallback != null && fallback.length == 43) ? fallback : null;
+    final mine = (await SharedPreferences.getInstance()).getString('session');
+    if (mine != null) return mine;
+    try { return await _s.read(key: 'session'); } catch (_) { return null; }
   }
   @override
   Future<void> write(String? t) async {
-    try { t == null ? await _s.delete(key: 'session') : await _s.write(key: 'session', value: t); } catch (_) {}
     final p = await SharedPreferences.getInstance();
     t == null ? await p.remove('session') : await p.setString('session', t);
+    try {
+      t == null ? await _s.delete(key: 'session') : await _s.write(key: 'session', value: t);
+    } catch (_) {
+      try { await _s.delete(key: 'session'); } catch (_) {}
+    }
   }
 }
 
