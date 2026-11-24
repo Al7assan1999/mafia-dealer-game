@@ -5,14 +5,17 @@
 import 'package:flutter/material.dart' hide Action;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/audio.dart';
+import 'package:mafia_dealer/state/account.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/core/audio.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
-import 'package:mafia_dealer/lan/lan.dart';
-import 'package:mafia_dealer/lan/wifi_screen.dart';
-import 'package:mafia_dealer/online.dart';
-import 'package:mafia_dealer/prefs.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/features/wifi/lan.dart';
+import 'package:mafia_dealer/features/wifi/wifi_screen.dart';
+import 'package:mafia_dealer/state/active_room.dart';
+import 'package:mafia_dealer/features/room/room_bar.dart';
+import 'package:mafia_dealer/features/room/room_screen.dart';
+import 'package:mafia_dealer/core/prefs.dart';
+import 'package:mafia_dealer/core/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';

@@ -5,8 +5,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/api.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/core/api.dart';
 
 class FakeServer {
   bool offline = false;
@@ -30,15 +30,14 @@ class FakeServer {
   Map<String, Object?> wifiAnswer = {'status': 'pending', 'reason': null}; // what the next request gets
   String? wifiError; // the next request fails with this (e.g. slow_down)
   final openRooms = <String>{};
+  List<Map<String, Object?>> games = []; // GET /v1/games
   // Sprint 8: what the stats and old-history endpoints answer (tests fill them in)
   Map<String, Object?> statsAnswer = {'board': [], 'me': null, 'minGames': 3, 'games': 0, 'titles': {'best': null, 'mafia': null, 'det': null, 'doc': null, 'first': null}};
   Map<String, Object?>? playerAnswer;
   final statsAsked = <String>[]; // the query strings
-  Map<String, Object?> oldNamesAnswer = {'names': [], 'mine': null};
   Object importAnswer = {'found': 0, 'imported': 0, 'duplicates': 0, 'broken': 0, 'waiting': 0}; // or an error code string
   List<Map<String, Object?>> oldPlayers = []; // [S12-1] GET /v1/legacy/players (the admin's Old players)
   List<Map<String, Object?>> oldGamesAnswer = [];
-  final claims = <String>[];
   var _n = 0;
 
   Api api() => Api(base: 'https://fake', client: MockClient(_handle));
@@ -132,6 +131,14 @@ class FakeServer {
       return ok({'sessions': [for (final e in sessions.entries) if (e.value == me) {'id': e.key, 'device': 'Android phone', 'createdAt': 0, 'lastSeenAt': 0, 'current': e.key == tok}]});
     }
     if (path.startsWith('/v1/sessions/')) { sessions.remove(path.split('/').last); return ok({'ok': true}); }
+    if (path == '/v1/games' && m == 'GET') return ok({'games': games}); // [S13 P1] the online history
+    if (path == '/v1/users' && m == 'GET') { // [S13-4] search: the start of an @handle or any part of a name
+      final q = (r.url.queryParameters['q'] ?? '').toLowerCase();
+      if (q.length < 2) return err(400, 'bad_request');
+      final hits = users.values.where((u) => u['id'] != me && u['handle'] != null && !blocks.contains((me, u['id'] as String)) && !blocks.contains((u['id'] as String, me))
+          && ((u['handle'] as String).toLowerCase().startsWith(q) || (u['display'] as String).toLowerCase().contains(q)));
+      return ok({'users': [for (final u in hits.take(20)) card(u['id'] as String, me)]});
+    }
     if (path.startsWith('/v1/users/')) {
       final h = Uri.decodeComponent(path.split('/').last);
       final u = users.values.where((u) => (u['handle'] as String?)?.toLowerCase() == h.toLowerCase()).firstOrNull;
@@ -198,8 +205,6 @@ class FakeServer {
     }
     if (path == '/v1/stats') { statsAsked.add(r.url.query); return ok(statsAnswer); }
     if (path == '/v1/stats/player') return playerAnswer == null ? err(404, 'not_found') : ok(playerAnswer!);
-    if (path == '/v1/legacy/names') return ok(oldNamesAnswer);
-    if (path == '/v1/legacy/claim') { claims.add(body['name'] as String); oldNamesAnswer = {...oldNamesAnswer, 'mine': body['name']}; return ok({'ok': true, 'name': body['name']}); }
     if (path == '/v1/legacy/players' && m == 'GET') return admin == me ? ok({'players': oldPlayers}) : err(403, 'forbidden');
     if (path == '/v1/legacy/players' && m == 'PUT') {
       if (admin != me) return err(403, 'forbidden');

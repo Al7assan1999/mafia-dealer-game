@@ -125,6 +125,20 @@ describe('the room', () => {
     expect((await DB().prepare('SELECT room_code FROM users WHERE id = ?').bind(t.accts[0].id).first<any>()).room_code).toBeNull();
   });
 
+  it('[QA S13] left in the lobby and back: the same number, so the earlier chat is still theirs; a leaver frees the place', async () => {
+    const t = await table(3), [a, b] = t.players, cn = b.me.cn;
+    b.send({ t: 'chat', to: -1, text: 'before', cid: 'c1' });
+    await a.until(() => a.got(m => m.t === 'chat' && m.msg.text === 'before'), 'chat');
+    b.send({ t: 'leave' });
+    await a.until(() => a.room.members.length === 2, 'b gone from the list');
+    const back = await connect(`/v1/rooms/${t.code}/ws`, t.accts[1].token);
+    await back.until(() => back.me, 'back in');
+    expect(back.me.cn).toBe(cn);
+    await back.until(() => back.got(m => m.t === 'chatAll'), 'history');
+    expect(back.got(m => m.t === 'chatAll').msgs.find((m: any) => m.text === 'before').from).toBe(cn);
+    await a.until(() => a.room.members.length === 3, 'listed again');
+  });
+
   it("kicks follow the host Settings: lobby only refuses one mid-game; any time eliminates the player, who cannot come back", async () => {
     const t = await table(5), [host] = t.players;
     await deal(t);

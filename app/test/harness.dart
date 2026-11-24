@@ -1,11 +1,12 @@
 // What every widget test needs: real fonts, a fake clock, silent audio, and the app at a phone size with a fake server.
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/audio.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/main.dart';
-import 'package:mafia_dealer/prefs.dart';
+import 'package:mafia_dealer/state/account.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/core/audio.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/app.dart';
+import 'package:mafia_dealer/core/prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_server.dart';

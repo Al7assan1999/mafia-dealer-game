@@ -5,9 +5,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/account_screens.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/account/profile_screen.dart';
+import 'package:mafia_dealer/core/ui.dart';
 
 import 'driver.dart';
 import 'fake_server.dart';

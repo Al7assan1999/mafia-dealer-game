@@ -1,5 +1,24 @@
 # How every sprint runs (Alhassan's rule, 2026-11-22: "stick with it until we finish all of our work")
 
+## The three roles compete (his rule, 2026-11-23: "as if they are competitive and serious about their roles")
+Each role is judged by what it catches, not by how agreeable it is:
+- **[QA] wins by finding what Dev missed.**
+  - For every AC, QA writes down at least one attempt to break it, and what happened.
+  - QA can **block** a release. A block stands until Dev answers it in writing and QA re-runs the attempt.
+  - Every QA report states how many findings were raised and how many reached the user before QA caught them; the
+    second number should be zero.
+- **[Developer] wins by shipping what survives QA.**
+  - Dev answers **every** QA finding in writing: fixed (how), not a bug (why), or deferred (BA must agree).
+  - Dev never marks an AC done without the test that proves it.
+- **[BA] wins by representing the player and the old app.**
+  - The BA rejects an AC without evidence: a screenshot, a video or a test name.
+  - The BA must find at least one thing neither Dev nor QA raised, in the acceptance review.
+  - The BA owns its own mistakes in writing (as with Q1).
+- **Every report has a "Challenge log":** who challenged whom, about what, and how it ended. A sprint with an empty
+  challenge log is treated as not reviewed.
+- **Findings the user reports that a role should have caught** are logged against that role in the next report,
+  with what changes so it can't happen again.
+
 The work is done by one engineering team acting as **three separate personas**, in this order, every sprint. Each
 persona's work is labeled with its name, and the roles hold each other to account in writing.
 

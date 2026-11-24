@@ -2,8 +2,8 @@
 // notifications going straight through, updates counting as seen, reduced motion) and the How to play hand-off (P4).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/intro.dart';
-import 'package:mafia_dealer/prefs.dart';
+import 'package:mafia_dealer/features/intro/intro_screen.dart';
+import 'package:mafia_dealer/core/prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';

@@ -741,7 +741,7 @@
   "gRolesT": "The roles",
   "gNightT": "Night",
   "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone. Citizens tap anyone, so nobody can tell roles apart.",
-  "gDayT": "Day",
+  "gDayT": "Day and reveals",
   "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
   "gTipsT": "Tips",
   "gTips": "Keep your role secret. Out players stay quiet. One phone for the table, or each on their own phone online.",
@@ -885,12 +885,10 @@
   "wConfirm": "Confirm",
   "wNotMe": "Not me",
   "sNotif": "Notifications",
-  "sNotifD": "Invites, friends, game approvals, titles and new versions, when the app is closed. Choose which in Android's settings.",
+  "sNotifD": "Invites, friends, game approvals, and titles, when the app is closed. Choose which in Android's settings.",
   "inviteExpired": "This invite has expired",
   "historySignIn": "Sign in to see your online games here too.",
   "statsT": "Stats",
-  "tabMine": "Mine",
-  "tabEveryone": "Everyone",
   "fAll": "All",
   "fOld": "Old app",
   "fAllTime": "All time",
@@ -950,23 +948,6 @@
     }
   },
   "boardT": "Leaderboard",
-  "boardMine": "Ranked by win rate. A player needs {n} valid games to be ranked.",
-  "@boardMine": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "boardFrom": "From your online, approved Wi-Fi and old-app games. One-phone games aren't recorded.",
-  "boardEveryone": "All players, from online and approved Wi-Fi games. {n} valid games needed to be ranked.",
-  "@boardEveryone": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "needN": "{n, plural, =1{Needs 1 game} other{Needs {n} games}}",
   "@needN": {
     "placeholders": {
@@ -1064,10 +1045,6 @@
   "importBtn": "Import",
   "importNotFound": "No group with this code",
   "importDown": "The old server didn't answer, try again",
-  "whoWereYou": "Which one were you?",
-  "whoD": "Your old games count for you once you pick your name.",
-  "nameTaken": "taken",
-  "noNames": "The player list isn't set up yet.",
   "tabOld": "Old app",
   "noOldGames": "No old games yet. Import them from your Profile.",
   "onBoardT": "Show me on the Everyone leaderboard",
@@ -1109,8 +1086,6 @@
     }
   },
   "updAllow": "Allow installs from Mafia Dealer, then tap Update again.",
-  "sAlerts": "New version alerts",
-  "sAlertsD": "A notification when a new version is out.",
   "sCheck": "Check for updates",
   "sUpToDate": "You have the latest version",
   "sVersion": "Version {v} (build {b})",
@@ -1180,9 +1155,6 @@
   "playingNoJoin": "Playing · you can't join",
   "noGamesYet": "No games yet",
   "markAllRead": "Mark all as read",
-  "sTestPush": "Send me a test notification",
-  "testSent": "Sent. Waiting for it to arrive on this phone…",
-  "testNotHere": "This phone isn't registered for notifications yet. Allow notifications for Mafia Dealer, then open the app again.",
   "bJoin": "Join",
   "bOpen": "Open",
   "iCap1": "A quiet town. Everyone knows everyone.",
@@ -1205,8 +1177,6 @@
   "sIntro": "Show the intro at start",
   "sIntroD": "The short story before Home, every time the app opens.",
   "sWatchIntro": "Watch the intro",
-  "testArrived": "Arrived on this phone ✓ Notifications work. With the app closed they show in the notification bar.",
-  "testNoArrive": "Nothing arrived in 15 seconds. Check that notifications for Mafia Dealer are allowed (Notification settings below), then try again.",
   "buzzSent": "Buzz sent",
   "buzzMutedMe": "The host muted your buzzes.",
   "pingedYou": "The host pinged you!",
@@ -1214,7 +1184,6 @@
   "pAddFriend": "Add friend",
   "pRequested": "Friend request sent",
   "pNoGamesD": "Their record starts with your first game together.",
-  "testNoServer": "The server can't send notifications right now (it isn't set up for them). This phone is ready.",
   "importFound": "{found, plural, =1{1 game found} other{{found} games found}}: {added} new, {dup} already here.",
   "@importFound": {
     "placeholders": {
@@ -1281,6 +1250,75 @@
   },
   "fInGameN": "In a game · {n, plural, =1{1 player} other{{n} players}}",
   "@fInGameN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "boardOne": "One board for everyone: online games, approved Wi-Fi games and the old app's games. A player needs {n, plural, =1{1 valid game} other{{n} valid games}} to be ranked.",
+  "@boardOne": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "rbBack": "Back to room",
+  "rbLost": "Reconnecting to your room…",
+  "cSkip": "Mafia skip",
+  "cNorep": "No repeat target",
+  "cSaverev": "Saves announced",
+  "cDecoy": "Decoy turns",
+  "cSelf": "Doctor self-save",
+  "cRep": "No repeat save",
+  "cReveal": "Roles revealed",
+  "cSkipVote": "Skip counts",
+  "cTimer": "Talk {t}",
+  "@cTimer": {
+    "placeholders": {
+      "t": {
+        "type": "String"
+      }
+    }
+  },
+  "cNightT": "Night {n}s",
+  "@cNightT": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "gOnlineT": "Online and Wi-Fi games",
+  "letYouIn": "{n} let you in",
+  "@letYouIn": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "searchHint": "Search by name or @username",
+  "searchMin": "Type 2 letters or more of a name or an @username.",
+  "searchNone": "Nobody found for \"{q}\"",
+  "@searchNone": {
+    "placeholders": {
+      "q": {
+        "type": "String"
+      }
+    }
+  },
+  "storageT": "Kept on this phone",
+  "storageNone": "Nothing to show.",
+  "whatsNew": "What's new",
+  "noNotes": "No notes for this version.",
+  "hiddenN": "Hidden ({n})",
+  "hideGame": "Hide from my history",
+  "unhideGame": "Show in my history",
+  "hiddenToast": "Hidden from your history (the game still counts)",
+  "unhiddenToast": "Back in your history",
+  "@hiddenN": {
     "placeholders": {
       "n": {
         "type": "int"

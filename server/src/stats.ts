@@ -125,14 +125,12 @@ export async function oldNameOwners(db: D1Database) {
 export const oldStatus = (names: string[], real: Set<string>, tests: Set<string>): 'counted' | 'test' | 'waiting' =>
   names.some(n => tests.has(nameKey(n))) ? 'test' : names.every(n => real.has(nameKey(n))) ? 'counted' : 'waiting';
 
-/** Old games I imported, or played in under a name that is mine. Valid only. */
-async function oldGames(db: D1Database, uid: string, since: number): Promise<SGame[]> {
+/** [S13-1] Every old game that counts (valid, every name marked a real player), whoever imported it. */
+async function oldGames(db: D1Database, since: number): Promise<SGame[]> {
   const { own, real, tests } = await oldNameOwners(db);
-  const myNames = [...own].filter(([, u]) => u === uid).map(([k]) => k);
-  const { results: gs } = await db.prepare(
-    `SELECT id, raw, played_at, winner, days FROM legacy_games WHERE valid = 1 AND played_at >= ? AND (importer_id = ?${myNames.length ? ` OR id IN (SELECT game_id FROM legacy_seats WHERE name_key IN (${myNames.map(() => '?').join(',')}))` : ''})`)
-    .bind(since, uid, ...myNames).all<{ id: string; raw: string; played_at: number; winner: 'mafia' | 'citizens'; days: number }>();
-  return gs.map(g => ({ g, o: JSON.parse(g.raw) })).filter(x => oldStatus(x.o.names, real, tests) === 'counted')  // [S12-1] kept, counted once named
+  const { results: gs } = await db.prepare('SELECT id, raw, played_at FROM legacy_games WHERE valid = 1 AND played_at >= ?')
+    .bind(since).all<{ id: string; raw: string; played_at: number }>();
+  return gs.map(g => ({ g, o: JSON.parse(g.raw) })).filter(x => oldStatus(x.o.names, real, tests) === 'counted')
     .map(({ g, o }) => fromOld(g.id, o, g.played_at, own));
 }
 
@@ -144,19 +142,21 @@ export function fromOld(id: string, o: { names: string[]; roles: Role[]; alive: 
     ev: { first: ev.first ?? null, kills: ev.kills ?? [], outs: ev.outs ?? [], saves: ev.saves ?? [], caught: (ev.caught ?? []).map(x => +String(x).split(':')[0]) } };
 }
 
-export const EVERYONE_MIN = 10, MINE_MIN = 3, EVERYONE_TOP = 100;
+/** [S13-1] One board, the same on every phone (his note: "the leaderboard should be unified, from the database"):
+ *  the old app's rule of 3 valid games to be ranked; the top 100 rows (and always mine). */
+export const BOARD_MIN = 3, BOARD_TOP = 100;
 
-/** The games a board is built from. */
-async function gamesFor(env: Env, uid: string, scope: 'mine' | 'all', source: string, days: number, now: number) {
+/** The games the board is built from: online, approved Wi-Fi and counted old games, for everyone. */
+async function boardGames(env: Env, source: string, days: number, now: number) {
   const since = days > 0 ? now - days * DAY : 0;
-  let games = scope === 'all' ? await onlineGames(env.DB, null, since)
-    : [...await onlineGames(env.DB, uid, since), ...(source === 'all' || source === 'old' ? await oldGames(env.DB, uid, since) : [])];
-  if (source !== 'all') games = games.filter(g => g.source === source);
-  return games;
+  const games = [...await onlineGames(env.DB, null, since), ...(source === 'all' || source === 'old' ? await oldGames(env.DB, since) : [])];
+  return source === 'all' ? games : games.filter(g => g.source === source);
 }
 
+/** On the board: an old player without an account (by name), or an account that shows itself and isn't banned. */
 const shownOnBoard = (users: Map<string, UserRow>, id: string | null) => {
-  const u = id ? users.get(id) as (UserRow & { on_board: number }) | undefined : undefined;
+  if (!id) return true;
+  const u = users.get(id) as (UserRow & { on_board: number }) | undefined;
   return !!u && !u.banned_at && u.on_board === 1;
 };
 
@@ -169,21 +169,19 @@ async function people(db: D1Database, ids: string[]) {
 
 export const statsRoutes = new Hono<AppEnv>();
 const Q = (c: { req: { query(k: string): string | undefined } }) => {
-  const scope = c.req.query('board') === 'all' ? 'all' as const : 'mine' as const;
   const source = ['online', 'wifi', 'old'].includes(c.req.query('source') ?? '') ? c.req.query('source')! : 'all';
-  const days = c.req.query('days') === '30' ? 30 : 0;
-  return { scope, source: scope === 'all' && source === 'old' ? 'all' : source, days };
+  return { source, days: c.req.query('days') === '30' ? 30 : 0 };
 };
 
-/** GET /v1/stats?board=mine|all&source=all|online|wifi|old&days=0|30 */
+/** GET /v1/stats?source=all|online|wifi|old&days=0|30: the one board (S13-1). */
 statsRoutes.get('/', async c => {
-  const { scope, source, days } = Q(c), me = c.var.user, now = c.var.deps.now();
-  const games = await gamesFor(c.env, me.id, scope, source, days, now);
-  const min = scope === 'all' ? EVERYONE_MIN : MINE_MIN;
+  const { source, days } = Q(c), me = c.var.user, now = c.var.deps.now();
+  const games = await boardGames(c.env, source, days, now);
+  const min = BOARD_MIN;
   const ids = [...new Set(games.flatMap(g => g.seats.map(s => s.userId)).filter((x): x is string => !!x))];
   const users = await people(c.env.DB, ids);
-  // Everyone: accounts only, opted in, never banned (titles go to the best of those)
-  const { ranked, titles } = board(games, min, scope === 'all' ? p => shownOnBoard(users, p.userId) : undefined);
+  // accounts that hide themselves or are banned stay off the board (titles go to the best of the rest)
+  const { ranked, titles } = board(games, min, p => shownOnBoard(users, p.userId));
   const out = (p: PlayerStat, rank: number | null) => {
     const u = p.userId ? users.get(p.userId) : undefined;
     return { ...p, rank, name: u?.display ?? p.name, handle: u?.handle ?? null, avatar: u ? avatarOf(u) : null, me: p.userId === me.id };
@@ -199,16 +197,16 @@ statsRoutes.get('/', async c => {
   });
   const mine = rows.find(r => r.me) ?? null;
   return c.json({
-    board: scope === 'all' ? rows.slice(0, EVERYONE_TOP) : rows, me: mine, minGames: min, games: games.length,
+    board: rows.slice(0, BOARD_TOP), me: mine, minGames: min, games: games.length,
     titles: Object.fromEntries((Object.keys(titles) as TitleKey[]).map(k => [k, titles[k] ? out(titles[k]!, null) : null])),
   });
 });
 
-/** GET /v1/stats/player?key=u:<id>|n:<name>&board&source&days: a player's profile within that board's games. */
+/** GET /v1/stats/player?key=u:<id>|n:<name>&source&days: a player's profile within the board's games. */
 statsRoutes.get('/player', async c => {
-  const { scope, source, days } = Q(c), key = c.req.query('key') ?? '', me = c.var.user;
+  const { source, days } = Q(c), key = c.req.query('key') ?? '';
   if (!/^(u|n):.{1,64}$/.test(key)) throw new ApiErr(400, 'bad_request');
-  const p = profile(await gamesFor(c.env, me.id, scope, source, days, c.var.deps.now()), key);
+  const p = profile(await boardGames(c.env, source, days, c.var.deps.now()), key);
   if (!p.games) throw new ApiErr(404, 'not_found');
   const ids = [p.userId, p.nemesis?.userId, p.partner?.userId].filter((x): x is string => !!x);
   const users = await people(c.env.DB, ids);
@@ -217,16 +215,16 @@ statsRoutes.get('/player', async c => {
   return c.json({ ...p, name: u?.display ?? p.name, card: u ? card(u, 'none') : null, nemesis: named(p.nemesis), partner: named(p.partner) });
 });
 
-// ---------------------------------------------------------------- P4: a title taken from you (Everyone board)
+// ---------------------------------------------------------------- P4: a title taken from you (the board)
 const TITLE_NAMES: Record<TitleKey, string> = { best: 'Best player', mafia: 'Best Mafia', det: 'Best Detective', doc: 'Best Doctor', first: 'Most killed first' };
 export const TITLE_NOTE_TTL = 30 * DAY;  // N8
 
 /** After a game counts (or stops counting): works out the Everyone titles and tells anyone who lost one. */
 export async function refreshTitles(env: Env, deps: Pick<Deps, 'push' | 'now'>) {
   try {
-    const games = await onlineGames(env.DB, null, 0);
+    const games = await boardGames(env, 'all', 0, deps.now());
     const users = await people(env.DB, [...new Set(games.flatMap(g => g.seats.map(s => s.userId)).filter((x): x is string => !!x))]);
-    const { titles } = board(games, EVERYONE_MIN, p => shownOnBoard(users, p.userId));
+    const { titles } = board(games, BOARD_MIN, p => shownOnBoard(users, p.userId));
     const now = Object.fromEntries((Object.keys(titles) as TitleKey[]).map(k => [k, titles[k]?.userId ?? null])) as Record<TitleKey, string | null>;
     const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'titles'").first<{ value: string }>();
     const before = (row ? JSON.parse(row.value) : {}) as Record<string, string | null>;

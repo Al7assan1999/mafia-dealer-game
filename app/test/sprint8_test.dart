@@ -10,13 +10,12 @@ import 'package:flutter/material.dart' hide Action;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:mafia_dealer/account.dart';
+import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 import 'package:mafia_dealer/l10n/app_localizations_ar.dart';
 import 'package:mafia_dealer/l10n/app_localizations_en.dart';
-import 'package:mafia_dealer/prefs.dart';
-import 'package:mafia_dealer/stats.dart';
-import 'package:mafia_dealer/update.dart';
+import 'package:mafia_dealer/core/prefs.dart';
+import 'package:mafia_dealer/features/update/updater.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';
@@ -80,30 +79,24 @@ void main() {
       expect(find.byKey(const Key('title_doc')), findsNothing, reason: 'no holder, no card');
       expect(find.text('Needs 3 games'), findsOneWidget);
       expect(find.text('Mafia 2/3 · Citizen 4/5'), findsOneWidget);
-      expect(find.textContaining("One-phone games aren't recorded."), findsOneWidget);
-      expect(s.statsAsked.last, 'board=mine&source=all&days=0');
+      expect(find.textContaining('One board for everyone'), findsOneWidget);
+      expect(s.statsAsked.last, 'source=all&days=0', reason: 'S13-1: no "Mine": one board');
+      expect(find.byKey(const Key('boardMine')), findsNothing);
     });
 
-    testWidgets('Everyone: asks for all players, no Old app filter, my rank shown even below the top', (t) async {
-      final s = FakeServer();
+    testWidgets('[S13-1] one board: the Old app filter, my rank shown even below the top, the 30-day filter', (t) async {
+      final s = FakeServer()..statsAnswer = statsOf([row('u:1', 'Dareer', w: 9, g: 12, rank: 1)], me: row('u:9', 'Sami', w: 3, g: 11, rank: 140, me: true));
       await signedIn(t, s);
       await tapKey(t, 'stats');
       await frames(t);
-      expect(find.byKey(const Key('src_old')), findsOneWidget);
-      await tapKey(t, 'src_old');
-      await frames(t);
-      expect(s.statsAsked.last, 'board=mine&source=old&days=0');
-      s.statsAnswer = statsOf([row('u:1', 'Dareer', w: 9, g: 12, rank: 1)], min: 10, me: row('u:9', 'Sami', w: 3, g: 11, rank: 140, me: true));
-      await tapKey(t, 'boardAll');
-      await frames(t);
-      expect(s.statsAsked.last, 'board=all&source=all&days=0', reason: 'the Old app filter falls back to All on Everyone');
-      expect(find.byKey(const Key('src_old')), findsNothing);
       expect(find.text('You: #140'), findsOneWidget);
       expect(find.byKey(const Key('row_u:9')), findsOneWidget, reason: 'my own row under the top');
-      expect(find.textContaining('10 valid games needed'), findsOneWidget);
+      await tapKey(t, 'src_old');
+      await frames(t);
+      expect(s.statsAsked.last, 'source=old&days=0');
       await tapKey(t, 'days_30');
       await frames(t);
-      expect(s.statsAsked.last, 'board=all&source=all&days=30');
+      expect(s.statsAsked.last, 'source=old&days=30');
     });
 
     testWidgets('no games yet: a plain message, not an empty board', (t) async {
@@ -146,14 +139,13 @@ void main() {
 
   group('the old history', () {
     testWidgets('Profile → Import: the guide, no list yet, a result line, a wrong code, the old server down', (t) async {
-      final s = FakeServer()..importAnswer = {'found': 119, 'imported': 116, 'duplicates': 3, 'broken': 2, 'waiting': 119};
+      final s = FakeServer()..importAnswer = {'found': 119, 'imported': 116, 'duplicates': 3, 'broken': 2, 'waiting': 119}..admin = 'u1';  // Sami, the first account
       await signedIn(t, s);
       await tapKey(t, 'profile');
       await frames(t, 3);
-      await t.scrollUntilVisible(find.byKey(const Key('importOldHistory')), 200, scrollable: find.byType(Scrollable).first);
+      await t.scrollUntilVisible(find.byKey(const Key('importOldHistory')), 200, scrollable: find.byType(Scrollable).first);  // the admin (S13-1)
       await tapKey(t, 'importOldHistory');
       await frames(t);
-      expect(find.byKey(const Key('noNames')), findsOneWidget);
       await t.enterText(find.byKey(const Key('oldCode')), 'abcd2345');
       await tapKey(t, 'importOld');
       await frames(t);
@@ -169,18 +161,12 @@ void main() {
       expect(find.text("The old server didn't answer, try again"), findsOneWidget);
     });
 
-    testWidgets('"Which one were you?": pick my name; a name someone took can\'t be picked', (t) async {
-      final s = FakeServer()..oldNamesAnswer = {'names': [{'name': 'Alhassan', 'taken': false}, {'name': 'Dareer', 'taken': true}], 'mine': null};
-      final app = await signedIn(t, s);
-      await t.runAsync(() async {});
-      Navigator.of(t.element(find.byKey(const Key('settings')))).push(MaterialPageRoute(builder: (_) => ImportScreen(account: app.account)));
-      await frames(t);
-      expect(find.text('Dareer · taken'), findsOneWidget);
-      await tapKey(t, 'claim_Alhassan');
-      await frames(t);
-      expect(s.claims, ['Alhassan']);
-      expect(t.widget<ChoiceChip>(find.byKey(const Key('claim_Alhassan'))).selected, isTrue);
-      expect(t.widget<ChoiceChip>(find.byKey(const Key('claim_Dareer'))).onSelected, isNull);
+    testWidgets('[S13-1] a player who isn\'t the admin has no Import in Profile', (t) async {
+      final s = FakeServer();
+      await signedIn(t, s);
+      await tapKey(t, 'profile');
+      await frames(t, 3);
+      expect(find.byKey(const Key('importOldHistory'), skipOffstage: false), findsNothing);
     });
 
     testWidgets('History → Old app: my imported games, invalid marked, and the old lines on the detail page', (t) async {
@@ -286,17 +272,11 @@ void main() {
       expect(u2.state, 'failed');
     });
 
-    test('alerts follow the language topic; off unsubscribes', () async {
+    test('[S13-5 / his note 14] no update notifications: a phone that followed the topics stops', () async {
       final p = await prefs(), push = FakePush(), u = Updater(p, client: github(), installer: FakeInstaller());
       u.push = push;
       await Future<void>.delayed(Duration.zero);
-      expect(push.topics, {'updates_en': true});
-      await u.setAlerts(false);
-      expect(push.topics['updates_en'], isFalse);
-      await u.setAlerts(true);
-      p.lang = 'ar';
-      await Future<void>.delayed(Duration.zero);
-      expect(push.topics, {'updates_en': false, 'updates_ar': true});
+      expect(push.topics, {'updates_en': false, 'updates_ar': false});
     });
   });
 }

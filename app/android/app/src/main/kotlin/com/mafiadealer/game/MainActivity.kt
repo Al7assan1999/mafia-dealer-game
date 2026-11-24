@@ -28,8 +28,8 @@ class MainActivity : FlutterActivity() {
             Quad("friends", R.string.ch_friends, R.string.ch_friends_d, NotificationManager.IMPORTANCE_DEFAULT),
             Quad("approvals", R.string.ch_approvals, R.string.ch_approvals_d, NotificationManager.IMPORTANCE_DEFAULT),
             Quad("titles", R.string.ch_titles, R.string.ch_titles_d, NotificationManager.IMPORTANCE_DEFAULT),
-            Quad("updates", R.string.ch_updates, R.string.ch_updates_d, NotificationManager.IMPORTANCE_DEFAULT),
         )) nm.createNotificationChannel(NotificationChannel(id, getString(name), importance).apply { description = getString(desc) })
+        nm.deleteNotificationChannel("updates") // S13-5 / his note 14: no notifications about updates any more
     }
     private data class Quad(val id: String, val name: Int, val desc: Int, val importance: Int)
 

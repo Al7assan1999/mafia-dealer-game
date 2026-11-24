@@ -8,10 +8,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/online.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/state/active_room.dart';
+import 'package:mafia_dealer/core/ui.dart';
 
 import '../test/driver.dart';
 import '../test/fake_server.dart';

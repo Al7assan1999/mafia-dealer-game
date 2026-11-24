@@ -2,18 +2,19 @@
 // binding are checked on the emulator and in the server tests).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/account_screens.dart';
-import 'package:mafia_dealer/online.dart';
-import 'package:mafia_dealer/stats.dart';
-import 'package:mafia_dealer/update.dart' show pickApk;
+import 'package:mafia_dealer/state/models.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/friends/friends_screen.dart';
+import 'package:mafia_dealer/features/room/buzz.dart';
+import 'package:mafia_dealer/state/active_room.dart';
+import 'package:mafia_dealer/features/stats/player_screen.dart';
+import 'package:mafia_dealer/features/update/updater.dart';
 
 import 'driver.dart';
 import 'fake_server.dart';
 import 'harness.dart';
 import 'online_test.dart' show frames, member, openRoom, roomMsg;
 import 'sprint10_fixes_test.dart' show befriend, roomShell;
-import 'sprint7_test.dart' show FakePush;
 
 void main() {
   setUpAll(setUpHarness);
@@ -86,25 +87,6 @@ void main() {
     await g2.up();
     await frames(t, 4);
     expect(find.textContaining('Who is lying here?'), findsNWidgets(2), reason: 'the message and the reply bar');
-  });
-
-  testWidgets('R6: with the app open the test push is caught and the row says it arrived; nothing in 15 s says so', (t) async {
-    final s = FakeServer(), tok = s.user('Sami'), push = FakePush();
-    final a = await launch(t, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true, 'pushAsked': true});
-    a.account.push = push;
-    await frames(t);
-    await tapKey(t, 'settings');
-    await frames(t);
-    await t.ensureVisible(find.byKey(const Key('testPush')));
-    await t.tap(find.byKey(const Key('testPush')));
-    await frames(t);
-    expect(t.widget<Text>(find.byKey(const Key('testPushResult'))).data, contains('Waiting'));
-    push.inApp.add({'kind': 'test'});
-    await frames(t);
-    expect(t.widget<Text>(find.byKey(const Key('testPushResult'))).data, contains('Arrived on this phone'));
-    await t.tap(find.byKey(const Key('testPush')));
-    await t.pump(const Duration(seconds: 16));
-    expect(t.widget<Text>(find.byKey(const Key('testPushResult'))).data, contains('Nothing arrived'));
   });
 
   testWidgets('R7: a player buzzes the host from the lobby (muted at the limit); the host pings; arriving ones flash', (t) async {

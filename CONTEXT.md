@@ -175,6 +175,16 @@ files are copied from there only when a phase needs them.
    migration `0009_room_size` + rollback). `docs/old-app-parity.md` rewritten: left before new roles = Groups (his
    prompt), History tools (change valid later, hide, filter), Home quick toggles + What's new. Waiting on him:
    `ADMIN_IDS` secret before the push, commit/push, P2 (a QA account on production), the revamp-complete list.
+   Sprint 12 released as v0.4.1 / v0.4.2. **Sprint 13** (his 19 notes after 0.4.2; `docs/sprint-13-prd.md` approved
+   with his answers; built 2026-11-24, not committed; `docs/sprint-13-report.md`): `app/lib` split into
+   `core/ state/ features/` (rules in `docs/architecture.md`, enforced by `test/architecture_test.dart`: ≤500 lines a
+   file, state never imports screens); one leaderboard for everyone (Mine and claims gone; only the admin imports and
+   links old names); room bar like the old one + #17 navigation fix + folded Rules card; chat "@" mentions, centred
+   Send, reply bar width; friend search by @handle or display name; let in opens the room by itself; Home footer with
+   What's new; Settings ×; no update notifications (topics unsubscribed, release push removed), the hosting
+   notification made silent (Android requires one); update.apk deleted after updating, long-press version = storage
+   readout; History filter + hide. QA's device find: a lobby leaver got a new seat number on return → kept as `left`
+   now (server). No DB change. App 152 / server 72. **Noir "case file" look = Sprint 14, mockups of 3 screens first.**
 5. Play readiness. 6. Migration of old users (optional).
 
 ## Later (his list, 2026-11-23)

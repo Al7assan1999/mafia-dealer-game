@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/lan/lan.dart';
-import 'package:mafia_dealer/lan/local_room.dart';
+import 'package:mafia_dealer/features/wifi/lan.dart';
+import 'package:mafia_dealer/features/wifi/local_room.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
 class Phone implements LanConn {

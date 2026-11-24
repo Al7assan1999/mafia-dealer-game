@@ -8,22 +8,23 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/intro.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/features/intro/intro_screen.dart';
 
 import '../test/driver.dart';
 import '../test/fake_server.dart';
 import '../test/harness.dart';
 import '../test/sprint7_test.dart' show wifiRecord;
 import '../test/sprint8_test.dart' show row, statsOf;
-import 'package:mafia_dealer/stats.dart';
-import 'package:mafia_dealer/update.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/features/stats/stats_screen.dart';
+import 'package:mafia_dealer/features/old_history/import_screen.dart';
+import 'package:mafia_dealer/features/update/updater.dart';
+import 'package:mafia_dealer/core/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../test/online_test.dart' show FakeRoom, member, nightOpts, openRoom, roomMsg, view;
-import 'package:mafia_dealer/lan/lan.dart';
-import 'package:mafia_dealer/lan/wifi_screen.dart';
+import 'package:mafia_dealer/features/wifi/lan.dart';
+import 'package:mafia_dealer/features/wifi/wifi_screen.dart';
 
 Future<void> shot(WidgetTester t, String name) async {
   await t.pump(const Duration(milliseconds: 500));
@@ -148,7 +149,6 @@ void main() {
         'roles': {'mafia': [3, 2], 'doctor': [2, 2], 'detective': [4, 4], 'citizen': [3, 1]}, 'mafia': [3, 2], 'side': [9, 7],
         'nemesis': {'name': 'Hokan', 'userId': null, 'n': 2}, 'partner': {'name': 'Sami', 'userId': null, 'n': 1},
         'moments': {'saves': 2, 'caught': 5, 'killed': 2, 'out': 1}, 'form': [true, true, false, true, true, true, false, true], 'card': null};
-      s.oldNamesAnswer = {'names': [{'name': 'Alhassan', 'taken': false}, {'name': 'Dareer', 'taken': true}, {'name': 'Halawy', 'taken': false}], 'mine': 'Alhassan'};
       final tok = s.user('Sami');
       final app = await launch(t, size: const Size(360, 640), lang: lang, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true});
       final u = Updater(app.prefs)..latest = Release('0.3.0', 100005, 'x', 'x', ['Stats are back', 'Import your old history', 'Updates inside the app', 'More']);

@@ -6,9 +6,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart' hide Action;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/account_screens.dart';
-import 'package:mafia_dealer/push.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/friends/friends_screen.dart';
+import 'package:mafia_dealer/features/notifications/bell_sheet.dart';
+import 'package:mafia_dealer/core/push.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
 import 'driver.dart';
@@ -30,9 +31,6 @@ class FakePush implements PushService {
   Future<Map<String, String>?> initial() async => first;
   @override
   Stream<Map<String, String>> get opened => taps.stream;
-  final inApp = StreamController<Map<String, String>>.broadcast();
-  @override
-  Stream<Map<String, String>> get received => inApp.stream;
   final topics = <String, bool>{};
   @override
   Future<void> topic(String name, bool on) async => topics[name] = on;

@@ -28,7 +28,12 @@ class KeepService : Service() {
         val title = intent?.getStringExtra("title") ?: "Mafia Dealer"
         val text = intent?.getStringExtra("text") ?: ""
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CHANNEL, title, NotificationManager.IMPORTANCE_LOW))
+        // [S13-5 / his note 14] Android requires this notification while the room is kept alive in the background; it is
+        // the quietest kind: no sound, folded away, no status-bar icon (a new channel: an old one's importance can't drop)
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.deleteNotificationChannel("hosting")
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, title, NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) })
+        }
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
         @Suppress("DEPRECATION")
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
@@ -55,7 +60,7 @@ class KeepService : Service() {
     }
 
     companion object {
-        const val CHANNEL = "hosting"
+        const val CHANNEL = "hosting_quiet"
         const val ID = 8765
     }
 }

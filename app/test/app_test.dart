@@ -4,9 +4,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/game_screen.dart';
-import 'package:mafia_dealer/prefs.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/features/offline/game_screen.dart';
+import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
 import 'driver.dart';
@@ -198,6 +198,9 @@ void main() {
     await launch(t);
     await tapKey(t, 'newGame');
     await waitFor(t, find.byKey(const Key('deal')));
+    await t.pump(const Duration(milliseconds: 400));
+    await t.ensureVisible(find.byKey(const Key('rulesToggle'))); // S13-2: the rules are a folded card
+    await tapKey(t, 'rulesToggle');
     await t.pump(const Duration(milliseconds: 400));
     final chip = find.text('30 s');
     await t.ensureVisible(chip);

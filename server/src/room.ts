@@ -175,10 +175,11 @@ export class Room extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
   }
 
-  /** Someone leaves for good (left, kicked): in a running game their seat stays (a leaver may come back). */
+  /** Someone leaves for good (left, kicked). A leaver stays as `left` (their seat in a game, and their number: back in
+   *  the room they get the same one, so their earlier chat is still theirs: [QA] S13 emulator); a kicked one is gone. */
   private async drop(st: RoomState, uid: string, why: 'left' | 'kicked') {
     const m = st.members.find(x => x.uid === uid); if (!m) return;
-    if (why === 'left' && running(st) && st.seats.includes(uid)) m.left = true;
+    if (why === 'left') m.left = true;
     else st.members = st.members.filter(x => x.uid !== uid);
     st.ready = st.ready.filter(x => x !== uid);
     for (const w of this.sockets(uid)) { this.out(w, { t: 'bye', why }); try { w.close(4000, why); } catch { /* gone */ } }
@@ -241,7 +242,7 @@ export class Room extends DurableObject<Env> {
     if (m) { delete m.left; Object.assign(m, me); }
     else {
       if (running(st)) return refuse('started');  // late joiners wait for the next deal; seat holders rejoin above
-      if (st.members.length >= MAX_MEMBERS) return refuse('room_full');
+      if (st.members.filter(x => !x.left).length >= MAX_MEMBERS) return refuse('room_full');
       m = { uid: user.id, cn: st.nextCn++, ...me, buzz: 0 };
       st.members.push(m);
     }

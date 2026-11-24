@@ -3,9 +3,9 @@
 // walkthrough fixes (day roster, how the town decides, host controls during a drop, lobby summary, guide, handles).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/core/ui.dart';
 
 import 'driver.dart';
 import 'fake_server.dart';
@@ -108,8 +108,12 @@ void main() {
       await t.enterText(find.byKey(const Key('chatText')), 'mine edited');
       await tapKey(t, 'chatSend');
       expect(sentOf(r, 'edit').last, {'t': 'edit', 'id': 2, 'text': 'mine edited'});
-      await tapKey(t, 'mentionBtn');
+      // [S13-3] typing "@" in the box offers the players; "@P" narrows it; a tap puts "@P2 " in
+      await t.enterText(find.byKey(const Key('chatText')), '@P');
+      await frames(t, 2);
+      expect(find.byKey(const Key('mentionList')), findsOneWidget);
       await tapKey(t, 'mention_2');
+      expect(t.widget<TextField>(find.byKey(const Key('chatText'))).controller!.text, '@P2 ');
       await t.enterText(find.byKey(const Key('chatText')), '${t.widget<TextField>(find.byKey(const Key('chatText'))).controller!.text}vote now');
       await tapKey(t, 'chatSend');
       expect(sentOf(r, 'chat').last['mentions'], [2]);

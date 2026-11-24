@@ -1,7 +1,6 @@
 # A release for the testers (S8-4), only when Alhassan asks: Actions → Release → Run workflow, with the "What's new"
 # points separated by ";". Builds the release APK (signed with the upload key), publishes it as a GitHub Release (the app
-# checks the latest one and updates itself), then pushes "Mafia Dealer X is out" to every phone on the `updates_en` /
-# `updates_ar` topics. Build numbers are 100000 + this workflow's run number, so a release always outranks a CI debug build.
+# checks the latest one and shows its update card on Home; no notification since Sprint 13). Build numbers are 100000 + this workflow's run number, so a release always outranks a CI debug build.
 name: Release
 
 on:
@@ -62,9 +61,3 @@ jobs:
           for a in arm64-v8a armeabi-v7a x86_64; do cp "app/build/app/outputs/flutter-apk/app-$a-release.apk" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-$a.apk"; done
           gh release create "v$v-b$b" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-arm64-v8a.apk" --title "Mafia Dealer $v (build $b)" --notes-file "$RUNNER_TEMP/notes.md"
           gh release upload "v$v-b$b" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-armeabi-v7a.apk" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-x86_64.apk"
-      - name: Push "new version" to every phone
-        env:
-          FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
-        run: |
-          if [ -z "$FCM_SERVICE_ACCOUNT" ]; then echo "No FCM_SERVICE_ACCOUNT: no push"; exit 0; fi
-          node scripts/push-release.mjs "${{ steps.v.outputs.version }}"

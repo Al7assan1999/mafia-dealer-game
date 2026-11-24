@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setup } from './helpers.ts';
+import { DB } from './live.ts';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -175,5 +176,30 @@ describe('safety: block, report, ban (Sprint 5)', () => {
     await t.call('POST', '/v1/reports', { token: a.token, body: { userId: admin.id, reason: 'other' } });
     await t.call('DELETE', '/v1/me', { token: a.token, body: { confirm: 'delete' } });
     expect((await t.call('GET', '/v1/admin/reports', { token: admin.token })).json.reports[0]).toMatchObject({ reason: 'other', reporter: null });
+  });
+});
+
+// [S13-4 / his note 12] finding people without their exact @username. [QA] tried: one letter, wrong case, an Arabic name,
+// a "%" (a SQL wildcard that must stay a letter), myself, a blocked and a banned account.
+describe('friend search (Sprint 13)', () => {
+  it('2+ letters: the start of an @handle or any part of a name, any case; never me, blocked or banned', async () => {
+    const t = await setup(), me = await t.user('Sami'), d = await t.user('Dareer'), h = await t.user('Halawy'), x = await t.user('Xavier'), b = await t.user('Badguy');
+    await t.call('PATCH', '/v1/me', { token: h.token, body: { display: 'Mohammed Halawy' } });
+    await t.call('PATCH', '/v1/me', { token: x.token, body: { display: 'خالد' } });
+    const find = async (q: string, tok = me.token) => (await t.call('GET', '/v1/users?q=' + encodeURIComponent(q), { token: tok }));
+    expect((await find('d')).status).toBe(400);
+    expect((await find('DAR')).json.users.map((u: any) => u.handle)).toEqual(['Dareer']);
+    expect((await find('@dar')).json.users.map((u: any) => u.handle)).toEqual(['Dareer']);
+    expect((await find('hammed')).json.users.map((u: any) => u.handle)).toEqual(['Halawy']);  // inside a display name
+    expect((await find('خال')).json.users.map((u: any) => u.handle)).toEqual(['Xavier']);
+    expect((await find('%a')).json.users).toEqual([]);  // "%" is a letter here, not "anything"
+    expect((await find('sam')).json.users).toEqual([]);  // never myself
+    await t.call('POST', '/v1/friend-requests', { token: me.token, body: { handle: 'Dareer' } });
+    expect((await find('dareer')).json.users[0]).toMatchObject({ handle: 'Dareer', rel: 'requested' });
+    await t.call('POST', '/v1/blocks', { token: b.token, body: { userId: me.id } });
+    expect((await find('badg')).json.users).toEqual([]);  // blocked me: I can't find them
+    expect((await find('sami', b.token)).json.users).toEqual([]);  // nor they me
+    await DB().prepare('UPDATE users SET banned_at = 1 WHERE id = ?').bind(d.id).run();
+    expect((await find('dareer')).json.users).toEqual([]);
   });
 });

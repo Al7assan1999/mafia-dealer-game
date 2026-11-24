@@ -2,8 +2,8 @@
 // and the emulator test (real time).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/game.dart';
-import 'package:mafia_dealer/game_screen.dart';
+import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/features/offline/game_screen.dart';
 import 'package:mafia_engine/mafia_engine.dart';
 
 OfflineGame gameOf(WidgetTester t) => (t.state(find.byType(GameScreen)) as dynamic).game as OfflineGame;

@@ -4,15 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/account_screens.dart';
-import 'package:mafia_dealer/audio.dart';
-import 'package:mafia_dealer/chat.dart';
-import 'package:mafia_dealer/drawer.dart';
+import 'package:mafia_dealer/state/account.dart';
+import 'package:mafia_dealer/state/models.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/core/feedback.dart';
+import 'package:mafia_dealer/features/friends/friends_screen.dart';
+import 'package:mafia_dealer/core/audio.dart';
+import 'package:mafia_dealer/features/chat/chat_screen.dart';
+import 'package:mafia_dealer/features/friends/friends_drawer.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
-import 'package:mafia_dealer/online.dart';
-import 'package:mafia_dealer/prefs.dart';
-import 'package:mafia_dealer/ui.dart';
+import 'package:mafia_dealer/state/active_room.dart';
+import 'package:mafia_dealer/features/room/room_bar.dart';
+import 'package:mafia_dealer/features/room/room_screen.dart';
+import 'package:mafia_dealer/core/prefs.dart';
+import 'package:mafia_dealer/core/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';
@@ -185,13 +190,10 @@ void main() {
     expect(s.notes, hasLength(2), reason: 'read items stay in the bell');
     await t.tapAt(const Offset(200, 40)); // close the sheet
     await frames(t);
-    // P5: no push registration on this phone: it says so
+    // S13-5 / his note 10: the test notification button is gone
     await tapKey(t, 'settings');
     await frames(t);
-    await t.ensureVisible(find.byKey(const Key('testPush')));
-    await t.tap(find.byKey(const Key('testPush')));
-    await frames(t);
-    expect(t.widget<Text>(find.byKey(const Key('testPushResult'))).data, contains('isn\'t registered for notifications'));
+    expect(find.byKey(const Key('testPush'), skipOffstage: false), findsNothing);
   });
 }
 

@@ -8,11 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
-import 'package:mafia_dealer/account.dart';
-import 'package:mafia_dealer/api.dart';
-import 'package:mafia_dealer/audio.dart';
-import 'package:mafia_dealer/main.dart';
-import 'package:mafia_dealer/prefs.dart';
+import 'package:mafia_dealer/state/account.dart';
+import 'package:mafia_dealer/core/auth.dart';
+import 'package:mafia_dealer/core/api.dart';
+import 'package:mafia_dealer/core/audio.dart';
+import 'package:mafia_dealer/app.dart';
+import 'package:mafia_dealer/core/prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test/driver.dart';
