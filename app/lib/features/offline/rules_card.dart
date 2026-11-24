@@ -33,7 +33,7 @@ class _RulesState extends State<RulesEditor> {
         InkWell(key: const Key('rulesToggle'), borderRadius: BorderRadius.circular(C.p.radius), onTap: () => setState(() => open = !open),
           child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
-              Expanded(child: Text(C.neon ? l.rules : l.rules.toUpperCase(), style: head.copyWith(fontSize: 14, color: C.mute, letterSpacing: C.neon ? 1 : 2))),
+              Expanded(child: Text(l.rules.toUpperCase(), style: capStyle)),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: C.green.withValues(alpha: .15), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
                   child: Text(switch (preset) { 'classic' => l.presetClassic, 'beginner' => l.presetBeginner, _ => l.presetCustom },

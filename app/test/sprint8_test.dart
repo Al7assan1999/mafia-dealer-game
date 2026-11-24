@@ -281,5 +281,26 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(push.topics, {'updates_en': false, 'updates_ar': true});
     });
+
+    test('[0.4.6] the check asks our server first, GitHub when the server has nothing, and says when neither answered', () async {
+      final p = await prefs(), asked = <String>[];
+      var server = 200, gh = 200;
+      MockClient client() => MockClient((req) async {
+            asked.add(req.url.host);
+            final tag = req.url.host == 'api.github.com' ? 'v0.4.6-b100009' : 'v0.4.7-b100010';
+            final code = req.url.host == 'api.github.com' ? gh : server;
+            return http.Response(jsonEncode({'tag_name': tag, 'html_url': 'https://github.com/x', 'body': '- new',
+              'assets': [{'name': 'MafiaDealer-PartyGame-arm64-v8a.apk', 'browser_download_url': 'https://github.com/x/a.apk'}]}), code);
+          });
+      final u = Updater(p, client: client(), installer: FakeInstaller())..build = 100008..abi = 'arm64-v8a';
+      expect(await u.check(force: true), isTrue);
+      expect(u.latest?.version, '0.4.7', reason: 'the server answered; GitHub not asked');
+      expect(asked, isNot(contains('api.github.com')));
+      server = 404;
+      expect(await u.check(force: true), isTrue);
+      expect(u.latest?.version, '0.4.6', reason: 'nothing on the server: GitHub');
+      gh = 403; // GitHub's limit (60 an hour per address)
+      expect(await u.check(force: true), isFalse, reason: 'neither answered: not "you have the latest"');
+    });
   });
 }

@@ -60,7 +60,7 @@ class _FriendsState extends State<FriendsScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context);
     if (!a.signedIn) {
-      return Scaffold(appBar: AppBar(backgroundColor: C.bg, title: Text(l.friendsT, style: head.copyWith(fontSize: 20))),
+      return Scaffold(appBar: AppBar(title: Text(l.friendsT, style: head.copyWith(fontSize: 20))),
           body: Stage(children: [Big(l.friendsT, sub: l.fWhy), const SizedBox(height: 18), Btn(l.aIn, onTap: () =>
               Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => SignInScreen(account: a))))]));
     }
@@ -68,7 +68,6 @@ class _FriendsState extends State<FriendsScreen> {
           length: 3,
           child: Scaffold(
             appBar: AppBar(
-              backgroundColor: C.bg,
               title: Text(l.friendsT, style: head.copyWith(fontSize: 20)),
               actions: [
                 if (a.handle != null)

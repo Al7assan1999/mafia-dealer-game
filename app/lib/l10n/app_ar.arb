@@ -606,5 +606,10 @@
   "hideGame": "إخفاء من سجلي",
   "unhideGame": "إظهار في سجلي",
   "hiddenToast": "أُخفيت من سجلك (ما زالت تُحتسب)",
-  "unhiddenToast": "عادت إلى سجلك"
+  "unhiddenToast": "عادت إلى سجلك",
+  "sCheckFailed": "تعذّر البحث عن تحديثات. حاول لاحقًا.",
+  "sSound": "الصوت",
+  "sMore": "المزيد",
+  "sTheme": "المظهر",
+  "sVersionT": "الإصدار"
 }

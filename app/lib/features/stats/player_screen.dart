@@ -58,7 +58,7 @@ class _PlayerState extends State<PlayerScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), x = p;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(x?['name'] as String? ?? widget.person?.display ?? '', style: head.copyWith(fontSize: 20)), actions: [
+      appBar: AppBar(title: Text(x?['name'] as String? ?? widget.person?.display ?? '', style: head.copyWith(fontSize: 20)), actions: [
         if (x != null) IconButton(key: const Key('shareProfile'), tooltip: l.shareProfile, icon: Icon(Icons.ios_share, color: C.mute), onPressed: _share),
       ]),
       body: none ? _nobody(l)
@@ -99,7 +99,7 @@ class _PlayerState extends State<PlayerScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(k.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
+            Text(k.toUpperCase(), style: capStyle.copyWith(fontSize: 11.5)),
             Text('–', style: head.copyWith(fontSize: 19, color: C.dim)),
             Text(l.winsShort(0, 0), style: TextStyle(color: C.dim, fontSize: 12)),
           ]),
@@ -151,7 +151,7 @@ class _PlayerState extends State<PlayerScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(k.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
+            Text(k.toUpperCase(), style: capStyle.copyWith(fontSize: 11.5)),
             Text(big, maxLines: 1, overflow: TextOverflow.ellipsis, style: head.copyWith(fontSize: 19, color: color ?? C.text)),
             Text(sub, style: TextStyle(color: C.dim, fontSize: 12)),
           ]),

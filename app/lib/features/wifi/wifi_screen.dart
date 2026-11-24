@@ -130,7 +130,7 @@ class _WifiState extends State<WifiScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context);
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.wifi.replaceAll('\u2011', '-'), style: head.copyWith(fontSize: 20))), // [QA] U1: no U+2011 in the heading font
+      appBar: AppBar(title: Text(l.wifi.replaceAll('\u2011', '-'), style: head.copyWith(fontSize: 20))), // [QA] U1: no U+2011 in the heading font
       body: Stage(center: false, children: [
         Text(l.wifiSub, style: TextStyle(color: C.mute)),
         const SizedBox(height: 14),

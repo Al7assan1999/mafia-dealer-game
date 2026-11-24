@@ -109,7 +109,7 @@ class _ChatState extends State<ChatScreen> {
         final l = L.of(context), msgs = c.messages(conv), pending = c.outbox.entries.where((e) => '${e.value['to'] == -1 ? 'all' : e.value['to']}' == conv).toList();
         final others = c.members.where((m) => m['cn'] != c.myCn).toList();
         return Scaffold(
-          appBar: AppBar(backgroundColor: C.bg, title: Text(l.chatT, style: head.copyWith(fontSize: 20))),
+          appBar: AppBar(title: Text(l.chatT, style: head.copyWith(fontSize: 20))),
           body: Column(children: [
             SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
               _convChip(l.everyone, 'all'),

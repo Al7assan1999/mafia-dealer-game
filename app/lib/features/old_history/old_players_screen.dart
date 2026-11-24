@@ -48,7 +48,7 @@ class _OldPlayersState extends State<OldPlayersScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), ps = players;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.oldPlayersT, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.oldPlayersT, style: head.copyWith(fontSize: 20))),
       body: error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
           : ps == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : ListView(padding: const EdgeInsets.all(16), children: [

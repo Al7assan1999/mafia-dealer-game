@@ -42,7 +42,7 @@ class _ImportState extends State<ImportScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context);
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.importT, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.importT, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
         Sec(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(l.importD, style: const TextStyle(fontWeight: FontWeight.w700)),

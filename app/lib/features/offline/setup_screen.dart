@@ -73,34 +73,34 @@ class _SetupState extends State<SetupScreen> {
     final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective)), err = _error(l, v);
     final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [
         if (err != null) Text(err, key: const Key('setupError'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: err == null ? () => _deal(l, v.counts) : null),
       ], children: [
         Sec(
           title: '${l.players} · ${names.length}',
+          // [look] "+ Add" at the title's end, gold, as the old app
+          action: TextButton(key: const Key('addPlayer'), onPressed: names.length >= maxPlayers ? null : () => setState(() => names.add(TextEditingController())),
+              child: Text(l.addPlayer, style: TextStyle(color: C.gold, fontWeight: FontWeight.w700, fontSize: 15))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             for (var i = 0; i < names.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(children: [
-                  SizedBox(width: 28, child: Text('${i + 1}', style: TextStyle(color: C.dim))),
+                  NumBox(i + 1, size: 34),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       key: Key('name$i'), controller: names[i], maxLength: maxName, onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(hintText: l.playerN(i + 1), counterText: ''),
                     ),
                   ),
-                  IconButton(key: Key('remove$i'), tooltip: l.remove, icon: Icon(Icons.close, color: C.dim),
-                      onPressed: names.length <= 1 ? null : () => setState(() => names.removeAt(i).dispose())),
+                  const SizedBox(width: 10),
+                  SqBtn(Icons.close, key: Key('remove$i'), tooltip: l.remove, size: 44,
+                      onTap: names.length <= 1 ? null : () => setState(() => names.removeAt(i).dispose())),
                 ]),
               ),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(key: const Key('addPlayer'), onPressed: names.length >= maxPlayers ? null : () => setState(() => names.add(TextEditingController())),
-                  child: Text(l.addPlayer, style: TextStyle(color: C.red2))),
-            ),
             if (chips.isNotEmpty) ...[
               Text(l.saved, style: TextStyle(color: C.mute, fontSize: 13)),
               const SizedBox(height: 6),
@@ -147,18 +147,22 @@ class DeckEditor extends StatelessWidget {
     );
   }
 
-  Widget _count(String name, String desc, Role r, int n, VoidCallback? minus, VoidCallback? plus) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+  // [look] each role in its own bordered card: a tinted icon box, the name in its colour, − n + in squares
+  Widget _count(String name, String desc, Role r, int n, VoidCallback? minus, VoidCallback? plus) => Container(
+        margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
         child: Row(children: [
-          Icon(roleIcon(r), color: roleColor(r)),
-          const SizedBox(width: 10),
+          Container(width: 44, height: 44, alignment: Alignment.center,
+              decoration: BoxDecoration(color: roleColor(r).withValues(alpha: .14), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
+              child: Icon(roleIcon(r), color: roleColor(r), size: 22)),
+          const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text(desc, style: TextStyle(color: C.dim, fontSize: 12)),
+            Text(name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: roleColor(r))),
+            Text(desc, style: TextStyle(color: C.mute, fontSize: 13, height: 1.35)),
           ])),
-          if (r == Role.mafia || r == Role.detective) IconButton(key: Key('minus_${r.name}'), onPressed: minus, icon: const Icon(Icons.remove_circle_outline)),
-          SizedBox(width: 24, child: Text('$n', key: Key('count_${r.name}'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
-          if (r == Role.mafia || r == Role.detective) IconButton(key: Key('plus_${r.name}'), onPressed: plus, icon: const Icon(Icons.add_circle_outline)),
+          if (r == Role.mafia || r == Role.detective) SqBtn(Icons.remove, key: Key('minus_${r.name}'), onTap: minus, size: 36),
+          SizedBox(width: 32, child: Text('$n', key: Key('count_${r.name}'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700))),
+          if (r == Role.mafia || r == Role.detective) SqBtn(Icons.add, key: Key('plus_${r.name}'), onTap: plus, size: 36),
         ]),
       );
 }

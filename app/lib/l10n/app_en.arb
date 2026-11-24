@@ -1324,5 +1324,10 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sCheckFailed": "Couldn't check for updates. Try again later.",
+  "sSound": "Sound",
+  "sMore": "More",
+  "sTheme": "Theme",
+  "sVersionT": "Version"
 }

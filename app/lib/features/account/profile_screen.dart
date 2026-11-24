@@ -64,9 +64,9 @@ class _ProfileState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: a, builder: (context, _) {
         final l = L.of(context);
-        if (!a.signedIn) return Scaffold(appBar: AppBar(backgroundColor: C.bg), body: Stage(children: [Big(l.aDeleted)]));
+        if (!a.signedIn) return Scaffold(appBar: AppBar(), body: Stage(children: [Big(l.aDeleted)]));
         return Scaffold(
-          appBar: AppBar(backgroundColor: C.bg, title: Text(l.profT, style: head.copyWith(fontSize: 20))),
+          appBar: AppBar(title: Text(l.profT, style: head.copyWith(fontSize: 20))),
           body: Stage(center: false, children: [
             Sec(title: l.aAvatar, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 8, children: [

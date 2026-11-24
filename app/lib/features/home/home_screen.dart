@@ -156,7 +156,7 @@ class _HomeBody extends StatelessWidget {
         Row(children: [
           Expanded(child: AccountBar(account: account)),
           IconButton(key: const Key('settings'), tooltip: l.settingsT, icon: Icon(Icons.settings_outlined, color: C.mute),
-              onPressed: () => showModalBottomSheet(context: context, backgroundColor: C.card, isScrollControlled: true, useSafeArea: true, builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account))),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account)))),
         ]),
         const SizedBox(height: 24),
         Center(
@@ -182,9 +182,9 @@ class _HomeBody extends StatelessWidget {
             Icon(Icons.menu_book_outlined, color: C.gold),
             const SizedBox(width: 10),
             Expanded(child: Text(l.newToMafia)),
-            TextButton(key: const Key('openGuide'), onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); },
-                child: Text(l.howToPlay, style: TextStyle(color: C.red2))),
-            IconButton(key: const Key('dismissGuide'), icon: Icon(Icons.close, size: 18, color: C.dim), onPressed: () => prefs.guideSeen = true),
+            Flexible(child: TextButton(key: const Key('openGuide'), onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); },
+                child: Text(l.howToPlay, style: TextStyle(color: C.red2)))),
+            IconButton(key: const Key('dismissGuide'), visualDensity: VisualDensity.compact, icon: Icon(Icons.close, size: 18, color: C.dim), onPressed: () => prefs.guideSeen = true),
           ]))),
         const SizedBox(height: 12),
         if (saved)

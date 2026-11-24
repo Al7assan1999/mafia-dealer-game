@@ -34,7 +34,7 @@ class _StatsState extends State<StatsScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), d = data;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.statsT, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.statsT, style: head.copyWith(fontSize: 20))),
       body: Column(children: [
         // [QA] S8 #4: the period chips sat off-screen in one scrolling row; two rows that wrap
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -75,7 +75,7 @@ class _StatsState extends State<StatsScreen> {
         key: Key('title_$k'), padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: C.card, border: Border.all(color: k == 'best' ? C.gold : C.line), borderRadius: BorderRadius.circular(C.p.radius)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label.toUpperCase(), style: head.copyWith(fontSize: 11, color: C.mute, letterSpacing: 1.5)),
+          Text(label.toUpperCase(), style: capStyle.copyWith(fontSize: 11.5)),
           const SizedBox(height: 4),
           Text(p['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: head.copyWith(fontSize: wide ? 22 : 17, color: k == 'best' ? C.gold : C.text)),
           Text(sub(p), style: TextStyle(color: C.dim, fontSize: 12)),
@@ -95,7 +95,7 @@ class _StatsState extends State<StatsScreen> {
       pairs([for (final w in small) if (w is! SizedBox) w]),
       const SizedBox(height: 16),
       Row(children: [
-        Expanded(child: Text(l.boardT.toUpperCase(), style: head.copyWith(fontSize: 14, color: C.mute, letterSpacing: 2))),
+        Expanded(child: Text(l.boardT.toUpperCase(), style: capStyle)),
         if (me != null && me['rank'] != null) Text(l.youRank(me['rank'] as int), key: const Key('myRank'), style: TextStyle(color: C.gold)),
       ]),
       Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(note, key: const Key('boardNote'), style: TextStyle(color: C.dim, fontSize: 12, height: 1.4))),

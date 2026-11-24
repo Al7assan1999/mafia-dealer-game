@@ -16,7 +16,7 @@ class GuideScreen extends StatelessWidget {
     final l = L.of(context);
     Widget part(String title, String body) => Sec(title: title, child: Text(body, style: const TextStyle(height: 1.45)));
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.howToPlay, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.howToPlay, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [Btn(l.gotIt, key: const Key('guideDone'), onTap: () => Navigator.of(context).pop())], children: [
         if (prefs != null) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const Key('guideIntro'),
             icon: Icon(Icons.play_circle_outline, color: C.red2), label: Text(l.sWatchIntro, style: TextStyle(color: C.red2)),

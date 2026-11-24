@@ -105,7 +105,7 @@ class _BlockedState extends State<BlockedScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context);
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.blockedList, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.blockedList, style: head.copyWith(fontSize: 20))),
       body: list == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : list!.isEmpty ? Center(child: Text(l.noBlocked, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
@@ -144,7 +144,7 @@ class _ReportsState extends State<ReportsScreen> {
     final l = L.of(context);
     String reason(Object? r) => switch (r) { 'spam' => l.reasonSpam, 'harassment' => l.reasonHarassment, 'hate' => l.reasonHate, _ => l.reasonOther };
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.reportsT, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.reportsT, style: head.copyWith(fontSize: 20))),
       body: list == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : list!.isEmpty ? Center(child: Text(l.noReports, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [

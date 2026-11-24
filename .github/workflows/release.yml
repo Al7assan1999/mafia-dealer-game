@@ -62,6 +62,18 @@ jobs:
           for a in arm64-v8a armeabi-v7a x86_64; do cp "app/build/app/outputs/flutter-apk/app-$a-release.apk" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-$a.apk"; done
           gh release create "v$v-b$b" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-arm64-v8a.apk" --title "Mafia Dealer $v (build $b)" --notes-file "$RUNNER_TEMP/notes.md"
           gh release upload "v$v-b$b" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-armeabi-v7a.apk" "$RUNNER_TEMP/MafiaDealer-PartyGame-$v-b$b-x86_64.apk"
+      - name: Tell the server (the app's update check asks it, not GitHub)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: server
+        run: |
+          tag="v${{ steps.v.outputs.version }}-b${{ steps.v.outputs.build }}"
+          gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '{tag_name, html_url, body, assets: [.assets[] | {name, browser_download_url}]}' > "$RUNNER_TEMP/latest.json"
+          printf "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('latest_release', '%s', %s);
+" "$(sed "s/'/''/g" "$RUNNER_TEMP/latest.json")" "$(date +%s000)" > "$RUNNER_TEMP/latest.sql"
+          npx wrangler d1 execute DB --remote --file "$RUNNER_TEMP/latest.sql"
       - name: Push "new version" to every phone
         env:
           FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}

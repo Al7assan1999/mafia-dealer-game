@@ -13,8 +13,8 @@ class HomeFooter extends StatelessWidget {
 
   Future<void> _check(BuildContext context) async {
     final l = L.of(context);
-    await updater.check(force: true);
-    if (context.mounted && updater.latest == null) toast(context, l.sUpToDate); // a newer one shows its card above
+    final ok = await updater.check(force: true);
+    if (context.mounted && updater.latest == null) toast(context, ok ? l.sUpToDate : l.sCheckFailed); // a newer one shows its card above
   }
 
   Future<void> _whatsNew(BuildContext context) async {

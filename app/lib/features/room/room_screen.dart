@@ -243,7 +243,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       onPopInvokedWithResult: (didPop, _) { if (!didPop) _leave(); },
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: C.bg,
           // [QA] S12: in Neon's wider font "Room 438689" was cut to "Room 4386…"; it shrinks to fit instead
           title: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: Text(l.roomCode(widget.code), style: head.copyWith(fontSize: 20))),
           actions: [

@@ -228,9 +228,11 @@ void main() {
   testWidgets('the language switch mirrors the layout and is remembered', (t) async {
     final prefs = (await launch(t)).prefs;
     await tapKey(t, 'settings');
-    await tapKey(t, 'lang');
+    await tapKey(t, 'lang_ar'); // [look] Settings is a page with the old English / العربية choice
     await t.pump(const Duration(milliseconds: 300));
     expect(prefs.lang, 'ar');
+    await tapKey(t, 'closeSettings');
+    await t.pump(const Duration(milliseconds: 600));
     expect(Directionality.of(t.element(find.byKey(const Key('newGame')))), TextDirection.rtl);
     expect(find.text('لعبة بدون إنترنت'), findsOneWidget);
   });

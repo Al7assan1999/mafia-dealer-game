@@ -38,7 +38,7 @@ class _GameDetailState extends State<GameDetail> {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), game = g;
-    if (game == null) return Scaffold(appBar: AppBar(backgroundColor: C.bg), body: Center(child: CircularProgressIndicator(color: C.red2)));
+    if (game == null) return Scaffold(appBar: AppBar(), body: Center(child: CircularProgressIndicator(color: C.red2)));
     final ps = (game['players'] as List).cast<Map>(), name = {for (final p in ps) p['seat'] as int: p['name'] as String};
     String line(Map e) => switch (e['t']) {
           'night' => l.hNight(e['day'] as int) + switch ((e['mafia'] as Map)['k']) {
@@ -50,7 +50,7 @@ class _GameDetailState extends State<GameDetail> {
         };
     final mafia = game['winner'] == 'mafia';
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(mafia ? l.winMafia : l.winCitizens, style: head.copyWith(fontSize: 20)), actions: [
+      appBar: AppBar(title: Text(mafia ? l.winMafia : l.winCitizens, style: head.copyWith(fontSize: 20)), actions: [
         if (widget.prefs case final p?) ListenableBuilder(listenable: p, builder: (context, _) {
           final hidden = p.hiddenGames.contains(widget.id);
           return IconButton(key: const Key('hideGame'), tooltip: hidden ? l.unhideGame : l.hideGame,

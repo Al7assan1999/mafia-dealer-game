@@ -44,13 +44,13 @@ class _HistoryState extends State<HistoryScreen> {
       ..sort((a, b) => ((b['at'] as int?) ?? 0).compareTo((a['at'] as int?) ?? 0));
     final title = Text(l.historyT, style: head.copyWith(fontSize: 20));
     if (!widget.account.signedIn) { // signed out: the Wi-Fi games on this phone (online history needs an account)
-      return Scaffold(appBar: AppBar(backgroundColor: C.bg, title: title), body: Column(children: [
+      return Scaffold(appBar: AppBar(title: title), body: Column(children: [
         Expanded(child: _wifi(l, wifi)),
         Padding(padding: const EdgeInsets.all(16), child: Text(l.historySignIn, key: const Key('historySignIn'), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
       ]));
     }
     return DefaultTabController(length: 3, child: Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: title, actions: [
+      appBar: AppBar(title: title, actions: [
             IconButton(key: const Key('openStats'), tooltip: l.statsT, icon: Icon(Icons.leaderboard_outlined, color: C.mute),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatsScreen(account: widget.account)))),
           ],

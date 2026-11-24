@@ -51,7 +51,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   Widget build(BuildContext context) {
     final l = L.of(context), a = widget.account;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.online, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.online, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
         Text(l.onlineSub, style: TextStyle(color: C.mute)),
         const SizedBox(height: 18),

@@ -40,6 +40,13 @@ export function createApp(deps: Deps) {
 
   app.get('/', c => c.text('mafia-dealer-game'));
   app.get('/v1/health', c => c.json({ ok: true }));
+  // The newest release for the app's update check, in GitHub's shape (tag_name, html_url, body, assets). The Release
+  // workflow writes it; phones asked GitHub directly before, and GitHub allows 60 asks an hour per address (a VPN or a
+  // mobile network shares one), so the check failed and the app said "latest version". 404 = not written yet.
+  app.get('/v1/app/latest', async c => {
+    const row = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'latest_release'").first<{ value: string }>();
+    return row ? c.body(row.value, 200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' }) : c.json({ error: 'not_found' }, 404);
+  });
   // local test mode only (`wrangler dev --var MAIL_LOG:1`, never in wrangler.jsonc): the emulator test reads its code here
   app.get('/v1/test/last-code/:email', c => (c.env.MAIL_LOG === '1'
     ? c.json({ code: lastCodes.get(c.req.param('email').toLowerCase()) ?? null }) : c.json({ error: 'not_found' }, 404)));

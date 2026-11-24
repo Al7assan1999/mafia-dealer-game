@@ -52,7 +52,7 @@ class _SignInState extends State<SignInScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), a = widget.account;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.aIn, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.aIn, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
         Text(l.aWhy, style: TextStyle(color: C.mute)),
         const SizedBox(height: 18),
@@ -76,9 +76,8 @@ class _SignInState extends State<SignInScreen> {
                 await a.emailVerify(sentTo!, code.text);
                 _done();
               })),
-          Row(children: [
+          Wrap(alignment: WrapAlignment.spaceBetween, children: [ // wraps on a narrow phone (the bold buttons are wider)
             TextButton(key: const Key('resend'), onPressed: wait > 0 || busy ? null : _send, child: Text(wait > 0 ? l.aResendIn(wait) : l.aResend)),
-            const Spacer(),
             TextButton(onPressed: () => setState(() { sentTo = null; code.clear(); error = null; }), child: Text(l.aOtherEmail, style: TextStyle(color: C.mute))),
           ]),
         ],
@@ -106,7 +105,7 @@ class _HandleState extends State<HandleScreen> {
   Widget build(BuildContext context) {
     final l = L.of(context), a = widget.account;
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(l.aPickHandle, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(l.aPickHandle, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, bottom: [
         Btn(l.aContinue, key: const Key('saveHandle'), onTap: busy ? null : () async {
           if (!handleRx.hasMatch(handle.text.trim())) return setState(() => error = l.eHandle);

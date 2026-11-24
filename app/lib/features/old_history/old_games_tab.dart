@@ -48,7 +48,7 @@ class OldDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = L.of(context), names = (g['names'] as List).cast<String>(), roles = (g['roles'] as List).cast<String>(), alive = (g['alive'] as List).cast<bool>();
     return Scaffold(
-      appBar: AppBar(backgroundColor: C.bg, title: Text(g['winner'] == 'mafia' ? l.winMafia : l.winCitizens, style: head.copyWith(fontSize: 20))),
+      appBar: AppBar(title: Text(g['winner'] == 'mafia' ? l.winMafia : l.winCitizens, style: head.copyWith(fontSize: 20))),
       body: Stage(center: false, children: [
         Sec(title: l.roles, child: Column(children: [
           for (var i = 0; i < names.length; i++)

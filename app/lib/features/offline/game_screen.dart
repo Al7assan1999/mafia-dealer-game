@@ -107,32 +107,9 @@ class _GameScreenState extends State<GameScreen> {
             key: const Key('nightClock'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
       );
 
-  Widget _option(String label, Object value, {List<String> tags = const [], bool disabled = false, Color? accent}) {
-    final on = _pick == value;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Opacity(
-        opacity: disabled ? .4 : 1,
-        child: InkWell(
-          key: Key('opt_$value'),
-          onTap: disabled ? null : () => setState(() => _pick = value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: on ? const Color(0xFF3A1512) : C.card,
-              border: Border.all(color: on ? C.red : C.line, width: on ? 2 : 1),
-              borderRadius: BorderRadius.circular(C.p.radius),
-            ),
-            child: Row(children: [
-              Expanded(child: Text(label, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: accent ?? C.text))),
-              for (final t in tags) Padding(padding: const EdgeInsetsDirectional.only(start: 6), child: Text(t, style: TextStyle(color: C.mute, fontSize: 12))),
-              if (on) Padding(padding: EdgeInsetsDirectional.only(start: 8), child: Icon(Icons.check, color: C.red2)),
-            ]),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _option(String label, Object value, {List<String> tags = const [], bool disabled = false, Color? accent}) =>
+      PickRow(key: Key('opt_$value'), label: label, seat: value is int ? value : null, on: _pick == value, tags: tags, accent: accent,
+          onTap: disabled ? null : () => setState(() => _pick = value));
 
   // ---------------------------------------------------------------- night
   Widget _nightPick(L l) {

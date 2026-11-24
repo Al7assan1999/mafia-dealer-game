@@ -212,3 +212,17 @@ describe('the old relay reader', () => {
     expect(urls).toEqual(['https://mafia-relay.mafiadealer.workers.dev/g/ABCD2345']);
   });
 });
+
+describe('[0.4.6] the app asks the server for the newest release', () => {
+  it('404 until the Release workflow writes it, then GitHub\'s shape as written', async () => {
+    const t = await setup();
+    await DB().prepare("DELETE FROM settings WHERE key = 'latest_release'").run();
+    expect((await t.call('GET', '/v1/app/latest')).status).toBe(404);
+    const rel = { tag_name: 'v0.4.6-b100009', html_url: 'https://github.com/x/y/releases/tag/v0.4.6-b100009', body: "- it's here",
+      assets: [{ name: 'MafiaDealer-PartyGame-0.4.6-b100009-arm64-v8a.apk', browser_download_url: 'https://example.com/a.apk' }] };
+    await DB().prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('latest_release', ?, 0)").bind(JSON.stringify(rel)).run();
+    const r = await t.call('GET', '/v1/app/latest');
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual(rel);
+  });
+});

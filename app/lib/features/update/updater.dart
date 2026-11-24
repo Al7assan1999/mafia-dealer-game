@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:mafia_dealer/core/api.dart' show apiBase;
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/push.dart';
 import 'package:mafia_dealer/core/ui.dart';
@@ -98,24 +99,34 @@ class Updater extends ChangeNotifier {
   }
 
   String? abi; // tests set the phone's processor
+  int build = appBuild; // tests set this build's number (0 in tests: no --dart-define=BUILD)
 
-  /// The latest release, if newer than this build. Quiet when offline or rate-limited.
-  Future<void> check({bool force = false}) async {
-    if (!selfUpdate || appBuild == 0) return; // local builds have no build number to compare
-    if (!force && _now() - _checked < every) return;
+  /// The latest release, if newer than this build. Asks our server first (0.4.6: GitHub allows 60 asks an hour per
+  /// address, and a VPN or a mobile network shares one), then GitHub. False when neither answered: the screens then say
+  /// "Couldn't check" instead of "latest version".
+  Future<bool> check({bool force = false}) async {
+    if (!selfUpdate || build == 0) return true; // local builds have no build number to compare
+    if (!force && _now() - _checked < every) return true;
     _checked = _now();
     try {
-      final r = await _http.get(Uri.parse('https://api.github.com/repos/$repo/releases/latest'), headers: {'accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 10));
-      if (r.statusCode != 200) return;
-      final j = jsonDecode(r.body) as Map<String, Object?>, m = RegExp(r'^v?([\d.]+)-b(\d+)$').firstMatch(j['tag_name'] as String? ?? ''); // v0.2.0-b100003
+      Future<Map<String, Object?>?> ask(String url) async {
+        try {
+          final r = await _http.get(Uri.parse(url), headers: {'accept': 'application/vnd.github+json'}).timeout(const Duration(seconds: 10));
+          return r.statusCode == 200 ? jsonDecode(r.body) as Map<String, Object?> : null;
+        } catch (_) { return null; }
+      }
+      final j = await ask('$apiBase/v1/app/latest') ?? await ask('https://api.github.com/repos/$repo/releases/latest');
+      if (j == null) return false;
+      final m = RegExp(r'^v?([\d.]+)-b(\d+)$').firstMatch(j['tag_name'] as String? ?? ''); // v0.2.0-b100003
       final apk = pickApk((j['assets'] as List? ?? const []).cast<Map>(), abi ?? phoneAbi());
-      if (m == null || apk == null) return;
-      final build = int.parse(m.group(2)!);
-      latest = build > appBuild ? Release(m.group(1)!, build, apk['browser_download_url'] as String, j['html_url'] as String? ?? 'https://github.com/$repo/releases',
+      if (m == null || apk == null) return false;
+      final newest = int.parse(m.group(2)!);
+      latest = newest > build ? Release(m.group(1)!, newest, apk['browser_download_url'] as String, j['html_url'] as String? ?? 'https://github.com/$repo/releases',
           [for (final line in (j['body'] as String? ?? '').split('\n')) if (line.trim().startsWith('- ')) line.trim().substring(2)]) : null;
       prefs.lastCheck = _now();
       notifyListeners();
-    } catch (_) {}
+      return true;
+    } catch (_) { return false; }
   }
 
   /// "Updated to vX": once, the first start of a newer build than the last one seen (with that release's bullets).

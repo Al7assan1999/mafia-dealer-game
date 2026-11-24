@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mafia_dealer/features/intro/intro_screen.dart';
 import 'package:mafia_dealer/core/prefs.dart';
+import 'package:mafia_dealer/core/ui.dart' show SqSwitch;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'driver.dart';
@@ -73,10 +74,13 @@ void main() {
     expect(_key('intro'), findsNothing); // seen already (and the test default): Home straight away
     await tapKey(t, 'settings');
     await t.pumpAndSettle();
-    expect((t.widget(_key('introAtStart')) as SwitchListTile).value, false);
+    expect((t.widget(_key('introAtStart')) as SqSwitch).value, false);
+    await t.ensureVisible(_key('introAtStart')); // [look] Settings is a longer page now
+    await t.pumpAndSettle();
     await t.tap(_key('introAtStart'));
     expect(a.prefs.introAtStart, true);
     await t.ensureVisible(_key('watchIntro'));
+    await t.pumpAndSettle();
     await t.tap(_key('watchIntro'));
     await secs(t, 1);
     expect(_key('intro'), findsOneWidget);
@@ -92,6 +96,7 @@ void main() {
     await t.tap(_key('settings'));
     await t.pumpAndSettle();
     await t.ensureVisible(_key('watchIntro'));
+    await t.pumpAndSettle();
     await t.tap(_key('watchIntro'));
     await secs(t, .5);
     await t.tap(_key('introMute'));
