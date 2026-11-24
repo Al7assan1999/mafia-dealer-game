@@ -71,8 +71,7 @@ jobs:
         run: |
           tag="v${{ steps.v.outputs.version }}-b${{ steps.v.outputs.build }}"
           gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '{tag_name, html_url, body, assets: [.assets[] | {name, browser_download_url}]}' > "$RUNNER_TEMP/latest.json"
-          printf "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('latest_release', '%s', %s);
-" "$(sed "s/'/''/g" "$RUNNER_TEMP/latest.json")" "$(date +%s000)" > "$RUNNER_TEMP/latest.sql"
+          printf "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('latest_release', '%s', %s);" "$(sed "s/'/''/g" "$RUNNER_TEMP/latest.json")" "$(date +%s000)" > "$RUNNER_TEMP/latest.sql"
           npx wrangler d1 execute DB --remote --file "$RUNNER_TEMP/latest.sql"
       - name: Push "new version" to every phone
         env:
