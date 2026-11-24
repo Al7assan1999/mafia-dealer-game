@@ -81,6 +81,26 @@ class _HomeBody extends StatelessWidget {
           ]))),
       );
 
+  /// [his look note] the old app's mode card: an icon box, the title in the heading font, the line under it inside the card.
+  Widget _mode(Key key, IconData icon, String title, String sub, VoidCallback onTap, {bool primary = false}) {
+    final r = BorderRadius.circular(C.p.radius), fg = primary ? C.priText : C.text;
+    return Padding(padding: const EdgeInsets.only(bottom: 12), child: Container(
+      decoration: BoxDecoration(color: primary ? (C.neon ? null : C.red) : C.card, gradient: primary && C.neon ? neonPrimary : null, borderRadius: r,
+          border: primary ? null : Border.all(color: C.line),
+          boxShadow: primary ? [C.neon ? const BoxShadow(color: Color(0x45FF2E63), blurRadius: 26, offset: Offset(0, 10)) : const BoxShadow(color: Colors.black, offset: Offset(3, 3))] : null),
+      child: Material(type: MaterialType.transparency, child: InkWell(key: key, borderRadius: r, onTap: onTap, child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
+        Container(width: 46, height: 46, decoration: BoxDecoration(color: primary ? const Color(0x33000000) : C.card2, borderRadius: BorderRadius.circular(C.neon ? 12 : 3)),
+            child: Icon(icon, color: fg, size: 24)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title.replaceAll('‑', '-'), style: head.copyWith(fontSize: 19, height: 1.25, color: fg)), // the typewriter has no non-breaking hyphen
+          const SizedBox(height: 2),
+          Text(sub, style: TextStyle(fontSize: 13.5, height: 1.4, color: fg.withValues(alpha: .78))),
+        ])),
+      ])))),
+    ));
+  }
+
   void _play(BuildContext context, OfflineGame g) =>
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameScreen(game: g, prefs: prefs, audio: audio, account: account)));
 
@@ -182,7 +202,7 @@ class _HomeBody extends StatelessWidget {
               }),
             ]),
           ),
-        Btn(l.newGame, key: const Key('newGame'), icon: Icons.groups_outlined, onTap: () async {
+        _mode(const Key('newGame'), Icons.smartphone_outlined, l.newGame, l.newGameSub, primary: true, () async {
           if (!await leaveRoomFirst(context) || !context.mounted) return;
           if (saved && !await ask(context, l.discardQ, l.discardD, l.discard)) return;
           if (!context.mounted) return;
@@ -190,7 +210,6 @@ class _HomeBody extends StatelessWidget {
           final g = await Navigator.of(context).push<OfflineGame>(MaterialPageRoute(builder: (_) => SetupScreen(prefs: prefs, audio: audio, account: account)));
           if (g != null && context.mounted) _play(context, g);
         }),
-        Padding(padding: const EdgeInsets.only(top: 8, bottom: 18), child: Text(l.newGameSub, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
         ListenableBuilder(listenable: account, builder: (context, _) {
           final room = account.roomCode;
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -206,12 +225,10 @@ class _HomeBody extends StatelessWidget {
             if (prefs.lanJoin case {'address': final String a, 'code': final String c}) Padding(padding: const EdgeInsets.only(bottom: 10), child: Btn(l.backToWifi(c),
                 key: const Key('backToWifi'), ghost: true, icon: Icons.wifi, onTap: () => openLanRoom(context, prefs: prefs, audio: audio, account: account, address: a, code: c,
                     name: (prefs.lanJoin?['name'] as String?) ?? prefs.lanName))),
-            Btn(l.wifi, key: const Key('wifi'), ghost: true, icon: Icons.wifi, onTap: () async => (await leaveRoomFirst(context)) && context.mounted ? Navigator.of(context).push(MaterialPageRoute(
+            _mode(const Key('wifi'), Icons.wifi, l.wifi, l.wifiSub, () async => (await leaveRoomFirst(context)) && context.mounted ? Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => WifiScreen(prefs: prefs, audio: audio, account: account))) : null),
-            Padding(padding: const EdgeInsets.only(top: 8, bottom: 18), child: Text(l.wifiSub, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
-            Btn(l.online, key: const Key('online'), ghost: true, icon: Icons.public, onTap: () async => (await leaveRoomFirst(context)) && context.mounted ? Navigator.of(context).push(MaterialPageRoute(
+            _mode(const Key('online'), Icons.public, l.online, l.onlineSub, () async => (await leaveRoomFirst(context)) && context.mounted ? Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => OnlineHome(account: account, prefs: prefs, audio: audio))) : null),
-            Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.onlineSub, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
             if (prefs.guideSeen) Padding(padding: const EdgeInsets.only(top: 14), child: TextButton.icon(key: const Key('howToPlay'),
                 icon: Icon(Icons.menu_book_outlined, color: C.mute), label: Text(l.howToPlay, style: TextStyle(color: C.mute)),
                 onPressed: () { prefs.guideSeen = true; Navigator.of(context).push(MaterialPageRoute(builder: (_) => GuideScreen(prefs: prefs))); })),

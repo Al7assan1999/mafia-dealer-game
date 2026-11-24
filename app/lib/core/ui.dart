@@ -76,6 +76,25 @@ BoxDecoration neonBackdrop(Color base) {
   return BoxDecoration(gradient: RadialGradient(center: const Alignment(-.6, -1.1), radius: 1.1, colors: [glow, base], stops: const [0, .7]));
 }
 
+/// Noir's backdrop as the old app's CSS: a dark glow from the top (red on Home, blue at night, …) over the base colour.
+BoxDecoration noirBackdrop(Color base) {
+  final glow = base == noirPalette.night ? const Color(0x9914213D) : base == noirPalette.day ? const Color(0xAA5A4426)
+      : base == noirPalette.blood ? const Color(0xAA6B0F0F) : base == noirPalette.glory ? const Color(0xAA5A4A1E) : const Color(0x664A0F0F);
+  return BoxDecoration(color: base, gradient: RadialGradient(center: const Alignment(0, -1.15), radius: .95, colors: [glow, glow.withValues(alpha: 0)], stops: const [0, .7]));
+}
+
+/// Noir's faint horizontal lines (old CSS: a 2 px light line every 4 px).
+class ScanLines extends CustomPainter {
+  const ScanLines();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = const Color(0x04FFFFFF);
+    for (var y = 0.0; y < size.height; y += 4) { canvas.drawRect(Rect.fromLTWH(0, y, size.width, 2), p); }
+  }
+  @override
+  bool shouldRepaint(ScanLines old) => false;
+}
+
 ThemeData noir() {
   final r = BorderRadius.circular(C.p.radius);
   final base = ThemeData(brightness: Brightness.dark, useMaterial3: true, fontFamily: C.p.body,
@@ -189,8 +208,8 @@ class Stage extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = color ?? C.bg;
     return Container(
-        decoration: C.neon ? neonBackdrop(bg) : BoxDecoration(color: bg),
-        child: SafeArea(
+        decoration: C.neon ? neonBackdrop(bg) : noirBackdrop(bg),
+        child: CustomPaint(painter: C.neon ? null : const ScanLines(), child: SafeArea(
           child: Column(children: [
             Expanded(
               child: LayoutBuilder(builder: (context, c) => SingleChildScrollView(
@@ -209,7 +228,7 @@ class Stage extends StatelessWidget {
                     children: [for (final b in bottom) Padding(padding: const EdgeInsets.only(top: 10), child: b)]),
               ),
           ]),
-        ),
+        )),
       );
   }
 }

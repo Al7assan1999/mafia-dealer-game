@@ -45,14 +45,16 @@ class _AppState extends State<App> {
           navigatorKey: ActiveRoom.navigatorKey,
           scaffoldMessengerKey: ActiveRoom.messengerKey,
           // the room bar while minimized; a long-press opens the friends drawer with Invite ready (P4)
-          builder: (context, child) => Stack(children: [
+          // [his look note] Android's "Bold text" made every line bold; the old app (a web view) ignored it, and he wants
+          // its look. ponytail: ignores that accessibility setting app-wide; follow it again if a player asks.
+          builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(boldText: false), child: Stack(children: [
             RoomBarFrame(child: child!, onLongPress: (_) {
               final ctx = ActiveRoom.navigatorKey.currentContext;
               if (ctx != null) openFriendsDrawer(ctx, account: widget.account, prefs: prefs, audio: widget.audio);
             }),
             NoteBanner(account: widget.account), // N5: an invite or a request pops up while the app is open
             const Positioned.fill(child: BuzzFlash()), // R7
-          ]),
+          ])),
           theme: noir(),
           locale: Locale(prefs.lang),
           supportedLocales: L.supportedLocales,
