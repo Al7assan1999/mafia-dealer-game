@@ -23,9 +23,12 @@ class SecureTokens implements TokenStore {
   // ponytail: app-private, not encrypted; drop the copy once secure storage is proven on his phone.
   @override
   Future<String?> read() async {
+    bool ok(String? t) => t != null && t.length == 43; // [his 1209362] only a well-formed session (43 characters)
     final mine = (await SharedPreferences.getInstance()).getString('session');
-    if (mine != null) return mine;
-    try { return await _s.read(key: 'session'); } catch (_) { return null; }
+    if (ok(mine)) return mine;
+    String? t;
+    try { t = await _s.read(key: 'session'); } catch (_) {}
+    return ok(t) ? t : null;
   }
   @override
   Future<void> write(String? t) async {
