@@ -91,8 +91,10 @@ class RecapCard extends StatelessWidget {
     );
   }
 
-  // the role's colour on paper (the citizen's gold is too light on Noir's paper)
-  static Color _rc(Role r) => !C.neon && r == Role.citizen ? const Color(0xFFB0873A) : roleColor(r);
+  // the role's colour on paper. [BA P5, S15] Noir's role colours are made for a dark page: on the paper they read at
+  // 1.9-2.9:1. These inks read at 4.8:1 or more on the paper and on the player-of-the-game box.
+  static Color _rc(Role r) => C.neon ? roleColor(r) : paperInk[r]!;
+  static const paperInk = {Role.mafia: Color(0xFF9E2C25), Role.doctor: Color(0xFF28613A), Role.detective: Color(0xFF315A84), Role.citizen: Color(0xFF6F5015)};
 }
 
 /// [S15] "24 Nov 2026"; the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)
