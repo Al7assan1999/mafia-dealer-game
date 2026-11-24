@@ -218,6 +218,6 @@ void main() {
     await tapKey(t, 'settings');
     await frames(t, 3);
     expect(find.byKey(const Key('notifSettings')), findsOneWidget);
-    expect(find.text("Invites, friends, game approvals, titles and new versions, when the app is closed. Choose which in Android's settings."), findsOneWidget);
+    expect(find.text("Invites, friends, game approvals, and titles, when the app is closed. Choose which in Android's settings."), findsOneWidget);
   });
 }

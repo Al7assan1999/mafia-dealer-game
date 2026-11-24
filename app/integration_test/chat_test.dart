@@ -72,6 +72,7 @@ void main() {
 
     // the app answers
     await tapKey(t, 'chat');
+    await waitFor(t, find.byKey(const Key('chatText'))); // the chat page slides in first
     await t.enterText(find.byKey(const Key('chatText')), 'hello bot');
     await tapKey(t, 'chatSend');
     await waitUntil(t, () => got.any((m) => m['t'] == 'chat' && (m['msg'] as Map)['text'] == 'hello bot'), 'the bot hears the app');
