@@ -138,3 +138,16 @@ filters and hide / unhide.
 ## Proposed next
 - Sprint 14: Noir "case file" look (mockups first).
 - Small: show the name of a player who left and never returned in old chat messages instead of "?".
+
+## After 0.4.3: #14 corrected (2026-11-24)
+Alhassan: #14 meant the **"Mafia Dealer updated · tap to open"** notification after installing, not the "new version is
+out" one. Fixed, not released yet:
+- The "updated" notification is gone (`UpdatedReceiver` and its manifest entry removed).
+- The "new version is out" push is back: the Release workflow sends it again (`scripts/push-release.mjs`), the phone
+  follows `updates_<language>` again, the "New versions" channel is back, and the Settings text says "new versions" again.
+- No switch in the app; it's turned off in Android's settings (Settings → Notifications → New versions).
+- Checked: app 152/152, analyzer clean, Android build; on the emulator an in-place update posted nothing and the
+  `updates` channel exists. **Not provable here:** a real push from a release.
+- Known gap: phones on 0.4.3 unsubscribed from the topics and only follow them again once they run the next version,
+  so the push for that next version reaches 0.4.2 phones and older, not 0.4.3 ones (they still see the Home card).
+

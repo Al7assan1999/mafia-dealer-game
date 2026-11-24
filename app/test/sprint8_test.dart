@@ -272,11 +272,14 @@ void main() {
       expect(u2.state, 'failed');
     });
 
-    test('[S13-5 / his note 14] no update notifications: a phone that followed the topics stops', () async {
+    test('[his note 14, as meant] "new version" pushes stay: the language topic is followed, the other one left', () async {
       final p = await prefs(), push = FakePush(), u = Updater(p, client: github(), installer: FakeInstaller());
       u.push = push;
       await Future<void>.delayed(Duration.zero);
-      expect(push.topics, {'updates_en': false, 'updates_ar': false});
+      expect(push.topics, {'updates_en': true, 'updates_ar': false});
+      p.lang = 'ar';
+      await Future<void>.delayed(Duration.zero);
+      expect(push.topics, {'updates_en': false, 'updates_ar': true});
     });
   });
 }

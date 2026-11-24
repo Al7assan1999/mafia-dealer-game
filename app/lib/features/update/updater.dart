@@ -85,13 +85,16 @@ class Updater extends ChangeNotifier {
   double progress = 0;
   int _checked = 0;
 
-  /// [S13-5 / his note 14 (b)] no notifications about updates any more: the update card on Home is enough. Phones that
-  /// followed the old `updates_en` / `updates_ar` topics stop following them.
+  /// Push is ready: follow the `updates_<language>` topic (the release push is sent in both). [S13 his note 14, as he
+  /// meant it] the "new version is out" push stays; only the "Mafia Dealer updated" one after installing is gone. Turned
+  /// off in Android's settings (channel "New versions"), no switch in the app.
   set push(PushService? p) { _push = p; _topic(); }
   String? _lang;
   Future<void> _topic() async {
-    if (_push == null) return;
-    for (final t in ['updates_en', 'updates_ar']) { await _push!.topic(t, false); }
+    if (!selfUpdate || _push == null) return;
+    final lang = prefs.lang;
+    for (final t in ['updates_en', 'updates_ar']) { await _push!.topic(t, t == 'updates_$lang'); }
+    _lang = lang;
   }
 
   String? abi; // tests set the phone's processor

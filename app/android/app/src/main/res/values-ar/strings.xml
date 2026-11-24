@@ -8,6 +8,6 @@
     <string name="ch_approvals_d">تأكيد ألعاب الواي فاي للسجل عبر الإنترنت، والنتائج</string>
     <string name="ch_titles">الألقاب</string>
     <string name="ch_titles_d">عندما يأخذ أحد لقبًا من ألقابك في الترتيب</string>
-    <string name="upd_done">تم تحديث Mafia Dealer</string>
-    <string name="upd_open">اضغط للفتح</string>
+    <string name="ch_updates">الإصدارات الجديدة</string>
+    <string name="ch_updates_d">عند صدور إصدار جديد من Mafia Dealer</string>
 </resources>

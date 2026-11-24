@@ -885,7 +885,7 @@
   "wConfirm": "Confirm",
   "wNotMe": "Not me",
   "sNotif": "Notifications",
-  "sNotifD": "Invites, friends, game approvals, and titles, when the app is closed. Choose which in Android's settings.",
+  "sNotifD": "Invites, friends, game approvals, titles and new versions, when the app is closed. Choose which in Android's settings.",
   "inviteExpired": "This invite has expired",
   "historySignIn": "Sign in to see your online games here too.",
   "statsT": "Stats",

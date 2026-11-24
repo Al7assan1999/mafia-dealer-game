@@ -1,7 +1,5 @@
 package com.mafiadealer.game
 
-import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -43,21 +41,8 @@ class InstallReceiver : BroadcastReceiver() {
                 confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { ctx.startActivity(it) }
                 Updates.onStatus?.invoke("pending", null)
             }
-            PackageInstaller.STATUS_SUCCESS -> {}  // the app is being replaced; UpdatedReceiver takes over
+            PackageInstaller.STATUS_SUCCESS -> {}  // the app is being replaced (his note 14: no "updated" notification)
             else -> Updates.onStatus?.invoke("failed:$status", intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
         }
-    }
-}
-
-/** After an update the app isn't running: a notification brings the player back ("Mafia Dealer updated · tap to open"). */
-class UpdatedReceiver : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        val nm = ctx.getSystemService(NotificationManager::class.java)
-        val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE)
-        @Suppress("DEPRECATION")
-        val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(ctx, "updates") else Notification.Builder(ctx)
-        nm.notify(3, b.setSmallIcon(R.mipmap.ic_launcher).setContentTitle(ctx.getString(R.string.upd_done)).setContentText(ctx.getString(R.string.upd_open))
-            .setContentIntent(open).setAutoCancel(true).build())
     }
 }

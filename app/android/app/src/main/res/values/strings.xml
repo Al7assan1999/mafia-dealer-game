@@ -9,6 +9,6 @@
     <string name="ch_approvals_d">Confirming Wi-Fi games for online history, and the results</string>
     <string name="ch_titles">Titles</string>
     <string name="ch_titles_d">When someone takes one of your leaderboard titles</string>
-    <string name="upd_done">Mafia Dealer updated</string>
-    <string name="upd_open">Tap to open</string>
+    <string name="ch_updates">New versions</string>
+    <string name="ch_updates_d">When a new version of Mafia Dealer is out</string>
 </resources>
