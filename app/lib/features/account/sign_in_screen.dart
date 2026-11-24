@@ -36,7 +36,7 @@ class _SignInState extends State<SignInScreen> {
   void _done() {
     if (!mounted) return;
     final a = widget.account;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => a.needsHandle ? HandleScreen(account: a) : ProfileScreen(account: a)));
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => a.needsHandle ? HandleScreen(account: a) : ProfileScreen(account: a, welcome: true)));
   }
 
   Future<void> _send() => _run(() async {
@@ -113,7 +113,7 @@ class _HandleState extends State<HandleScreen> {
           setState(() { busy = true; error = null; });
           try {
             await a.patch({'handle': handle.text.trim(), 'display': name.text.trim()});
-            if (context.mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ProfileScreen(account: a)));
+            if (context.mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ProfileScreen(account: a, welcome: true)));
           } catch (e) {
             if (mounted) setState(() => error = errText(l, e));
           }

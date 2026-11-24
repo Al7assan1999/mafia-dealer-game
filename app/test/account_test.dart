@@ -62,6 +62,14 @@ void main() {
     expect(app.account.handle, 'newbie_1');
     expect(app.account.display, 'Newbie');
     expect(find.byKey(const Key('saveProfile')), findsOneWidget, reason: 'then the profile');
+    // [BA P4] the sign-up ends with Done, back to Home; the profile opened from Home has no Done
+    await tapKey(t, 'profileDone');
+    await settleUi(t);
+    expect(find.byKey(const Key('saveProfile')), findsNothing);
+    await tapKey(t, 'profile');
+    await settleUi(t);
+    expect(find.byKey(const Key('saveProfile')), findsOneWidget);
+    expect(find.byKey(const Key('profileDone')), findsNothing);
   });
 
   testWidgets('"slow down", no network, and a bad email each say what happened; nothing hangs', (t) async {

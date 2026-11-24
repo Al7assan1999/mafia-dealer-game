@@ -16,8 +16,10 @@ import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 // ---------------------------------------------------------------- profile
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.account});
+  const ProfileScreen({super.key, required this.account, this.welcome = false});
   final Account account;
+  /// [BA P4, S15] straight after signing in or choosing a @username: a Done at the bottom ends it clearly
+  final bool welcome;
   /// Tests replace the gallery with a fake picture.
   static Future<Uint8List?> Function()? testPicker;
   @override
@@ -71,7 +73,7 @@ class _ProfileState extends State<ProfileScreen> {
         if (!a.signedIn) return Scaffold(appBar: AppBar(), body: Stage(children: [Big(l.aDeleted)]));
         return Scaffold(
           appBar: AppBar(title: Text(l.profT, style: head.copyWith(fontSize: 20))),
-          body: Stage(center: false, children: [
+          body: Stage(center: false, bottom: [if (widget.welcome) Btn(l.aDone, key: const Key('profileDone'), onTap: () => Navigator.of(context).pop())], children: [
             Sec(title: l.aAvatar, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (var i = 0; i < 10; i++)
