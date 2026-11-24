@@ -3,9 +3,10 @@ import 'package:mafia_engine/mafia_engine.dart';
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/features/intro/intro_screen.dart';
+import 'package:mafia_dealer/features/offline/rules_card.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
-// How to play: the goal, the roles, night, day, table rules, suggested setup, tips (English + Arabic). Offered once on first launch.
+// How to play: the goal, the roles, night, day, table rules, suggested setup, the game options, tips (English + Arabic). Offered once on first launch.
 
 class GuideScreen extends StatelessWidget {
   const GuideScreen({super.key, this.prefs});
@@ -37,6 +38,9 @@ class GuideScreen extends StatelessWidget {
         part(l.gDayT, l.gDay),
         part(l.gTableT, l.gTable), // [S15] the old guide's table rules and suggested setup
         part(l.gSetupT, l.gSetup),
+        // [BA P3, S15] the old guide's "Options in this app": the setup's own rules card, read only (one source of truth)
+        Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(l.gOptions, key: const Key('guideOptions'), style: TextStyle(color: C.mute))),
+        RulesEditor(rules: defaultRules),
         part(l.gTipsT, l.gTips),
       ]),
     );

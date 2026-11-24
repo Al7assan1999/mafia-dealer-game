@@ -749,6 +749,7 @@
   "gTable": "Out players stay silent and don't hint at their role. Never show your screen, and never look at someone else's turn. You may claim any role out loud, true or false: lying is part of the game.",
   "gSetupT": "Suggested setup",
   "gSetup": "4-5 players: 1 Mafia, 1 Doctor. 6-9 players: 2 Mafia, 1 Doctor, 1 Detective. 10-13 players: 3 Mafia, 1 Doctor, 1 Detective. About one Mafia for every four players; the setup screen suggests it for you.",
+  "gOptions": "The options you can turn on when you set up a game (Classic below). Tap the card to see each one.",
   "gotIt": "Got it",
   "wifi": "Wi‑Fi / Hotspot",
   "wifiSub": "Same Wi-Fi or a phone hotspot. No internet needed.",
