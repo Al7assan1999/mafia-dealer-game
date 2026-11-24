@@ -49,6 +49,9 @@ extension _LobbyViews on _RoomScreenState {
           }),
         ]),
       ])),
+      // [BA P1, S15] the side tabs (36 dp) can be dragged anywhere below the code card: the cards under them keep clear,
+      // so a tab never covers a player's ⋮ menu or the role steppers
+      for (final w in <Widget>[
       // [R7] the old app's "Ping everyone" on the player list's title row
       Sec(title: l.membersN(ms.length), action: host && ms.length > 1 ? TextButton.icon(key: const Key('pingAll'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
             icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
@@ -56,6 +59,7 @@ extension _LobbyViews on _RoomScreenState {
           child: Column(children: [for (final m in ms) _member(l, m, host)])),
       DeckEditor(players: ms.length, counts: v.counts, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
+      ]) Padding(padding: const EdgeInsetsDirectional.only(end: 24), child: w),
     ]);
   }
 
