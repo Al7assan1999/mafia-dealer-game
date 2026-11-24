@@ -20,7 +20,7 @@ void main() {
     expect(await SecureTokens().read(), 's' * 43);
   });
 
-  test('a broken value in either place is ignored (his length check)', () async {
+  test('a broken value in either place is ignored', () async {
     FlutterSecureStorage.setMockInitialValues({'session': 'short'});
     SharedPreferences.setMockInitialValues({'session': ''});
     expect(await SecureTokens().read(), isNull);
