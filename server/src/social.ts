@@ -139,10 +139,13 @@ export const games = new Hono<AppEnv>();
 games.get('/', async c => {
   const { results } = await c.env.DB.prepare(
     `SELECT g.id, g.winner, g.days, g.valid, g.played_at, p.seat, p.role, p.alive,
-            (SELECT COUNT(*) FROM game_players q WHERE q.game_id = g.id) AS players
+            (SELECT COUNT(*) FROM game_players q WHERE q.game_id = g.id) AS players,
+            (SELECT group_concat(q.name, char(31)) FROM game_players q WHERE q.game_id = g.id) AS names
      FROM game_players p JOIN games g ON g.id = p.game_id WHERE p.user_id = ? AND g.source = 'online' ORDER BY g.played_at DESC LIMIT 100`)
-    .bind(c.var.user.id).all<{ id: string; winner: string; days: number; valid: number; played_at: number; seat: number; role: string; alive: number; players: number }>();
-  return c.json({ games: results.map(r => ({ id: r.id, winner: r.winner, days: r.days, valid: !!r.valid, playedAt: r.played_at, seat: r.seat, role: r.role, alive: !!r.alive, players: r.players })) });
+    .bind(c.var.user.id).all<{ id: string; winner: string; days: number; valid: number; played_at: number; seat: number; role: string; alive: number; players: number; names: string | null }>();
+  // [S15-5] names: the old app's "Search by player name" in the history
+  return c.json({ games: results.map(r => ({ id: r.id, winner: r.winner, days: r.days, valid: !!r.valid, playedAt: r.played_at, seat: r.seat, role: r.role, alive: !!r.alive, players: r.players,
+    names: (r.names ?? '').split(String.fromCharCode(31)).filter(Boolean) })) });
 });
 games.get('/:id', async c => {
   const db = c.env.DB, id = c.req.param('id');

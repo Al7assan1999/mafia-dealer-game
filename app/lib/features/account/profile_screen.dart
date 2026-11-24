@@ -103,8 +103,7 @@ class _ProfileState extends State<ProfileScreen> {
                 ],
                 onChanged: (v) => setState(() => fav = v ?? ''),
               ),
-              SwitchListTile(key: const Key('showOnline'), contentPadding: EdgeInsets.zero, value: showOn, onChanged: (v) => setState(() => showOn = v),
-                  title: Text(l.fShowOn), subtitle: Text(l.fShowOnD, style: TextStyle(color: C.dim, fontSize: 12))),
+              SqSwitchTile(key: const Key('showOnline'), value: showOn, onChanged: (v) => setState(() => showOn = v), title: l.fShowOn, subtitle: l.fShowOnD),
               Btn(l.aSave, key: const Key('saveProfile'), onTap: busy ? null : () {
                 if (!handleRx.hasMatch(handle.text.trim())) return toast(context, l.eHandle);
                 if (name.text.trim().isEmpty) return toast(context, l.eBadName);
@@ -120,9 +119,8 @@ class _ProfileState extends State<ProfileScreen> {
               // [S12-1] the admin marks the names found in imported games (replaces "send me the list")
               if (a.isAdmin) ListTile(key: const Key('oldPlayers'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.how_to_reg_outlined, color: C.gold), title: Text(l.oldPlayersT),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OldPlayersScreen(account: a)))),
-              SwitchListTile(key: const Key('onBoard'), contentPadding: EdgeInsets.zero, value: a.me?['onBoard'] != false,
-                  onChanged: busy ? null : (v) => _do(() => a.patch({'onBoard': v})),
-                  title: Text(l.onBoardT), subtitle: Text(l.onBoardD, style: TextStyle(color: C.dim, fontSize: 12))),
+              SqSwitchTile(key: const Key('onBoard'), value: a.me?['onBoard'] != false, onChanged: busy ? null : (v) => _do(() => a.patch({'onBoard': v})),
+                  title: l.onBoardT, subtitle: l.onBoardD),
             ])),
             Sec(title: l.aDevices, child: Column(children: [
               for (final d in devices ?? const <Map<String, Object?>>[])

@@ -43,10 +43,10 @@ void main() {
     final s = FakeServer()..statsAnswer = statsOf([row('u:1', 'Dareer', w: 5, g: 6, rank: 1)]);
     await signedIn(t, s);
     await frames(t, 4);
-    for (final k in ['history', 'stats', 'howToPlay', 'bell', 'homeLang', 'homeTheme', 'settings']) { // the version row needs an updater (sprint13_test checks it)
+    for (final k in ['history', 'stats', 'howToPlay', 'bell', 'friends', 'settings']) { // [S15-1] the 0.4.6 top row // the version row needs an updater (sprint13_test checks it)
       expect(find.byKey(Key(k), skipOffstage: false), findsOneWidget, reason: k);
     }
-    expect(find.byKey(const Key('friends')), findsNothing, reason: 'friends are in the side drawer, as the old app');
+    expect(find.byKey(const Key('homeLang')), findsNothing, reason: '[S15-1] language and look are in Settings');
     await t.ensureVisible(find.byKey(const Key('bestLine')));
     expect(find.text('Best player: Dareer · 83%'), findsOneWidget);
     await tapKey(t, 'bestLine');
@@ -54,16 +54,25 @@ void main() {
     expect(find.text('Dareer'), findsWidgets, reason: 'Player Stats opened');
   });
 
-  testWidgets('S14-3: a guest has the three tiles too, no best player; Player Stats asks to sign in; the flag switches the language', (t) async {
-    final a = await launch(t);
+  testWidgets('S14-3 / S15: a guest has the three tiles too, no best player; Sign in and the gear at the top', (t) async {
+    await launch(t);
     await frames(t, 2);
     expect(find.byKey(const Key('bestLine')), findsNothing);
-    await tapKey(t, 'homeLang');
+    expect(find.byKey(const Key('signIn')), findsOneWidget);
+    expect(find.byKey(const Key('settings')), findsOneWidget);
+  });
+
+  testWidgets('S15-2: Settings closes with the × at the top right; no back arrow', (t) async {
+    await launch(t);
     await frames(t, 2);
-    expect(a.prefs.lang, 'ar');
-    await tapKey(t, 'homeTheme');
-    await frames(t, 2);
-    expect(a.prefs.theme, 'neon');
+    await tapKey(t, 'settings');
+    await t.pumpAndSettle();
+    expect(find.byType(BackButton), findsNothing);
+    final x = t.getCenter(find.byKey(const Key('closeSettings')));
+    expect(x.dx, greaterThan(t.view.physicalSize.width / t.view.devicePixelRatio / 2), reason: 'on the right');
+    await tapKey(t, 'closeSettings');
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('closeSettings')), findsNothing);
   });
 
   // ---------------------------------------------------------------- S14-4: What's new

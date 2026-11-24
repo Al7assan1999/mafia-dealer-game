@@ -16,6 +16,7 @@ import 'package:mafia_dealer/features/chat/chat_screen.dart';
 import 'package:mafia_dealer/features/friends/friends_drawer.dart';
 import 'package:mafia_dealer/features/friends/friends_screen.dart';
 import 'package:mafia_dealer/features/history/wifi_approval.dart';
+import 'package:mafia_dealer/features/offline/recap_card.dart';
 import 'package:mafia_dealer/features/offline/role_card.dart';
 import 'package:mafia_dealer/features/offline/setup_screen.dart';
 import 'package:mafia_dealer/features/room/buzz.dart';

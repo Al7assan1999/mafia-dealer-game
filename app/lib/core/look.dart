@@ -159,3 +159,49 @@ class GlyphBox extends StatelessWidget {
       decoration: BoxDecoration(color: C.card2, border: Border.all(color: C.line2), borderRadius: BorderRadius.circular(C.neon ? 26 : 4)),
       child: Icon(icon, size: 46, color: color ?? C.text)));
 }
+
+/// The old app's mark (a hat and a moustache), in one colour.
+class HatMark extends StatelessWidget {
+  const HatMark({super.key, required this.size, required this.color});
+  final double size;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => CustomPaint(size: Size(size, size), painter: _Mark(color));
+}
+
+/// The old SVG (24 × 24): M3 11h18 · M5 11l1.5-6h11L19 11 · two half circles under the brim · M10 15h4.
+class _Mark extends CustomPainter {
+  const _Mark(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 24);
+    final p = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(Path()..moveTo(3, 11)..lineTo(21, 11)..moveTo(5, 11)..lineTo(6.5, 5)..lineTo(17.5, 5)..lineTo(19, 11)
+      ..moveTo(7, 15)..arcToPoint(const Offset(13, 15), radius: const Radius.circular(3), largeArc: true, clockwise: false)
+      ..moveTo(11, 15)..arcToPoint(const Offset(17, 15), radius: const Radius.circular(3), largeArc: true, clockwise: false)
+      ..moveTo(10, 15)..lineTo(14, 15), p);
+  }
+  @override
+  bool shouldRepaint(_Mark old) => old.color != color;
+}
+
+/// [S15] A switch row as the old app's (.tg): the label, a muted line, the square switch; the whole row toggles.
+class SqSwitchTile extends StatelessWidget {
+  const SqSwitchTile({super.key, required this.title, this.subtitle, required this.value, required this.onChanged, this.small = false});
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool small; // the rules card's rows
+  @override
+  Widget build(BuildContext context) => InkWell(onTap: onChanged == null ? null : () => onChanged!(!value), child: Padding(
+      padding: EdgeInsets.symmetric(vertical: small ? 8 : 12), child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontSize: small ? 14 : 15, fontWeight: small ? FontWeight.w400 : FontWeight.w700, color: C.text)),
+          if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle!, style: TextStyle(fontSize: small ? 12 : 13, color: C.mute, height: 1.35))),
+        ])),
+        const SizedBox(width: 12),
+        Opacity(opacity: onChanged == null ? .45 : 1, child: SqSwitch(value: value, onChanged: onChanged)),
+      ])));
+}

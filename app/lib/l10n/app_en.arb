@@ -888,7 +888,7 @@
   "sNotifD": "Invites, friends, game approvals, titles and new versions, when the app is closed. Choose which in Android's settings.",
   "inviteExpired": "This invite has expired",
   "historySignIn": "Sign in to see your online games here too.",
-  "statsT": "Stats",
+  "statsT": "Player Stats",
   "fAll": "All",
   "fOld": "Old app",
   "fAllTime": "All time",
@@ -1377,5 +1377,18 @@
     }
   },
   "sAccountD": "An account is needed to play online. Offline and Wi-Fi/Hotspot games work without one.",
-  "sSignInCreate": "Sign in / Create account"
+  "sSignInCreate": "Sign in / Create account",
+  "searchName": "Search by player name",
+  "fWinner": "Winner",
+  "fRecord": "Record",
+  "mafiaWon": "Mafia won",
+  "citizensWon": "Citizens won",
+  "nGames": "{n, plural, =1{1 game} other{{n} games}}",
+  "@nGames": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  }
 }

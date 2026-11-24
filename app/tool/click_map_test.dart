@@ -124,7 +124,7 @@ final spots = <Spot>[
 ];
 
 // ------------------------------------------------------------------ finding the controls
-const _compound = <Type>{IconButton, ListTile, PopupMenuButton, Switch, SwitchListTile, Checkbox, Slider, TextField, Chip, ChoiceChip, FilterChip, DropdownButton, BackButton};
+const _compound = <Type>{IconButton, ListTile, PopupMenuButton, Switch, SwitchListTile, SqSwitchTile, SqSwitch, Checkbox, Slider, TextField, Chip, ChoiceChip, FilterChip, DropdownButton, BackButton};
 bool _isCompound(Widget w) => _compound.contains(w.runtimeType) || w is ButtonStyleButton || w is DropdownButton || w is PopupMenuButton || w is TextField;
 
 bool _control(Widget w) =>

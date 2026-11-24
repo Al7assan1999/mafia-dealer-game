@@ -123,7 +123,9 @@ ThemeData noir() {
         decoration: BoxDecoration(color: C.card, border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.neon ? 12 : 2)),
         child: Icon(Directionality.of(context) == TextDirection.rtl ? Icons.chevron_right : Icons.chevron_left, color: C.text, size: 22))),
     dividerColor: C.line,
-    dividerTheme: DividerThemeData(color: C.line, space: 24), // Material 3 ignores dividerColor: dividers were white
+    dividerTheme: DividerThemeData(color: C.line, space: 24),
+    tabBarTheme: TabBarThemeData(dividerColor: C.line, indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,
+        labelStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700), unselectedLabelStyle: TextStyle(fontFamily: C.p.body)), // Material 3 ignores dividerColor: dividers were white
     // [look] the old app's buttons: square-cornered, red filled, outlined in the line colour
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: C.red, foregroundColor: C.priText,
         textStyle: TextStyle(fontFamily: C.p.body, fontWeight: FontWeight.w700, fontSize: 15),
@@ -147,8 +149,10 @@ ThemeData noir() {
     ),
     sliderTheme: SliderThemeData(activeTrackColor: C.red, thumbColor: C.red, inactiveTrackColor: C.line),
     // [QA] Q2: chips were Material's default teal; the accent when selected
-    chipTheme: ChipThemeData(selectedColor: C.red, backgroundColor: C.card, checkmarkColor: C.priText, side: BorderSide(color: C.line2),
-        labelStyle: TextStyle(fontFamily: C.p.body, color: C.text), secondaryLabelStyle: TextStyle(fontFamily: C.p.body, color: C.priText),
+    // [S15-5] the old app's chips: the chosen one dark red with a red border, no checkmark
+    chipTheme: ChipThemeData(selectedColor: C.neon ? C.red.withValues(alpha: .18) : const Color(0xFF3A1512), backgroundColor: C.card, showCheckmark: false,
+        side: WidgetStateBorderSide.resolveWith((s) => BorderSide(color: s.contains(WidgetState.selected) ? C.red : C.line2)),
+        labelStyle: TextStyle(fontFamily: C.p.body, color: C.text, fontWeight: FontWeight.w700), secondaryLabelStyle: TextStyle(fontFamily: C.p.body, color: C.text, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(C.neon ? 20 : 3))),
     dialogTheme: DialogThemeData(backgroundColor: C.card, shape: RoundedRectangleBorder(borderRadius: r)),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: C.card, modalBackgroundColor: C.card),

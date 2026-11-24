@@ -79,6 +79,7 @@ describe('a full online game', () => {
     const mine = await api('GET', '/v1/games', t.accts[2].token);
     expect(mine.json.games).toHaveLength(1);
     expect(mine.json.games[0]).toMatchObject({ winner: host.view.winner, players: 6, valid: true, role: roleOf[t.players[2].view.seat] });
+    expect(mine.json.games[0].names).toHaveLength(6);  // [S15-5] the players' names, for the search
     const full = await api('GET', '/v1/games/' + host.room.gameId, t.accts[2].token);
     expect(full.json.players).toHaveLength(6);
     expect(full.json.log.some((e: any) => e.t === 'night')).toBe(true);  // the full history, after the end

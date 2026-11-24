@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/core/prefs.dart';
+import 'package:mafia_dealer/core/ui.dart' show SqSwitchTile;
 import 'package:mafia_dealer/core/version.dart';
 import 'package:mafia_dealer/features/chat/chat_screen.dart';
 import 'package:mafia_dealer/features/friends/friends_screen.dart';
@@ -80,7 +81,7 @@ void main() {
     await frames(t, 2);
     expect(find.text('Night'), findsOneWidget);
     expect(find.text('Day and reveals'), findsOneWidget);
-    final sw = find.widgetWithText(SwitchListTile, 'Mafia can skip a kill');
+    final sw = find.widgetWithText(SqSwitchTile, 'Mafia can skip a kill');
     await t.ensureVisible(sw);
     await t.tap(sw);
     await frames(t);

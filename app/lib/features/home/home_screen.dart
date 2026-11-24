@@ -159,7 +159,7 @@ class _HomeBody extends StatelessWidget {
     }, child: Scaffold(
       // [QA] S9 #4: Home starts at the top (centred, the icon row moved with the screen height and the friends tab hid the gear)
       body: Stack(children: [Stage(center: false, children: [
-        AccountBar(account: account, prefs: prefs,
+        AccountBar(account: account,
             onSettings: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsSheet(prefs: prefs, updater: updater, account: account)))),
         const SizedBox(height: 36),
         const Center(child: HomeLogo()), // [S14-3] the old app's mark

@@ -110,12 +110,12 @@ void main() {
     final s = FakeServer(), tok = s.user('Sami'), tokens = MemoryTokens()..t = tok;
     final app = await launch(t, server: s, tokens: tokens);
     await settleUi(t);
-    expect(find.byTooltip(atHandle('Sami')), findsOneWidget); // [S14-3] the avatar's tooltip (Home shows no name, as the old app)
+    expect(find.text(atHandle('Sami')), findsOneWidget); // [S15-1] the @handle next to the avatar again
     // offline at the next start: the cached profile, marked offline; offline play still works
     s.offline = true;
     final again = await launch(t, server: s, tokens: tokens, prefs: app.prefs);
     await settleUi(t);
-    expect(find.byTooltip(atHandle('Sami')), findsOneWidget); // [S14-3] the avatar's tooltip (Home shows no name, as the old app)
+    expect(find.text(atHandle('Sami')), findsOneWidget); // [S15-1] the @handle next to the avatar again
     expect(find.text('Offline'), findsOneWidget);
     expect(again.account.signedIn, isTrue);
     await setUpGame(t, ['Dareer', 'Halawy', 'Farouq', 'Sami']);

@@ -77,10 +77,7 @@ class _RulesState extends State<RulesEditor> {
         Text(t, style: head.copyWith(fontSize: 14, color: C.gold)),
       ]));
 
-  Widget _sw(String t, String? d, bool v, ValueChanged<bool>? on) => SwitchListTile(
-        contentPadding: EdgeInsets.zero, value: v, onChanged: on, title: Text(t, style: const TextStyle(fontSize: 14)),
-        subtitle: d == null ? null : Text(d, style: TextStyle(color: C.dim, fontSize: 12)),
-      );
+  Widget _sw(String t, String? d, bool v, ValueChanged<bool>? on) => SqSwitchTile(title: t, subtitle: d, value: v, onChanged: on, small: true);
 
   Widget _pickRow(String t, String? d, List<int> opts, int v, String Function(int) label, ValueChanged<int>? on) => Padding(
         padding: const EdgeInsets.only(top: 8),

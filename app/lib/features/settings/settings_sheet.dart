@@ -49,7 +49,11 @@ class _SettingsState extends State<SettingsSheet> {
           final l = L.of(context);
           // [his look note] a full page of section cards, as the old app's Settings (it was a bottom sheet)
           return Scaffold(
-            appBar: AppBar(leading: BackButton(key: const Key('closeSettings')), title: Text(l.settingsT)),
+            // [S15-2 / his note] closes with an × at the top right; no back arrow
+            appBar: AppBar(automaticallyImplyLeading: false, title: Text(l.settingsT), actions: [
+              Padding(padding: const EdgeInsetsDirectional.only(end: 8), child: SqBtn(Icons.close, key: const Key('closeSettings'), tooltip: l.close, size: 40,
+                  onTap: () => Navigator.of(context).pop())),
+            ]),
             body: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [ // all built: short, and every row findable
               // [S14 / BA] the old app's Account section: sign in from Settings too (a guest found it only on Home)
               if (widget.account case final a?) ListenableBuilder(listenable: a, builder: (context, _) => Sec(title: l.acctT, icon: Icons.person_outline,

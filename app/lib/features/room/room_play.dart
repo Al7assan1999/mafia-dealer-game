@@ -1,6 +1,11 @@
 part of 'room_screen.dart';
 
 extension _PlayViews on _RoomScreenState {
+  // [S15-6] "Round 1 · 6/6 alive" under the online game screens too
+  String? _foot(L l) {
+    final r = (v?['roster'] as List?)?.cast<Map>();
+    return r == null || r.isEmpty ? null : l.roundAlive(v?['day'] as int? ?? 1, r.where((x) => x['alive'] == true).length, r.length);
+  }
   List<Widget> _hostBar(L l, Map<String, Object?> view, List<Widget> extra) {
     if (!c.isHost) return const [];
     final p = view['progress'] as Map?, offline = c.members.any((m) => m['seat'] != null && m['online'] == false);
@@ -22,9 +27,9 @@ extension _PlayViews on _RoomScreenState {
     final role = roleOf(view['role']);
     final meReady = c.members.any((m) => m['uid'] == c.myUid && m['ready'] == true), ms = c.members;
     final start = [if (c.isHost) Btn(l.startNow, key: const Key('start'), ghost: true, onTap: _h(() => c.send({'t': 'start'})))];
-    if (role == null) return Stage(card: true, children: [Big(l.waitHost)]);
+    if (role == null) return Stage(card: true, foot: _foot(L.of(context)), children: [Big(l.waitHost)]);
     if (meReady) {
-      return Stage(card: true, bottom: start, children: [
+      return Stage(card: true, foot: _foot(L.of(context)), bottom: start, children: [
         Icon(roleIcon(role), color: roleColor(role), size: 56), const SizedBox(height: 12),
         Big(l.readyN(ms.where((m) => m['ready'] == true).length, ms.where((m) => m['seat'] != null).length)),
       ]);
@@ -44,7 +49,7 @@ extension _PlayViews on _RoomScreenState {
       'citizen' => (l.aCitizen, l.aCitizenD), _ => (l.aNone, l.aNoneD),
     };
     final none = key == 'none', skip = no['skip'] as Map?, secs = _secondsLeft();
-    return Stage(card: true, color: C.night, center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () => _send({'t': 'night', 'choice': none ? null : _pick, 'day': view['day']}) : null),
       ..._hostBar(l, view, const []),
     ], children: [
@@ -75,7 +80,7 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _waiting(L l, Map<String, Object?> view, String text, Color color) {
     final check = view['check'] as Map?, secs = view['phase'] == 'night' ? _secondsLeft() : null;
-    return Stage(card: true, color: color, bottom: _hostBar(l, view, const []), children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: color, bottom: _hostBar(l, view, const []), children: [
       Icon(Icons.lock_outline, color: C.mute, size: 48), const SizedBox(height: 14),
       Big(text),
       _progress(l, view),
@@ -100,7 +105,7 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _dead(L l, Map<String, Object?> view) {
     final roles = view['roles'] as List?;
-    return Stage(card: true, color: C.blood, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.blood, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       Icon(Icons.visibility_outlined, color: C.mute, size: 48), const SizedBox(height: 12),
       Big(l.youAreOut, sub: l.youAreOutD),
       _progress(l, view),
@@ -124,7 +129,7 @@ extension _PlayViews on _RoomScreenState {
         _ => const [],
       };
 
-  Widget _suspense(L l, String text, Color color, IconData icon) => Stage(card: true, color: color, bottom: [
+  Widget _suspense(L l, String text, Color color, IconData icon) => Stage(card: true, foot: _foot(L.of(context)), color: color, bottom: [
         Btn(l.skipWait, key: const Key('revealNow'), ghost: true, onTap: _reveal),
       ], children: [
         Icon(icon, color: C.gold, size: 60), const SizedBox(height: 16), Big(text), const SizedBox(height: 18),
@@ -134,7 +139,7 @@ extension _PlayViews on _RoomScreenState {
   Widget _morning(L l, Map<String, Object?> view) {
     if (!revealed) return _suspense(l, l.sunrise, C.day, Icons.wb_sunny_outlined);
     final r = Map<String, Object?>.from(view['result'] as Map? ?? const {'k': 'nobody'}), role = roleOf(r['role']);
-    return Stage(card: true, color: r['k'] == 'killed' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: r['k'] == 'killed' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       Tag(l.morningOf(view['day'] as int)),
       const SizedBox(height: 24),
       if (r['k'] == 'killed') ...[
@@ -152,7 +157,7 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _day(L l, Map<String, Object?> view) {
     final t = view['timer'] as Map?, left = _secondsLeft() ?? 0, running = t?['end'] != null;
-    return Stage(card: true, color: C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       Sec(title: l.discussion, child: Column(children: [
         Text(left == 0 && running ? l.timeUp : '${left ~/ 60}:${(left % 60).toString().padLeft(2, '0')}', key: const Key('clock'),
             style: head.copyWith(fontSize: 52, color: left == 0 ? C.red2 : C.text)),
@@ -182,7 +187,7 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _vote(L l, Map<String, Object?> view) {
     final me = view['seat'] as int;
-    return Stage(card: true, center: false, bottom: [
+    return Stage(card: true, foot: _foot(L.of(context)), center: false, bottom: [
       Btn(l.castVote, key: const Key('castVote'), onTap: _pick == null ? null : () => _send({'t': 'vote', 'choice': _pick, 'id': view['voteId']})),
       ..._hostBar(l, view, const []),
     ], children: [
@@ -197,7 +202,7 @@ extension _PlayViews on _RoomScreenState {
   Widget _verdict(L l, Map<String, Object?> view) {
     if (!revealed) return _suspense(l, l.deciding, C.day, Icons.gavel);
     final r = Map<String, Object?>.from(view['result'] as Map? ?? const {'k': 'skipped'}), role = roleOf(r['role']), tally = r['tally'] as List?;
-    return Stage(card: true, color: r['k'] == 'out' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
+    return Stage(card: true, foot: _foot(L.of(context)), color: r['k'] == 'out' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       if (r['k'] == 'out') ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.red2),

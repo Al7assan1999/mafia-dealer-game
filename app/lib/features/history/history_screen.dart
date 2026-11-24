@@ -25,6 +25,7 @@ class _HistoryState extends State<HistoryScreen> {
   String? error;
   Map<String, Map<String, Object?>> server = {}; // the server's Wi-Fi requests and approved games, by the game's key
   String show = 'all'; // [S13 P1] all | valid | invalid | hidden
+  String winner = 'all', q = ''; // [S15-5] the old app's Winner filter and player search
 
   @override
   void initState() { super.initState(); _load(); }
@@ -96,21 +97,29 @@ class _HistoryState extends State<HistoryScreen> {
   Widget _online(L l) {
     final hidden = widget.prefs.hiddenGames;
     // [S13 P1] the old app's filter, and the games I hid (shown again under "Hidden")
+    final needle = q.trim().toLowerCase();
     final shown = (games ?? const <Map<String, Object?>>[]).where((g) => switch (show) {
           'hidden' => hidden.contains(g['id']),
           'valid' => g['valid'] == true && !hidden.contains(g['id']),
           'invalid' => g['valid'] != true && !hidden.contains(g['id']),
           _ => !hidden.contains(g['id']),
-        }).toList();
+        } && (winner == 'all' || g['winner'] == winner)
+          && (needle.isEmpty || ((g['names'] as List?) ?? const []).any((n) => '$n'.toLowerCase().contains(needle)))).toList();
+    Widget chips(List<(String, String)> opts, String on, ValueChanged<String> pick, String prefix) => Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final (k, t) in opts) ChoiceChip(key: Key('$prefix$k'), label: Text(t), selected: on == k, onSelected: (_) => setState(() => pick(k))),
+        ]);
+    Widget cap(String t) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(t.toUpperCase(), style: capStyle));
     return error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
           : games == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : games!.isEmpty ? Center(child: Text(l.noHistory, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final (k, t) in [('all', l.fAll), ('valid', l.valid), ('invalid', l.invalid), if (hidden.isNotEmpty) ('hidden', l.hiddenN(hidden.length))])
-                  ChoiceChip(key: Key('hist_$k'), label: Text(t), selected: show == k, onSelected: (_) => setState(() => show = k)),
-              ]),
-              const SizedBox(height: 8),
+              // [S15-5] as the old app: search by a player's name, Winner, Record, then how many games
+              TextField(key: const Key('histSearch'), onChanged: (v) => setState(() => q = v), decoration: InputDecoration(hintText: l.searchName, prefixIcon: Icon(Icons.search, color: C.dim))),
+              cap(l.fWinner),
+              chips([('all', l.fAll), ('mafia', l.mafiaWon), ('citizens', l.citizensWon)], winner, (k) => winner = k, 'win_'),
+              cap(l.fRecord),
+              chips([('all', l.fAll), ('valid', l.valid), ('invalid', l.invalid), if (hidden.isNotEmpty) ('hidden', l.hiddenN(hidden.length))], show, (k) => show = k, 'hist_'),
+              cap(l.nGames(shown.length)),
               if (shown.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text(l.noHistory, textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
               for (final g in shown)
                 Card(color: C.card, child: ListTile(

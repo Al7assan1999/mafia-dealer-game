@@ -6,6 +6,7 @@ import 'package:mafia_dealer/core/audio.dart';
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/features/offline/offline_game.dart';
+import 'package:mafia_dealer/features/offline/recap_card.dart';
 import 'package:mafia_dealer/features/offline/role_card.dart';
 import 'package:mafia_dealer/features/offline/setup_screen.dart';
 import 'package:mafia_dealer/state/account.dart';
@@ -284,7 +285,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _end(L l) {
     if (!g.revealed) return _suspense(l, l.gameOver, C.glory, Icons.emoji_events_outlined);
     final s = g.s, mafia = s.winner == Winner.mafia, best = mvp(s.winner!, s.roles, s.alive, s.stats);
-    return Stage(card: true, foot: _foot(L.of(context)), color: mafia ? C.blood : C.glory, center: false, bottom: [
+    return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
       Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: () {
         final n = g.playAgain();
         if (n != null) setState(() => g = n);
@@ -298,35 +299,12 @@ class _GameScreenState extends State<GameScreen> {
         Expanded(child: Btn(l.home, key: const Key('home'), ghost: true, onTap: () => Navigator.of(context).pop())),
       ]),
     ], children: [
+      // [S15-4] the old app's recap card
+      RecapCard(mafia: mafia, days: s.day, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
+          best: best == null ? null : (name: _name(best.seat), role: s.roles[best.seat],
+              why: switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv }),
+          lines: [for (final e in s.log) if (_line(l, e) case final t?) (night: e is NightLog, text: t)]),
       const SizedBox(height: 12),
-      Big(mafia ? l.winMafia : l.winCitizens, sub: mafia ? l.winMafiaD : l.winCitizensD, color: mafia ? C.red2 : C.gold, size: 36),
-      Padding(padding: const EdgeInsets.only(top: 6, bottom: 18), child: Text(l.rcSub(g.n, s.day), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
-      if (best != null)
-        Sec(title: l.mvpT, child: Row(children: [
-          Icon(roleIcon(s.roles[best.seat]), color: roleColor(s.roles[best.seat])),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_name(best.seat), style: head.copyWith(fontSize: 20)),
-            Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
-                style: TextStyle(color: C.mute)),
-          ])),
-        ])),
-      Sec(title: l.roles, child: Column(children: [
-        for (var i = 0; i < g.n; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Row(children: [
-              Icon(roleIcon(s.roles[i]), size: 18, color: roleColor(s.roles[i])),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_name(i), style: TextStyle(decoration: s.alive[i] ? null : TextDecoration.lineThrough, color: s.alive[i] ? C.text : C.mute))),
-              Text(roleName(l, s.roles[i]), style: TextStyle(color: roleColor(s.roles[i]))),
-            ]),
-          ),
-      ])),
-      Sec(title: l.history, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        for (final e in s.log)
-          if (_line(l, e) case final t?) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(t, style: TextStyle(color: C.mute))),
-      ])),
       Text(l.nothingSaved, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
     ]);
   }
