@@ -22,8 +22,13 @@ class SecureTokens implements TokenStore {
   @override
   Future<String?> read() async {
     String? t;
-    try { t = await _s.read(key: 'session'); } catch (_) {}
-    return t ?? (await SharedPreferences.getInstance()).getString('session');
+    try {
+      t = await _s.read(key: 'session');
+    } catch (_) {}
+    if (t != null && t.length == 43) return t;
+
+    final fallback = (await SharedPreferences.getInstance()).getString('session');
+    return (fallback != null && fallback.length == 43) ? fallback : null;
   }
   @override
   Future<void> write(String? t) async {

@@ -31,7 +31,7 @@ class Api {
 
   Future<Map<String, Object?>> call(String method, String path, [Object? body]) async {
     final req = http.Request(method, Uri.parse('$base$path'));
-    if (token != null) req.headers['authorization'] = 'Bearer $token';
+    if (token != null && token!.isNotEmpty) req.headers['authorization'] = 'Bearer $token';
     if (body != null) {
       req.headers['content-type'] = 'application/json';
       req.body = jsonEncode(body);
