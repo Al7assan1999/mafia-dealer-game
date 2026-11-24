@@ -134,8 +134,12 @@ class _WifiState extends State<WifiScreen> {
       body: Stage(center: false, children: [
         Text(l.wifiSub, style: TextStyle(color: C.mute)),
         const SizedBox(height: 14),
-        TextField(key: const Key('lanName'), controller: name, maxLength: 18, decoration: InputDecoration(labelText: l.yourName, counterText: '')),
-        const SizedBox(height: 12),
+        // [BA P2, S15] the old app's "Your name" card; signed out, a tip that an account fills it in
+        Sec(title: l.yourName, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TextField(key: const Key('lanName'), controller: name, maxLength: 18, decoration: const InputDecoration(counterText: '')),
+          if (!widget.account.signedIn) Padding(padding: const EdgeInsets.only(top: 10),
+              child: Text(l.wifiNameTip, key: const Key('wifiNameTip'), style: TextStyle(color: C.mute))),
+        ])),
         Btn(l.hostRoom, key: const Key('hostRoom'), icon: Icons.wifi_tethering, onTap: busy ? null : () => _host(l)),
         const SizedBox(height: 18),
         Sec(title: l.joinRoom, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

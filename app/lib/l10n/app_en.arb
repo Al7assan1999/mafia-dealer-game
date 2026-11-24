@@ -755,6 +755,7 @@
   "hostRoom": "Host a room",
   "joinRoom": "Join a room",
   "yourName": "Your name",
+  "wifiNameTip": "Tip: sign in and your name fills in by itself.",
   "searching": "Looking for rooms on this network…",
   "nothingFound": "No rooms found.",
   "nothingFoundTips": "Be on the same Wi-Fi or hotspot as the host, and make sure the host's room is open.",
