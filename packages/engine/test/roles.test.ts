@@ -17,6 +17,7 @@ function deal(roles: Role[], sheikh: number, mode: Mode = 'classic', rules: Part
   const c = createGame({ names, counts: { mafia: n(M), doctor: 1, detective: n(T) }, rules: { ...DEFAULT_RULES, ...rules }, mode }, seeded(1));
   assert.ok(c.ok, !c.ok ? c.error : '');
   let s: GameState = { ...c.state, roles: [...roles], sheikh }, now = 1_000_000;
+  delete s.rv;  // these are 1.0.0 games (1.1.0's rules: s18.test.ts); their records are the 1.0.0 fixtures
   const rec = startRecord(s);
   games.push(rec);
   const go = (a: Action) => { const r = step(rec, s, a, { rng: seeded(1), now: now += 1000 }); assert.ok(r.ok, `${a.t}: ${!r.ok && r.error}`); s = r.state; };
@@ -144,7 +145,7 @@ test('modes: the deck is fixed by player count; each mode has its minimum', () =
   const none = { mafia: 1, doctor: 1, detective: 0 };
   assert.deepEqual(modeCounts('sniper', 6, none), { mafia: 2, doctor: 1, detective: 1, sniper: 1, jester: 0 });
   assert.deepEqual(modeCounts('jester', 8, none), { mafia: 2, doctor: 1, detective: 1, sniper: 0, jester: 1 });
-  assert.deepEqual(modeCounts('all', 12, none), { mafia: 3, doctor: 1, detective: 1, sniper: 1, jester: 1 });
+  assert.deepEqual(modeCounts('all', 12, none), { mafia: 3, doctor: 1, detective: 1, sniper: 1, jester: 1, bodyguard: 1 });  // 1.1.0: + the Bodyguard
   assert.deepEqual(modeCounts('classic', 8, { mafia: 3, doctor: 1, detective: 1 }), { mafia: 3, doctor: 1, detective: 1 });
   const names = (n: number) => Array.from({ length: n }, (_, i) => 'N' + i);
   assert.equal(validateSetup(names(5), none, 'sniper').error, 'modeFew');

@@ -10,7 +10,8 @@ export function play(seed: number): { steps: number; rec: GameRecord; state: Gam
   const rules = { ...DEFAULT_RULES, skip: chance(.5), norep: chance(.5), saverev: chance(.5), decoy: chance(.5), self: chance(.5),
     rep: chance(.5), reveal: chance(.5), ghost: chance(.5), skipVote: chance(.5), nightT: pick([0, 30, 60]) };
   const names = Array.from({ length: n }, (_, i) => 'Player ' + (i + 1)), mode = pick(MODES.filter(m => MODE_MIN[m] <= n));
-  const c = createGame({ names, counts: { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0 }, rules, mode }, r);
+  const bodyguard = chance(.5);  // 1.1.0: the Sniper and Jester modes' optional Bodyguard
+  const c = createGame({ names, counts: { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0 }, rules, mode, bodyguard }, r);
   assert.ok(c.ok);
   let s = c.state, now = 1_000_000, steps = 0;
   const rec = startRecord(s);
@@ -37,6 +38,16 @@ export function play(seed: number): { steps: number; rec: GameRecord; state: Gam
     for (const [d, q] of s.stats.caught) { assert.equal(s.roles[d], 'detective'); assert.equal(s.roles[q], 'mafia'); assert.notEqual(q, s.sheikh); }
     for (const [x, q] of s.stats.shots ?? []) { assert.equal(s.roles[x], 'sniper'); assert.equal(s.alive[q], false); }
     assert.ok((s.stats.shots ?? []).length <= 1, 'one bullet');
+    // 1.1.0
+    assert.equal(s.rv, 2);
+    const nights = s.log.filter(e => e.t === 'night');
+    if (nights[0]?.t === 'night') assert.equal(nights[0].shot, undefined, 'no shot on night 1');
+    const checked = nights.flatMap(e => (e.t === 'night' ? e.checked : []));
+    if (s.roles.filter(x => x === 'detective').length === 1) assert.equal(new Set(checked).size, checked.length, 'nobody checked twice');
+    for (const [b, q] of s.stats.guards ?? []) { assert.equal(s.roles[b], 'bodyguard'); assert.notEqual(b, q); }
+    for (const [x, y] of nights.slice(1).map((e, k) => [nights[k], e])) {
+      if (x.t === 'night' && y.t === 'night' && x.guard?.length && y.guard?.length && y.day === x.day + 1) assert.notEqual(x.guard[0], y.guard[0], 'not the same player two nights running');
+    }
   };
 
   go({ t: 'begin' });

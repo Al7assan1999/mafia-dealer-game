@@ -1,5 +1,5 @@
 // What each seat may see (replaces the app's mpPriv), and the player of the game.
-import { aliveSeats, nightOptions, timerLeft } from './game.ts';
+import { aliveSeats, checkedBefore, nightOptions, timerLeft } from './game.ts';
 import type { GameState, Mode, NightOptions, Role, Stats, TallyLine, Winner } from './types.ts';
 
 /** The public result on screen in the morning / after a verdict. role only when the reveal rule is on. */
@@ -32,6 +32,7 @@ export type SeatView = PublicView & {
   mates: number[];                                  // the other Mafia (Mafia only)
   sheikh: number | null;                            // the Sheikh's seat (Mafia only; may be this seat)
   check: { seat: number; mafia: boolean } | null;   // the Detective's result, until the next night
+  checks: { seat: number; mafia: boolean }[] | null;  // 1.1.0, Detective: every result so far (his role card)
   ph: 'night' | 'nightDone' | 'vote' | 'voted' | 'dead' | 'table' | 'end';
   night: NightOptions | null;                       // ph 'night': what to pick
   voteOpts: { seat: number; disabled: boolean }[] | null;  // ph 'vote' ('no one' is always allowed)
@@ -77,6 +78,7 @@ export function viewFor(s: GameState, who: number | 'table', now: number): Publi
     mates: r === 'mafia' ? s.roles.map((x, j) => (x === 'mafia' && j !== i ? j : -1)).filter(j => j >= 0) : [],
     sheikh: r === 'mafia' && s.sheikh !== undefined ? s.sheikh : null,
     check: q != null ? { seat: q, mafia: s.roles[q] === 'mafia' && q !== s.sheikh } : null,  // the Sheikh reads "not Mafia"
+    checks: s.rv !== undefined && r === 'detective' ? [...checkedBefore(s)].map(j => ({ seat: j, mafia: s.roles[j] === 'mafia' && j !== s.sheikh })) : null,
     ph: 'table', night: null, voteOpts: null,
   };
   if (s.phase === 'end') v.ph = 'end';
@@ -91,13 +93,14 @@ export function viewFor(s: GameState, who: number | 'table', now: number): Publi
 
 /** Player of the game, with the reason (the app writes the text). */
 export function mvp(g: { winner: Winner; roles: Role[]; alive: boolean[]; stats: Stats }):
-  { seat: number; why: 'mafia' | 'mafia2' | 'det' | 'doc' | 'surv' | 'jester'; n?: number } | null {
+  { seat: number; why: 'mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'surv' | 'jester'; n?: number } | null {
   const idx = g.roles.map((_, i) => i);
   if (g.winner === 'jester') { const j = idx.find(i => g.roles[i] === 'jester'); return j == null ? null : { seat: j, why: 'jester' }; }
   const top = (a: number[]) => { const c: Record<string, number> = {}; a.forEach(x => { c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((x, y) => y[1] - x[1])[0]; };
   if (g.winner === 'mafia') { const m = idx.filter(i => g.roles[i] === 'mafia'), al = m.filter(i => g.alive[i]); return { seat: (al.length ? al : m)[0], why: al.length ? 'mafia' : 'mafia2' }; }
   const c = top(g.stats.caught.map(([d]) => d)); if (c) return { seat: +c[0], why: 'det', n: c[1] };
   const d = top(g.stats.saves); if (d) return { seat: +d[0], why: 'doc', n: d[1] };
+  const b = top((g.stats.guards ?? []).map(([x]) => x)); if (b) return { seat: +b[0], why: 'guard', n: b[1] };
   const sv = idx.filter(i => g.alive[i] && g.roles[i] !== 'mafia' && g.roles[i] !== 'jester');
   return sv.length ? { seat: sv[0], why: 'surv' } : null;
 }

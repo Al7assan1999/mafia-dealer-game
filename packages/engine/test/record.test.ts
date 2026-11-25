@@ -37,9 +37,18 @@ test('records from before 1.0.0 (no Sheikh, no modes: ties kill nobody) still re
   old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
 });
 
+test('records from 1.0.0 (no rv: the Detective may re-check, the Sniper shoots on night 1, no Bodyguard) still replay', () => {
+  const old: GameRecord[] = JSON.parse(readFileSync(new URL('../fixtures/records-1.0.json', import.meta.url), 'utf8'));
+  assert.equal(old.length, SEEDS);
+  assert.ok(old.every(r => 'sheikh' in r && !('rv' in r) && !r.roles.includes('bodyguard')));
+  old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
+});
+
 test('the shared games cover every mode and every 1.0.0 ending', () => {
   const saved: GameRecord[] = JSON.parse(readFileSync(FILE, 'utf8'));
-  for (const m of ['classic', 'sniper', 'jester', 'all']) assert.ok(saved.some(r => r.mode === m), 'mode ' + m);
+  for (const m of ['classic', 'sniper', 'jester', 'bodyguard', 'all']) assert.ok(saved.some(r => r.mode === m), 'mode ' + m);
+  assert.ok(saved.every(r => r.rv === 2), 'every new game is a 1.1.0 game');
+  assert.ok(saved.some(r => r.log.some(e => e.t === 'night' && e.guard?.length)), 'a Bodyguard on guard');
   for (const w of ['mafia', 'citizens']) assert.ok(saved.some(r => r.winner === w), 'winner ' + w);  // the Jester's win: roles.test.ts
   assert.ok(saved.some(r => r.log.some(e => e.t === 'night' && e.shot != null)), 'a Sniper shot');
 });

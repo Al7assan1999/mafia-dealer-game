@@ -27,28 +27,29 @@ export function normalizeCounts(n: number, counts: Counts): Counts {
 }
 
 /** The modes (1.0.0), in the order the setup shows them, and the fewest players each needs. */
-export const MODES: Mode[] = ['classic', 'sniper', 'jester', 'all'];
-export const MODE_MIN: Record<Mode, number> = { classic: 4, sniper: 6, jester: 6, all: 9 };
+export const MODES: Mode[] = ['classic', 'sniper', 'jester', 'bodyguard', 'all'];
+export const MODE_MIN: Record<Mode, number> = { classic: 4, sniper: 6, jester: 6, bodyguard: 6, all: 9 };
 export const isMode = (m: unknown): m is Mode => MODES.includes(m as Mode);
 
 /** The deck a mode deals for n players. Classic: the table's counts; the others: fixed by n (Mafia about one in four,
- *  the Detective with 2+ Mafia, plus the mode's own roles). */
-export function modeCounts(mode: Mode, n: number, counts: Counts): Counts {
+ *  the Detective with 2+ Mafia, plus the mode's own roles). bg: the Sniper and Jester modes' optional Bodyguard (1.1.0). */
+export function modeCounts(mode: Mode, n: number, counts: Counts, bg = false): Counts {
   if (mode === 'classic') return normalizeCounts(n, counts);
-  const mafia = recMafia(n);
-  return { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0, sniper: mode === 'sniper' || mode === 'all' ? 1 : 0, jester: mode === 'jester' || mode === 'all' ? 1 : 0 };
+  const mafia = recMafia(n), withBg = mode === 'bodyguard' || mode === 'all' || (bg && (mode === 'sniper' || mode === 'jester'));
+  return { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0, sniper: mode === 'sniper' || mode === 'all' ? 1 : 0, jester: mode === 'jester' || mode === 'all' ? 1 : 0,
+    ...(withBg ? { bodyguard: 1 } : {}) };
 }
 
 export type SetupError = 'tooFew' | 'tooManyPlayers' | 'tooManyRoles' | 'mafiaGap' | 'badName' | 'dupNames' | 'modeFew';
 
 /** Checks a setup. Returns the counts it would really use and the first problem, if any. */
-export function validateSetup(names: string[], counts: Counts, mode: Mode = 'classic'): { counts: Counts; error: SetupError | null } {
-  const n = names.length, c = modeCounts(mode, n, counts);
+export function validateSetup(names: string[], counts: Counts, mode: Mode = 'classic', bg = false): { counts: Counts; error: SetupError | null } {
+  const n = names.length, c = modeCounts(mode, n, counts, bg);
   const err = (error: SetupError) => ({ counts: c, error });
   if (n < MIN_PLAYERS) return err('tooFew');
   if (n > MAX_PLAYERS) return err('tooManyPlayers');
   if (n < MODE_MIN[mode]) return err('modeFew');
-  if (n - c.mafia - c.doctor - c.detective - (c.sniper ?? 0) - (c.jester ?? 0) < 0) return err('tooManyRoles');
+  if (n - c.mafia - c.doctor - c.detective - (c.sniper ?? 0) - (c.jester ?? 0) - (c.bodyguard ?? 0) < 0) return err('tooManyRoles');
   if (n - 2 * c.mafia < 2) return err('mafiaGap');
   if (names.some(x => typeof x !== 'string' || !x.trim() || x.trim().length > MAX_NAME)) return err('badName');
   if (new Set(names.map(nameKey)).size < n) return err('dupNames');
@@ -78,15 +79,16 @@ export function shuffle<T>(a: T[], rng: Rng): T[] {
 export function createGame(setup: Setup, rng: Rng, deal = 1): Result<{ state: GameState }> {
   const mode = setup.mode ?? 'classic';
   if (!isMode(mode)) return { ok: false, error: 'mode' };
-  const v = validateSetup(setup.names, setup.counts, mode);
+  const v = validateSetup(setup.names, setup.counts, mode, !!setup.bodyguard);
   if (v.error) return { ok: false, error: v.error };
   const names = setup.names.map(x => x.trim()), rules: Rules = { ...DEFAULT_RULES, ...setup.rules }, deck: Role[] = [];
-  for (const r of ['mafia', 'doctor', 'detective', 'sniper', 'jester'] as const) for (let k = 0; k < (v.counts[r] ?? 0); k++) deck.push(r);
+  for (const r of ['mafia', 'doctor', 'detective', 'sniper', 'jester', 'bodyguard'] as const) for (let k = 0; k < (v.counts[r] ?? 0); k++) deck.push(r);
   while (deck.length < names.length) deck.push('citizen');
   const roles = shuffle(deck, rng), mafia = roles.map((r, i) => (r === 'mafia' ? i : -1)).filter(i => i >= 0);
   const state: GameState = {
     v: 1, deal, names, roles, alive: names.map(() => true), rules, mode,
     sheikh: mafia[Math.floor(rng() * mafia.length)],  // one of the Mafia, at random
+    rv: 2,
     phase: 'deal', day: 1, night: { mafia: {}, doctor: {}, detective: {}, sniper: {}, done: {}, endsAt: 0 },
     skipUsed: false, shotUsed: false, lastTarget: null, lastProt: {}, morning: null,
     timer: { running: false, left: rules.timer, at: 0 }, vote: null, verdict: null, winner: null,

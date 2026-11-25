@@ -22,7 +22,8 @@ List<int> alive(GameState s) => aliveSeats(s);
   over['nightT'] = pick([0, 30, 60]);
   final rules = defaultRules.merge(over);
   final names = [for (var i = 0; i < n; i++) 'Player ${i + 1}'], mode = pick(modes.where((m) => modeMin[m]! <= n).toList());
-  final c = createGame(Setup(names, Counts(mafia, 1, mafia >= 2 ? 1 : 0), rules, mode), r);
+  final bodyguard = chance(.5); // 1.1.0: the Sniper and Jester modes' optional Bodyguard
+  final c = createGame(Setup(names, Counts(mafia, 1, mafia >= 2 ? 1 : 0), rules, mode, bodyguard), r);
   expect(c.error, isNull);
   var s = c.state!, now = 1000000, steps = 0;
   final rec = startRecord(s);
@@ -57,6 +58,16 @@ List<int> alive(GameState s) => aliveSeats(s);
       expect(s.alive[q], isFalse);
     }
     expect(s.stats.shots.length <= 1, isTrue, reason: 'one bullet');
+    // 1.1.0
+    expect(s.rv, 2);
+    final nights = s.log.whereType<NightLog>().toList();
+    if (nights.isNotEmpty) expect(nights.first.shot, isNull, reason: 'no shot on night 1');
+    final checked = [for (final e in nights) ...e.checked];
+    if (s.roles.where((x) => x == Role.detective).length == 1) expect(checked.toSet().length, checked.length, reason: 'nobody checked twice');
+    for (final (b, q) in s.stats.guards) {
+      expect(s.roles[b], Role.bodyguard);
+      expect(b, isNot(q));
+    }
   }
 
   void go(Action a) {
@@ -141,6 +152,41 @@ void main() {
     expect(games.any((r) => (r as Map)['winner'] == 'jester'), isTrue);
   });
 
+  test('records from 1.0.0 (no rv: re-checks, a night-1 shot, no Bodyguard) still replay', () {
+    final old = jsonDecode(File('../engine/fixtures/records-1.0.json').readAsStringSync()) as List;
+    expect(old, hasLength(60));
+    for (final (i, r) in old.indexed) {
+      expect((r as Map).containsKey('rv'), isFalse);
+      expect(replay(r).error, isNull, reason: 'game ${i + 1}');
+    }
+  });
+
+  test('the scripted 1.1.0 games (the Detective, the Sniper on night 1, the Bodyguard B1-B15; s18.test.ts) replay', () {
+    final games = jsonDecode(File('../engine/fixtures/records-s18.json').readAsStringSync()) as List;
+    expect(games.length, greaterThanOrEqualTo(12));
+    for (final (i, r) in games.indexed) {
+      expect((r as Map)['rv'], 2);
+      expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
+      expect(jsJson(recordFromJson(Map<String, Object?>.from(r)).toJson()), jsJson(r), reason: 'reads back byte-identical');
+    }
+  });
+
+  test('the Bodyguard and the 1.1.0 rules, as the TypeScript engine (s18.test.ts)', () {
+    const B = Role.bodyguard, M = Role.mafia, D = Role.doctor, T = Role.detective, C = Role.citizen;
+    final roles = [M, M, D, T, B, C, C, C];
+    final c = createGame(Setup([for (var i = 0; i < 8; i++) 'P${i + 1}'], const Counts(1, 1, 0), defaultRules, 'bodyguard'), seeded(1));
+    var s = c.state!..roles = roles..sheikh = 1;
+    var now = 1000000;
+    void go(Action a) { final r = apply(s, a, Ctx(seeded(1), now += 1000)); expect(r.error, isNull, reason: a.t); s = r.state!; }
+    go(const Action.begin());
+    expect(nightOptions(s, 4).opts.firstWhere((o) => o.seat == 4).disabled, isTrue, reason: 'B6');
+    for (final (p, q) in [(0, 5), (1, 5), (2, 6), (3, 6), (4, 5), (5, 6), (6, 7), (7, 6)]) { go(Action.night(p, q)); }
+    expect([s.alive[5], s.alive[4]], [true, false], reason: 'B2');
+    expect(s.stats.guards, [(4, 5)]);
+    expect(viewFor(s, 3, now).checks, [(seat: 6, mafia: false)]);
+    expect(mvp(Winner.citizens, roles, s.alive, s.stats)?.why, 'guard');
+  });
+
   test('the same seeds make byte-identical records', () {
     final mine = jsJson([for (var seed = 1; seed <= 60; seed++) play(seed).rec.toJson()]);
     expect(mine, fixtures.readAsStringSync().trimRight());
@@ -197,7 +243,10 @@ void main() {
     const none = Counts(1, 1, 0);
     expect(modeCounts('sniper', 6, none), const Counts(2, 1, 1, sniper: 1));
     expect(modeCounts('jester', 8, none), const Counts(2, 1, 1, jester: 1));
-    expect(modeCounts('all', 12, none), const Counts(3, 1, 1, sniper: 1, jester: 1));
+    expect(modeCounts('all', 12, none), const Counts(3, 1, 1, sniper: 1, jester: 1, bodyguard: 1)); // 1.1.0: + the Bodyguard
+    expect(modeCounts('bodyguard', 8, none), const Counts(2, 1, 1, bodyguard: 1));
+    expect(modeCounts('sniper', 8, none, true), const Counts(2, 1, 1, sniper: 1, bodyguard: 1));
+    expect(modeCounts('classic', 8, none, true), const Counts(1, 1, 0));
     List<String> ns(int n) => [for (var i = 0; i < n; i++) 'N$i'];
     expect(validateSetup(ns(5), none, 'sniper').error, 'modeFew');
     expect(validateSetup(ns(8), none, 'all').error, 'modeFew');

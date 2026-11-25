@@ -21,15 +21,17 @@ class GameRecord {
   final List<Role> roles;
   final Mode mode;
   final int? sheikh; // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
+  final int? rv; // 1.1.0 rules (GameState.rv); older records replay by their own
   final List<RecordedAction> actions;
   Winner? winner;
   List<Object?> log; // JSON, as the recorder saw it
-  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh});
+  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh, this.rv});
 
   Map<String, Object?> toJson() => {
         'format': 1, 'deal': deal, 'names': names, 'rules': rules.toJson(), 'roles': roles.map((r) => r.name).toList(),
         if (sheikh != null) 'mode': mode,
         if (sheikh != null) 'sheikh': sheikh,
+        if (rv != null) 'rv': rv,
         'actions': actions.map((x) => x.toJson()).toList(), 'winner': winner?.name, 'log': log,
       };
 }
@@ -44,11 +46,11 @@ GameRecord recordFromJson(Map<String, Object?> j) => GameRecord(
             (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
       }).toList(),
       j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>(),
-      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?);
+      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?, rv: j['rv'] as int?);
 
 /// A new record for a game just dealt (phase deal).
 GameRecord startRecord(GameState s) =>
-    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh);
+    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh, rv: s.rv);
 
 /// apply(), and on success the action joins the record (with its draws) and the record's result follows the game.
 Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
@@ -84,17 +86,26 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   if (old ? json.containsKey('mode') : !(sheikh is int && sheikh >= 0 && sheikh < roles.length && roles[sheikh] == Role.mafia && mode is String)) {
     return no('roles');
   }
-  final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective), sniper: count(Role.sniper), jester: count(Role.jester));
+  // 1.1.0: rv only with a Sheikh; the Bodyguard only in a 1.1.0 game
+  final rv = json['rv'];
+  if (json.containsKey('rv') && (rv != 2 || old)) return no('format');
+  final pre = !json.containsKey('rv');
+  if (pre && (count(Role.bodyguard) > 0 || mode == 'bodyguard')) return no('roles');
+  final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective), sniper: count(Role.sniper), jester: count(Role.jester),
+      bodyguard: count(Role.bodyguard));
   if (names0.any((x) => x is! String)) return no('setup: badName');
   final rules = recordRules(Map<String, Object?>.from(json['rules'] as Map));
-  final c = createGame(Setup(names0.cast<String>(), counts, rules, old ? 'classic' : mode as String), () => 0, json['deal'] as int);
+  final c = createGame(Setup(names0.cast<String>(), counts, rules, old ? 'classic' : mode as String, count(Role.bodyguard) > 0), () => 0, json['deal'] as int);
   if (c.error != null) return no('setup: ${c.error}');
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)
+  // (a 1.0.0 "All roles" deck had a Citizen where 1.1.0 deals the Bodyguard)
   final dealt = c.state!.roles;
-  if (Role.values.any((r) => dealt.where((x) => x == r).length != count(r))) return no('roles');
+  int n(Role r) => dealt.where((x) => x == r || (pre && r == Role.citizen && x == Role.bodyguard)).length;
+  if (Role.values.any((r) => (pre && r == Role.bodyguard ? 0 : n(r)) != count(r))) return no('roles');
   var s = c.state!
     ..roles = roles
-    ..sheikh = old ? null : sheikh as int;
+    ..sheikh = old ? null : sheikh as int
+    ..rv = pre ? null : 2;
   num last = double.negativeInfinity;
   for (var i = 0; i < actions.length; i++) {
     final x = actions[i] as Map;

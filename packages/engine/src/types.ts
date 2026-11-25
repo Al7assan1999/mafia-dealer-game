@@ -1,10 +1,10 @@
 // Shapes of the game. Everything here is plain JSON so a game can be saved (phone, Postgres) and sent as is.
 
-export type Role = 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'jester';
+export type Role = 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'jester' | 'bodyguard';
 /** 'jester': the Jester was voted out by day (1.0.0), everyone else loses. */
 export type Winner = 'mafia' | 'citizens' | 'jester';
 /** A fixed set of roles, one tap (1.0.0). Classic = the counts the table picks; the others are fixed by player count. */
-export type Mode = 'classic' | 'sniper' | 'jester' | 'all';
+export type Mode = 'classic' | 'sniper' | 'jester' | 'all' | 'bodyguard';
 export type Phase = 'deal' | 'night' | 'morning' | 'day' | 'vote' | 'verdict' | 'end';
 
 /** The table rules, frozen into the game when it is dealt. */
@@ -23,9 +23,10 @@ export interface Rules {
   tieSkip: boolean;   // a tied Mafia vote kills nobody (Sprint 7). Records from before it lack the key: random pick
 }
 
-export interface Counts { mafia: number; doctor: number; detective: number; sniper?: number; jester?: number }
+export interface Counts { mafia: number; doctor: number; detective: number; sniper?: number; jester?: number; bodyguard?: number }
 
-export interface Setup { names: string[]; counts: Counts; rules: Rules; mode?: Mode }
+/** bodyguard: the Sniper and Jester modes' optional Bodyguard (1.1.0, his ruling) */
+export interface Setup { names: string[]; counts: Counts; rules: Rules; mode?: Mode; bodyguard?: boolean }
 
 /** Random number in [0, 1). Passed in so a game can be replayed in tests. */
 export type Rng = () => number;
@@ -49,6 +50,7 @@ export interface Stats {
   saves: number[];               // a Doctor seat for every save they made
   caught: [number, number][];    // [detective, mafia] pairs the Detective found (each pair once)
   shots?: [number, number][];    // [sniper, target] (1.0.0)
+  guards?: [number, number][];   // [bodyguard, guarded]: each time he took a kill or a shot (1.1.0)
 }
 
 export interface GameState {
@@ -62,6 +64,9 @@ export interface GameState {
   /** شيخ المافيا (1.0.0): one Mafia seat, for the whole game (never passed on). His pick wins a tied Mafia vote and the
    *  Detective reads him "not Mafia". Absent in older games: their ties follow tieSkip. */
   sheikh?: number;
+  /** 2 = the 1.1.0 rules: the Detective never checks a player twice, no Sniper shot on night 1, the Bodyguard.
+   *  Absent in older games (they replay by their own rules). */
+  rv?: 2;
   phase: Phase;
   day: number;
   night: {
@@ -69,6 +74,7 @@ export interface GameState {
     doctor: Record<number, number | null>;
     detective: Record<number, number | null>;
     sniper?: Record<number, number | 'skip'>;  // 1.0.0: the Sniper's shot, or 'skip' (keeps the bullet)
+    bodyguard?: Record<number, number | null>;  // 1.1.0: who each Bodyguard guards
     done: Record<number, true>;
     endsAt: number;              // night timer end (ms), 0 = none
   };
@@ -76,6 +82,7 @@ export interface GameState {
   shotUsed?: boolean;            // the Sniper's one bullet is spent
   lastTarget: number | null;     // the Mafia's target last night (norep)
   lastProt: Record<number, number | null>;  // each Doctor's pick last night (rep)
+  lastGuard?: Record<number, number | null>;  // 1.1.0: each Bodyguard's pick last night (never the same twice running)
   morning: { dead: number | null; saved: number | null; dead2?: number | null } | null;  // dead2: a second death (the Sniper), seats in order
   timer: Timer;
   vote: { id: number; open: boolean; votes: Record<number, VoteChoice> } | null;
@@ -89,7 +96,7 @@ export interface GameState {
 export type LogEvent =
   | { t: 'night'; day: number;
       mafia: { k: 'kill'; seat: number } | { k: 'saved'; seat: number } | { k: 'skip' } | { k: 'none' };
-      prot: number[]; checked: number[]; shot?: number }
+      prot: number[]; checked: number[]; shot?: number; guard?: number[] }  // guard: who the Bodyguard guarded (1.1.0)
   | { t: 'day'; day: number; out: number | null; kind: 'out' | 'skipped' | 'tie'; tally: TallyLine[] | null }
   | { t: 'removed'; seat: number }
   | { t: 'win'; winner: Winner; lead: { k: 'killed' | 'votedOut'; seat: number } | null };
@@ -124,9 +131,10 @@ export interface NightOption {
   lastNight: boolean;   // rep: this Doctor's pick last night
   mateVotes: number;    // how many teammates picked this seat
   sheikh: boolean;      // the Sheikh (another Mafia) picked this seat: it wins a tie
+  check?: boolean;      // 1.1.0, Detective: checked on an earlier night (true = read Mafia); can't be picked again
 }
 export interface NightOptions {
-  key: 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'none';  // 'none' = nothing to pick (Citizen without decoy)
+  key: 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'none';  // 'none' = nothing to pick (Citizen without decoy)
   opts: NightOption[];
   skip: { mateVotes: number; sheikh: boolean } | null;  // the Mafia's one-time skip, if still allowed; the Sniper's "keep the bullet"
 }

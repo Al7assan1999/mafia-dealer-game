@@ -47,6 +47,7 @@ class View {
   List<int> mates = const [];
   int? sheikh; // the Sheikh's seat (Mafia only; may be this seat)
   ({int seat, bool mafia})? check;
+  List<({int seat, bool mafia})>? checks; // 1.1.0, Detective: every result so far (his role card)
   String ph = 'table'; // 'night' | 'nightDone' | 'vote' | 'voted' | 'dead' | 'table' | 'end'
   NightOptions? night;
   List<({int seat, bool disabled})>? voteOpts;
@@ -108,7 +109,10 @@ View viewFor(GameState s, int? who, int now) {
     ..alive = s.alive[i]
     ..mates = r == Role.mafia ? [for (var j = 0; j < s.roles.length; j++) if (s.roles[j] == Role.mafia && j != i) j] : []
     ..sheikh = r == Role.mafia ? s.sheikh : null
-    ..check = q != null ? (seat: q, mafia: s.roles[q] == Role.mafia && q != s.sheikh) : null; // the Sheikh reads "not Mafia"
+    ..check = q != null ? (seat: q, mafia: s.roles[q] == Role.mafia && q != s.sheikh) : null // the Sheikh reads "not Mafia"
+    ..checks = s.rv != null && r == Role.detective
+        ? [for (final j in checkedBefore(s)) (seat: j, mafia: s.roles[j] == Role.mafia && j != s.sheikh)]
+        : null;
   if (s.phase == Phase.end) {
     v.ph = 'end';
   } else if (!s.alive[i]) {
@@ -132,7 +136,7 @@ View viewFor(GameState s, int? who, int now) {
   return v;
 }
 
-/// Player of the game, with the reason ('mafia' | 'mafia2' | 'det' | 'doc' | 'surv' | 'jester'); the app writes the text.
+/// Player of the game, with the reason ('mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'surv' | 'jester'); the app writes the text.
 ({int seat, String why, int? n})? mvp(Winner winner, List<Role> roles, List<bool> alive, Stats stats) {
   final idx = [for (var i = 0; i < roles.length; i++) i];
   if (winner == Winner.jester) {
@@ -154,6 +158,8 @@ View viewFor(GameState s, int? who, int now) {
   if (c != null) return (seat: c.$1, why: 'det', n: c.$2);
   final d = top(stats.saves);
   if (d != null) return (seat: d.$1, why: 'doc', n: d.$2);
+  final b = top(stats.guards.map((x) => x.$1).toList());
+  if (b != null) return (seat: b.$1, why: 'guard', n: b.$2);
   final sv = idx.where((i) => alive[i] && roles[i] != Role.mafia && roles[i] != Role.jester).toList();
   return sv.isNotEmpty ? (seat: sv.first, why: 'surv', n: null) : null;
 }

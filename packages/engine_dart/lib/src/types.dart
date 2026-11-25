@@ -2,12 +2,12 @@
 // objects exactly, so records written by either engine are byte-identical.
 import 'dart:collection';
 
-enum Role { mafia, doctor, detective, citizen, sniper, jester }
+enum Role { mafia, doctor, detective, citizen, sniper, jester, bodyguard }
 
 /// jester: the Jester was voted out by day (1.0.0), everyone else loses.
 enum Winner { mafia, citizens, jester }
 
-/// A fixed set of roles, one tap (1.0.0): 'classic' | 'sniper' | 'jester' | 'all'.
+/// A fixed set of roles, one tap (1.0.0): 'classic' | 'sniper' | 'jester' | 'bodyguard' (1.1.0) | 'all'.
 typedef Mode = String;
 
 enum Phase { deal, night, morning, day, vote, verdict, end }
@@ -50,15 +50,16 @@ class Rules {
 }
 
 class Counts {
-  final int mafia, doctor, detective, sniper, jester;
-  const Counts(this.mafia, this.doctor, this.detective, {this.sniper = 0, this.jester = 0});
+  final int mafia, doctor, detective, sniper, jester, bodyguard;
+  const Counts(this.mafia, this.doctor, this.detective, {this.sniper = 0, this.jester = 0, this.bodyguard = 0});
   @override
   bool operator ==(Object o) =>
-      o is Counts && o.mafia == mafia && o.doctor == doctor && o.detective == detective && o.sniper == sniper && o.jester == jester;
+      o is Counts && o.mafia == mafia && o.doctor == doctor && o.detective == detective && o.sniper == sniper && o.jester == jester &&
+      o.bodyguard == bodyguard;
   @override
-  int get hashCode => Object.hash(mafia, doctor, detective, sniper, jester);
+  int get hashCode => Object.hash(mafia, doctor, detective, sniper, jester, bodyguard);
   @override
-  String toString() => 'Counts($mafia, $doctor, $detective, sniper: $sniper, jester: $jester)';
+  String toString() => 'Counts($mafia, $doctor, $detective, sniper: $sniper, jester: $jester, bodyguard: $bodyguard)';
 }
 
 class Setup {
@@ -66,7 +67,8 @@ class Setup {
   final Counts counts;
   final Rules rules;
   final Mode mode;
-  const Setup(this.names, this.counts, this.rules, [this.mode = 'classic']);
+  final bool bodyguard; // the Sniper and Jester modes' optional Bodyguard (1.1.0, his ruling)
+  const Setup(this.names, this.counts, this.rules, [this.mode = 'classic', this.bodyguard = false]);
 }
 
 /// Discussion timer: left = seconds at the last change; while running it counts down from `at` (ms).
@@ -89,23 +91,25 @@ class Stats {
   final List<int> kills, outs, saves;
   final List<(int, int)> caught; // (detective, mafia)
   final List<(int, int)> shots; // (sniper, target), 1.0.0
-  Stats({this.first, List<int>? kills, List<int>? outs, List<int>? saves, List<(int, int)>? caught, List<(int, int)>? shots})
-      : kills = kills ?? [], outs = outs ?? [], saves = saves ?? [], caught = caught ?? [], shots = shots ?? [];
-  Stats copy() => Stats(first: first, kills: [...kills], outs: [...outs], saves: [...saves], caught: [...caught], shots: [...shots]);
+  final List<(int, int)> guards; // (bodyguard, guarded): each time he took a kill or a shot (1.1.0)
+  Stats({this.first, List<int>? kills, List<int>? outs, List<int>? saves, List<(int, int)>? caught, List<(int, int)>? shots, List<(int, int)>? guards})
+      : kills = kills ?? [], outs = outs ?? [], saves = saves ?? [], caught = caught ?? [], shots = shots ?? [], guards = guards ?? [];
+  Stats copy() => Stats(first: first, kills: [...kills], outs: [...outs], saves: [...saves], caught: [...caught], shots: [...shots], guards: [...guards]);
 }
 
 class Night {
   final SplayTreeMap<int, Object> mafia; // seat -> target seat or 'skip'
   final SplayTreeMap<int, int?> doctor, detective;
   final SplayTreeMap<int, Object> sniper; // 1.0.0: the Sniper's shot (seat) or 'skip' (keeps the bullet)
+  final SplayTreeMap<int, int?> bodyguard; // 1.1.0: who each Bodyguard guards
   final Set<int> done;
   int endsAt; // night timer end (ms), 0 = none
   Night({SplayTreeMap<int, Object>? mafia, SplayTreeMap<int, int?>? doctor, SplayTreeMap<int, int?>? detective,
-      SplayTreeMap<int, Object>? sniper, Set<int>? done, this.endsAt = 0})
+      SplayTreeMap<int, Object>? sniper, SplayTreeMap<int, int?>? bodyguard, Set<int>? done, this.endsAt = 0})
       : mafia = mafia ?? SplayTreeMap(), doctor = doctor ?? SplayTreeMap(), detective = detective ?? SplayTreeMap(),
-        sniper = sniper ?? SplayTreeMap(), done = done ?? {};
+        sniper = sniper ?? SplayTreeMap(), bodyguard = bodyguard ?? SplayTreeMap(), done = done ?? {};
   Night copy() => Night(mafia: SplayTreeMap.of(mafia), doctor: SplayTreeMap.of(doctor), detective: SplayTreeMap.of(detective),
-      sniper: SplayTreeMap.of(sniper), done: {...done}, endsAt: endsAt);
+      sniper: SplayTreeMap.of(sniper), bodyguard: SplayTreeMap.of(bodyguard), done: {...done}, endsAt: endsAt);
 }
 
 class Morning {
@@ -140,6 +144,9 @@ class GameState {
   /// شيخ المافيا (1.0.0): one Mafia seat for the whole game (never passed on). His pick wins a tied Mafia vote and the
   /// Detective reads him "not Mafia". Null in older games: their ties follow tieSkip.
   int? sheikh;
+  /// 2 = the 1.1.0 rules: the Detective never checks a player twice, no Sniper shot on night 1, the Bodyguard.
+  /// Null in older games (they replay by their own rules).
+  int? rv;
   Phase phase;
   int day;
   Night night;
@@ -147,6 +154,7 @@ class GameState {
   bool shotUsed; // the Sniper's one bullet is spent
   int? lastTarget;
   SplayTreeMap<int, int?> lastProt;
+  SplayTreeMap<int, int?> lastGuard; // 1.1.0: each Bodyguard's pick last night (never the same twice running)
   Morning? morning;
   DayTimer timer;
   Vote? vote;
@@ -157,15 +165,15 @@ class GameState {
 
   GameState({
     required this.deal, required this.names, required this.roles, required this.alive, required this.rules,
-    this.mode = 'classic', this.sheikh, this.shotUsed = false,
+    this.mode = 'classic', this.sheikh, this.rv, this.shotUsed = false, SplayTreeMap<int, int?>? lastGuard,
     required this.phase, required this.day, required this.night, required this.skipUsed, required this.lastTarget,
     required this.lastProt, required this.morning, required this.timer, required this.vote, required this.verdict,
     required this.winner, required this.log, required this.stats,
-  });
+  }) : lastGuard = lastGuard ?? SplayTreeMap();
 
   GameState copy() => GameState(
-        deal: deal, names: [...names], roles: [...roles], alive: [...alive], rules: rules, mode: mode, sheikh: sheikh,
-        shotUsed: shotUsed, phase: phase, day: day,
+        deal: deal, names: [...names], roles: [...roles], alive: [...alive], rules: rules, mode: mode, sheikh: sheikh, rv: rv,
+        shotUsed: shotUsed, lastGuard: SplayTreeMap.of(lastGuard), phase: phase, day: day,
         night: night.copy(), skipUsed: skipUsed, lastTarget: lastTarget, lastProt: SplayTreeMap.of(lastProt),
         morning: morning, timer: timer, vote: vote?.copy(), verdict: verdict, winner: winner, log: [...log],
         stats: stats.copy(),
@@ -184,11 +192,13 @@ class NightLog extends GameEvent {
   final int? seat;
   final List<int> prot, checked;
   final int? shot; // the Sniper's target (1.0.0)
-  const NightLog(this.day, this.k, this.seat, this.prot, this.checked, [this.shot]);
+  final List<int>? guard; // who the Bodyguard guarded (1.1.0)
+  const NightLog(this.day, this.k, this.seat, this.prot, this.checked, [this.shot, this.guard]);
   @override
   Map<String, Object?> toJson() => {
         't': 'night', 'day': day, 'mafia': seat == null ? {'k': k} : {'k': k, 'seat': seat}, 'prot': prot, 'checked': checked,
         if (shot != null) 'shot': shot,
+        if (guard != null) 'guard': guard,
       };
 }
 
@@ -295,13 +305,14 @@ class NightOption {
   final int seat;
   bool disabled = false, teammate = false, lastTarget = false, lastNight = false;
   bool sheikh = false; // the Sheikh (another Mafia) picked this seat: it wins a tie
+  bool? check; // 1.1.0, Detective: checked on an earlier night (true = read Mafia); can't be picked again
   final bool self;
   int mateVotes = 0;
   NightOption(this.seat, this.self);
 }
 
 class NightOptions {
-  final String key; // 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'none'
+  final String key; // 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'none'
   final List<NightOption> opts = [];
   int? skipMateVotes; // the Mafia's one-time skip, if still allowed (with teammates' votes for it); the Sniper's "keep the bullet"
   bool skipSheikh = false; // the Sheikh picked the skip
