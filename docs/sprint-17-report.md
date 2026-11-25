@@ -154,3 +154,24 @@ it into a separate local database, ran 0010, then the rollback; the export and t
 5. Docs: PRD, report, decisions, handoffs, QA shots, Sprint 17 tools.
 
 The app changes share `ui.dart` and the string files, so they can't be split further without commits that don't build.
+
+## After `cp` (2026-11-25)
+| Commit | Change |
+|---|---|
+| `1a26b56` | S17-3/S17-8: the Godfather, the Mafia tie rule, Sniper, Jester and modes in both engines |
+| `b5ec52f` | S17-4/S17-5: modes online, 1.0.0 required to be dealt in, new-role stats, migration 0010 |
+| `4893976` | S17-1/S17-5/S17-6: modes in the setup and lobby, the new roles on every screen, How to Play |
+| `79d9bd5` | S17-7: 1.0.0 |
+| `420b96d` | Sprint 17: PRD, report, decisions, emulator shots, QA scripts |
+
+- **D1 Time Travel bookmark before 0010:** `000000bc-00000000-0000512e-83bf86de3b6333a5123f56a32bb8e899`
+  (`wrangler d1 time-travel restore DB --bookmark=<it>` undoes the migration and everything after it).
+- **CI on `420b96d`:** test, app and deploy passed; **migration 0010 is applied and the new Worker is live.** The
+  emulator job failed in two Wi-Fi integration tests (`wifi_test`, `approval_test`): their scripted guest phones sent
+  no build, so the 1.0.0-only deal refused them.
+  - **[Quin] logged against Dev and QA:** the report said `integration_test` was "updated but not run locally"; that
+    was the gap.
+  - **What changes:** a sprint that changes who can be dealt in runs `flutter test integration_test` on the emulator
+    before `p`.
+  - **Fixed:** the test bot reports 1.0.0. All 7 integration tests pass on the emulator against the local Worker.
+    Not committed yet.
