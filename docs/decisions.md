@@ -40,3 +40,24 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   first. Valid / Invalid: the server marked games correctly in every test, so the fix makes the choice visible (a
   tick, and a note of what it means) and answers before the titles are recalculated; in Wi-Fi rooms, an Invalid game
   isn't offered to online history (before, the buttons had no effect there).
+- **2026-11-25 · Sprint 18 (1.1.0) scope.** His request: the Detective never checks the same player twice and sees his
+  earlier results for the rest of the game; the Sniper can't shoot on night 1; a new role, the Bodyguard (his rules
+  B1-B5 in `docs/sprint-18-prd.md`); one release.
+- **2026-11-25 · Bodyguard's Arabic name.** His ruling: الحارس الشخصي.
+- **2026-11-25 · Doctor saves the guarded player (B8).** His ruling: the Bodyguard still dies (he steps in first; the
+  Doctor's save is then looked at for the Bodyguard).
+- **2026-11-25 · Sniper shoots the guarded player (B10).** His ruling: the Bodyguard dies, even if the Doctor saved him.
+- **2026-11-25 · B6/B7.** His OK: no guarding himself; not the same player two nights in a row (Brad's challenge).
+- **2026-11-25 · Where the Bodyguard is dealt.** His OK: a Bodyguard mode (6+) and All roles; and (his answer to P3)
+  the Sniper and Jester modes get an optional "Add a Bodyguard" switch instead of a suggested-mode badge.
+- **2026-11-25 · 1.1.0 at every table.** His OK (as his S17 Q4 ruling): build 100019 (release run 19) or later.
+- **2026-11-25 · Proposals.** P1 (the Detective's results shown to him) and P2 (whom the Bodyguard guarded, in the
+  history) accepted; P3 replaced by the switch above. P1 lands on his night screen (offline and online) and his own day
+  screen (online): the role card isn't shown during a game, and a passed phone's day screen is everyone's.
+- **2026-11-25 · B13 vs B15 (Quin Q2).** [Ben · BA] default, for his review: with "Reveal saves" on, the morning names
+  the Mafia's own target when the Doctor's save on the Bodyguard kept everyone alive, never the Bodyguard. Why: B15,
+  the Mafia mustn't learn a Bodyguard was involved.
+- **2026-11-25 · Old app History (Quin Q6).** A 1.0.x phone can't open a History entry with a Bodyguard (it reads
+  every role by name; the API doesn't know the caller's version). Release notes ask players to update every phone.
+- **2026-11-25 · Test migration 0011 on a copy of production.** His OK ("Yes"). Done: applied cleanly with every row
+  kept; the rollback removed only the test game with a Bodyguard seat; the export and the copy were deleted.
