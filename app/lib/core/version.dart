@@ -4,7 +4,7 @@ const appVersion = String.fromEnvironment('VERSION', defaultValue: '0.0.0');
 const appBuild = int.fromEnvironment('BUILD');
 
 /// The first build (1.0.0): an older phone can't be dealt into any game (packages/protocol MODES_BUILD).
-const modesBuild = 100017;
+const modesBuild = 100019; // 1.1.0 (S18): every table needs it
 
 /// The build a phone tells its room. Released builds are 100000 + the release run; anything lower is a local, test or
 /// CI build of this code, so it reports the 1.0.0 build rather than look like an old app.

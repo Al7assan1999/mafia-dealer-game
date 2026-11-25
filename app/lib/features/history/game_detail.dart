@@ -23,7 +23,8 @@ class _GameDetailState extends State<GameDetail> {
     final st = game['stats'] as Map?, ps = (game['players'] as List).cast<Map>();
     if (st == null || game['winner'] == null) return null;
     final stats = Stats(first: st['first'] as int?, kills: ((st['kills'] as List?) ?? []).cast<int>(), outs: ((st['outs'] as List?) ?? []).cast<int>(),
-        saves: ((st['saves'] as List?) ?? []).cast<int>(), caught: [for (final p in ((st['caught'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
+        saves: ((st['saves'] as List?) ?? []).cast<int>(), caught: [for (final p in ((st['caught'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
+        guards: [for (final p in ((st['guards'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
     return mvp(Winner.values.byName(game['winner'] as String), [for (final p in ps) Role.values.byName(p['role'] as String)], [for (final p in ps) p['alive'] == true], stats);
   }
 
@@ -43,7 +44,9 @@ class _GameDetailState extends State<GameDetail> {
     String line(Map e) => switch (e['t']) {
           'night' => l.hNight(e['day'] as int) + switch ((e['mafia'] as Map)['k']) {
               'kill' => l.hKill(name[(e['mafia'] as Map)['seat']] ?? '?'), 'saved' => l.hSaved(name[(e['mafia'] as Map)['seat']] ?? '?'),
-              'skip' => l.hSkip, _ => l.hNoMafia } + (e['shot'] is int ? l.hShot(name[e['shot']] ?? '?') : ''),
+              'skip' => l.hSkip, _ => l.hNoMafia } + (e['shot'] is int ? l.hShot(name[e['shot']] ?? '?') : '') +
+              // [S18 P2] whom the Bodyguard guarded
+              [for (final q in (e['guard'] as List? ?? const [])) l.hGuard(name[q] ?? '?')].join(),
           'day' => l.hDay(e['day'] as int) + (e['out'] != null ? l.hOut(name[e['out']] ?? '?') : l.hNone),
           'removed' => l.hRemoved(name[e['seat']] ?? '?'),
           _ => '',

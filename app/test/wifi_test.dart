@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart' hide Action;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mafia_dealer/core/version.dart' show modesBuild;
 import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/core/api.dart';
@@ -106,7 +107,7 @@ void main() {
     final room = LocalRoom('654321', 'p0', rng: seeded(3));
     final prefs = await openLan(t, room, host: true);
     final ps = [for (var i = 1; i <= 3; i++) Phone('p$i')];
-    for (final p in ps) { room.join(p, Identity(p.uid, 'Bot${p.uid}'), build: 100017); } // 1.0.0 phones (S17)
+    for (final p in ps) { room.join(p, Identity(p.uid, 'Bot${p.uid}'), build: modesBuild); } // phones on the build every table needs (S17, S18)
     await t.pump(const Duration(milliseconds: 300));
     expect(Audio(prefs).muted, isFalse);
     final c = connOf(t);

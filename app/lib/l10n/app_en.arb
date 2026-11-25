@@ -36,7 +36,7 @@
   "citizen": "Citizen",
   "dMafia": "Eliminates one player each night",
   "dDoctor": "Protects one player each night",
-  "dDetective": "Checks if a player is Mafia each night",
+  "dDetective": "Checks one player each night: Mafia or not. Never the same player twice",
   "dCitizen": "Finds the Mafia in the daytime vote",
   "docOne": "always one",
   "detNeed2": "needs 2+ Mafia",
@@ -741,7 +741,7 @@
   "gGoal": "A town hides a few Mafia. The Mafia win when they are as many as everyone else. The town wins when every Mafia is out.",
   "gRolesT": "The roles",
   "gNightT": "Night",
-  "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone. Citizens tap anyone, so nobody can tell roles apart. A tied Mafia vote goes to the Godfather's pick; if he is out or didn't vote, to the Mafia in the lowest seat who voted.",
+  "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone (never the same player twice), the Bodyguard guards someone. Citizens tap anyone, so nobody can tell roles apart. A tied Mafia vote goes to the Godfather's pick; if he is out or didn't vote, to the Mafia in the lowest seat who voted.",
   "gDayT": "Day and reveals",
   "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
   "gTipsT": "Tips",
@@ -1401,7 +1401,7 @@
   "sniper": "Sniper",
   "jester": "Jester",
   "sheikh": "Godfather",
-  "dSniper": "One bullet for the whole game. Nothing stops it, not even the Doctor",
+  "dSniper": "One bullet for the whole game, from night 2. Only the Bodyguard can stop it",
   "dJester": "Wins alone if the town votes him out by day",
   "dSheikh": "Leads the Mafia: his pick settles a tie, and the Detective sees him as not Mafia",
   "sheikhIs": "Your Godfather: {n}",
@@ -1423,7 +1423,7 @@
   "mClassic": "Mafia, Doctor and Detective: you pick how many",
   "mSniper": "Classic plus a Sniper with one bullet",
   "mJester": "Classic plus a Jester who wants to be voted out",
-  "mAll": "Every role, the Sniper and the Jester too",
+  "mAll": "Every role: the Sniper, the Jester and the Bodyguard too",
   "modeFrom": "{n, plural, =1{From 1 player} other{From {n} players}}",
   "@modeFrom": {
     "placeholders": {
@@ -1442,11 +1442,11 @@
       }
     }
   },
-  "eOldApp": "Everyone must update the app to 1.0.0 to play",
-  "eModeOld": "needs 1.0.0",
+  "eOldApp": "Everyone must update the app to 1.1.0 to play",
+  "eModeOld": "needs 1.1.0",
   "updateToPlay": "This game uses a role your app doesn't know yet. Update the app to play.",
   "aSniper": "Take your shot?",
-  "aSniperD": "One bullet for the whole game. Whoever you pick dies tonight, even if the Doctor protects them.",
+  "aSniperD": "One bullet for the whole game. Whoever you pick dies tonight, even if the Doctor protects them, unless a Bodyguard takes it.",
   "keepBullet": "Keep the bullet",
   "keepBulletD": "save it for another night",
   "sheikhPick": "Godfather's pick",
@@ -1462,10 +1462,38 @@
     }
   },
   "gModesT": "Modes",
-  "gModes": "Pick a mode with one tap. Classic is the game you know: you choose how many Mafia. In the other modes the roles are set by the number of players. Every game has a Godfather, one of the Mafia: his pick settles a tied Mafia vote, and the Detective sees him as not Mafia.",
+  "gModes": "Pick a mode with one tap. Classic is the game you know: you choose how many Mafia. In the other modes the roles are set by the number of players, and the Sniper and Jester modes can add a Bodyguard. Every game has a Godfather, one of the Mafia: his pick settles a tied Mafia vote, and the Detective sees him as not Mafia.",
   "tieLowest": "The Godfather is out: a tie goes to the lowest seat that voted.",
   "startNowQ": "Start before everyone is ready?",
   "startNowD": "Players who haven't tapped I'm ready yet go straight to the night.",
   "markedValid": "This game counts in stats",
-  "markedInvalid": "This game won't count in stats"
+  "markedInvalid": "This game won't count in stats",
+  "bodyguard": "Bodyguard",
+  "dBodyguard": "Guards a player each night and takes the Mafia's kill or the Sniper's shot in their place",
+  "modeBodyguard": "Bodyguard",
+  "mBodyguard": "Classic plus a Bodyguard who takes the hit for someone",
+  "withBodyguard": "Add a Bodyguard",
+  "withBodyguardD": "Optional: one more role on the Citizens' side",
+  "aBodyguard": "Who do you guard tonight?",
+  "aBodyguardD": "If the Mafia or the Sniper go for them, you die in their place. The Doctor can still save you from the Mafia.",
+  "guardedLast": "guarded last night",
+  "allChecked": "You've checked everyone",
+  "allCheckedD": "Nothing left to check tonight. Tap Confirm.",
+  "sniperNight1": "Your bullet is ready from night 2",
+  "myChecks": "Your checks",
+  "mvpGuard": "Took the hit ({n}x)",
+  "@mvpGuard": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "hGuard": " · the Bodyguard guarded {n}",
+  "@hGuard": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "psGuards": "Took the hit"
 }

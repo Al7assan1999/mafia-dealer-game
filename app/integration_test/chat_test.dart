@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
+import 'package:mafia_dealer/core/version.dart' show modesBuild;
 import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/core/api.dart';
@@ -63,7 +64,7 @@ void main() {
     // a scripted player joins and says hello
     final bot = await signUp('d$run@example.com', 'd_$run');
     final got = <Map<String, Object?>>[];
-    final ws = await WebSocket.connect(bot.socket('/v1/rooms/${conn.code}/ws?v=100017').toString(), protocols: ['mafia.v1', bot.token!]);
+    final ws = await WebSocket.connect(bot.socket('/v1/rooms/${conn.code}/ws?v=$modesBuild').toString(), protocols: ['mafia.v1', bot.token!]);
     ws.listen((raw) { if (raw != 'pong') got.add(jsonDecode(raw as String) as Map<String, Object?>); });
     await waitUntil(t, () => conn.members.length == 2, 'the bot in the room');
     ws.add(jsonEncode({'t': 'chat', 'to': -1, 'text': 'hello from the bot', 'cid': 'b1'}));

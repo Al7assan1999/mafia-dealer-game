@@ -121,8 +121,10 @@ class _GameScreenState extends State<GameScreen> {
   // ---------------------------------------------------------------- night
   Widget _nightPick(L l) {
     final seat = g.who, v = g.view(seat), no = v.night!, role = g.s.roles[seat];
-    final (title, desc) = nightText(l, no.key);
     final none = no.key == 'none', sniper = no.key == 'sniper';
+    // [S18] a Detective who has checked everyone; a Sniper on night 1 (his bullet is ready from night 2)
+    final (title, desc) = none && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, no.key);
+    final night1 = role == Role.sniper && (no.key == 'citizen' || none) && g.s.day == 1 && g.s.rv != null; // [Quin Q4] decoy off: 'none'
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () { final c = none ? null : _pick; if (none || c != null) _do(() => g.nightPick(seat, c)); } : null),
     ], children: [
@@ -136,6 +138,7 @@ class _GameScreenState extends State<GameScreen> {
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
       Text(desc, style: TextStyle(color: C.mute)),
+      if (night1) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sniperNight1, key: const Key('sniperNight1'), style: TextStyle(color: roleColor(Role.sniper)))),
       if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.mates(v.mates.map(_name).join(', ')), style: TextStyle(color: C.red2))),
       // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
       if (no.key == 'mafia' && v.sheikh != null && v.mates.isNotEmpty)
@@ -145,16 +148,19 @@ class _GameScreenState extends State<GameScreen> {
       const SizedBox(height: 16),
       if (!none)
         for (final o in no.opts)
-          _option(_name(o.seat), o.seat, disabled: o.disabled, accent: o.teammate ? C.red2 : null, tags: [
+          _option(_name(o.seat), o.seat, disabled: o.disabled,
+              accent: o.teammate || o.check == true ? C.red2 : o.check == false ? C.green : null, tags: [
             if (o.self) l.you,
             if (o.teammate) l.teammate,
+            if (o.check != null) o.check! ? l.mafia : l.notMafia, // [S18-1] checked before: the result, can't be picked again
             if (o.mateVotes > 0) '${l.mateVote} ×${o.mateVotes}',
             if (o.sheikh) l.sheikhPick,
             if (o.lastTarget) l.lastTgt,
-            if (o.lastNight) l.lastNight,
+            if (o.lastNight) no.key == 'bodyguard' ? l.guardedLast : l.lastNight,
           ]),
       if (no.canSkip && sniper) _option(l.keepBullet, 'skip', tags: [l.keepBulletD])
       else if (no.canSkip) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((no.skipMateVotes ?? 0) > 0) '${l.mateVote} ×${no.skipMateVotes}', if (no.skipSheikh) l.sheikhPick]),
+      if (v.checks != null && none) ChecksList(checks: [for (final c in v.checks!) (name: _name(c.seat), mafia: c.mafia)]),
     ]);
   }
 
@@ -307,7 +313,7 @@ class _GameScreenState extends State<GameScreen> {
       ]),
     ], children: [
       // [S15-4] the old app's recap card
-      RecapCard(winner: s.winner!, days: s.day, sheikh: s.sheikh, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
+      RecapCard(winner: s.winner!, days: s.day, sheikh: s.sheikh, took: {for (final x in s.stats.guards) x.$1}, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
           best: best == null ? null : (name: _name(best.seat), role: s.roles[best.seat], why: mvpWhy(l, best.why, best.n)),
           lines: [for (final e in s.log) if (_line(l, e) case final t?) (night: e is NightLog, text: t)]),
       const SizedBox(height: 12),
@@ -316,9 +322,9 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   String? _line(L l, GameEvent e) => switch (e) {
-        NightLog(:final day, :final k, :final seat, :final shot) => l.hNight(day) +
+        NightLog(:final day, :final k, :final seat, :final shot, :final guard) => l.hNight(day) +
             switch (k) { 'kill' => l.hKill(_name(seat!)), 'saved' => l.hSaved(_name(seat!)), 'skip' => l.hSkip, _ => l.hNoMafia } +
-            (shot != null ? l.hShot(_name(shot)) : ''),
+            (shot != null ? l.hShot(_name(shot)) : '') + [for (final q in guard ?? const <int>[]) l.hGuard(_name(q))].join(), // [S18 P2]
         DayLog(:final day, :final out) => l.hDay(day) + (out != null ? l.hOut(_name(out)) : l.hNone),
         RemovedLog(:final seat) => l.hRemoved(_name(seat)),
         _ => null,

@@ -92,7 +92,7 @@ void main() {
     await frames(t);
     expect(find.byKey(const Key('oldAppNote')), findsOneWidget, reason: 'his ruling: Classic waits for 1.0.0 too');
     expect(find.byKey(const Key('modeOld_3')), findsOneWidget);
-    expect(t.widget<Text>(find.byKey(const Key('oldAppNote'))).data, 'Everyone must update the app to 1.0.0 to play');
+    expect(t.widget<Text>(find.byKey(const Key('oldAppNote'))).data, 'Everyone must update the app to 1.1.0 to play');
     await t.scrollUntilVisible(find.byKey(const Key('mode_jester')), 200, scrollable: find.byType(Scrollable).first);
     await t.tap(find.byKey(const Key('mode_jester')));
     await t.pump();

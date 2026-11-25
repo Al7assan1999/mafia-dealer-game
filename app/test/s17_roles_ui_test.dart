@@ -26,7 +26,8 @@ Future<OfflineGame> resumed(WidgetTester t, List<Role> roles, int sheikh, String
   expect(c.error, isNull);
   var s = c.state!
     ..roles = [...roles]
-    ..sheikh = sheikh;
+    ..sheikh = sheikh
+    ..rv = null; // 1.0.0 games (the 1.1.0 rules: s18_ui_test.dart); they also prove a saved 1.0.0 game still resumes
   final rec = startRecord(s);
   var now = fakeNow;
   for (final a in [const Action.begin(), ...actions]) {

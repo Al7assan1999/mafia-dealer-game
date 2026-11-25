@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
+import 'package:mafia_dealer/core/version.dart' show modesBuild;
 import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/core/api.dart';
@@ -50,7 +51,7 @@ class Bot {
   final sent = <String>{};
 
   Future<void> join(String code) async {
-    ws = await WebSocket.connect(api.socket('/v1/rooms/$code/ws?v=100017').toString(), protocols: ['mafia.v1', api.token!]);
+    ws = await WebSocket.connect(api.socket('/v1/rooms/$code/ws?v=$modesBuild').toString(), protocols: ['mafia.v1', api.token!]);
     ws!.listen((raw) {
       if (raw == 'pong') return;
       final m = jsonDecode(raw as String) as Map<String, Object?>;

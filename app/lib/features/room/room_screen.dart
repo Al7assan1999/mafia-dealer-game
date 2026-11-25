@@ -130,7 +130,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final p = widget.prefs;
       if (room['deal'] == 0 && (room['buzzMax'] != p.hostBuzzMax || room['kick'] != p.hostKick)) {
         c.send({'t': 'setup', 'rules': room['rules'], 'counts': {'mafia': (room['counts'] as Map)['mafia'], 'detective': (room['counts'] as Map)['detective']},
-          'buzzMax': p.hostBuzzMax, 'kick': p.hostKick, if (room['mode'] != null) 'mode': room['mode']});
+          'buzzMax': p.hostBuzzMax, 'kick': p.hostKick, if (room['mode'] != null) 'mode': room['mode'], if (room['bodyguard'] == true) 'bodyguard': true});
       }
     }
     if (room != null && c.isHost && widget.inviteOnJoin != null && !_invited) {

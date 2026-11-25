@@ -50,7 +50,9 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _night(L l, Map<String, Object?> view) {
     final no = Map<String, Object?>.from(view['night'] as Map), key = no['key'] as String, role = roleOf(view['role'])!;
-    final (title, desc) = nightText(l, key);
+    // [S18] a Detective who has checked everyone; a Sniper on night 1 (his bullet is ready from night 2)
+    final (title, desc) = key == 'none' && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, key);
+    final night1 = role == Role.sniper && (key == 'citizen' || key == 'none') && view['day'] == 1; // [Quin Q4] decoy off: 'none'
     final sh = view['sheikh'] as int?;
     final none = key == 'none', skip = no['skip'] as Map?, secs = _secondsLeft();
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
@@ -65,6 +67,7 @@ extension _PlayViews on _RoomScreenState {
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
       Text(desc, style: TextStyle(color: C.mute)),
+      if (night1) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sniperNight1, key: const Key('sniperNight1'), style: TextStyle(color: roleColor(Role.sniper)))),
       if ((view['mates'] as List).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6),
           child: Text(l.mates([for (final j in view['mates'] as List) _name(j as int)].join(', ')), style: TextStyle(color: C.red2))),
       // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
@@ -75,19 +78,26 @@ extension _PlayViews on _RoomScreenState {
       const SizedBox(height: 16),
       if (!none)
         for (final o in (no['opts'] as List).cast<Map>())
-          _option(_name(o['seat'] as int), o['seat'] as int, disabled: o['disabled'] == true, accent: o['teammate'] == true ? C.red2 : null, tags: [
+          _option(_name(o['seat'] as int), o['seat'] as int, disabled: o['disabled'] == true,
+              accent: o['teammate'] == true || o['check'] == true ? C.red2 : o['check'] == false ? C.green : null, tags: [
             if (o['self'] == true) l.you,
             if (o['teammate'] == true) l.teammate,
+            if (o['check'] is bool) o['check'] == true ? l.mafia : l.notMafia, // [S18-1] checked before: the result, can't be picked again
             if ((o['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${o['mateVotes']}',
             if (o['sheikh'] == true) l.sheikhPick,
             if (o['lastTarget'] == true) l.lastTgt,
-            if (o['lastNight'] == true) l.lastNight,
+            if (o['lastNight'] == true) key == 'bodyguard' ? l.guardedLast : l.lastNight,
           ]),
       if (skip != null && key == 'sniper') _option(l.keepBullet, 'skip', tags: [l.keepBulletD])
       else if (skip != null) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((skip['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${skip['mateVotes']}',
         if (skip['sheikh'] == true) l.sheikhPick]),
+      if (none) _checks(view),
     ]);
   }
+
+  /// [S18 P1] the Detective's results so far (his own phone)
+  Widget _checks(Map<String, Object?> view) =>
+      ChecksList(checks: [for (final c in (view['checks'] as List? ?? const []).cast<Map>()) (name: _name(c['seat'] as int), mafia: c['mafia'] == true)]);
 
   Widget _waiting(L l, Map<String, Object?> view, String text, Color color) {
     final check = view['check'] as Map?, secs = view['phase'] == 'night' ? _secondsLeft() : null;
@@ -187,6 +197,7 @@ extension _PlayViews on _RoomScreenState {
         ],
       ])),
       _roster(l, view),
+      _checks(view),
       if (!c.isHost) Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
     ]);
   }

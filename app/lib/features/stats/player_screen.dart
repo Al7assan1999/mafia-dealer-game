@@ -200,7 +200,8 @@ class _PlayerState extends State<PlayerScreen> {
           ])),
       ])),
       Sec(title: l.moments, child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-        for (final (n, t) in [(m['saves'], l.psSaves), (m['caught'], l.psCaught), (m['killed'], l.psKilled), (m['out'], l.psOut)])
+        for (final (n, t) in [(m['saves'], l.psSaves), (m['caught'], l.psCaught), (m['killed'], l.psKilled), (m['out'], l.psOut),
+          if (m['guards'] is int && (m['guards'] as int) > 0) (m['guards'], l.psGuards)]) // [S18-5] a Bodyguard's hits
           Column(children: [Text('$n', style: head.copyWith(fontSize: 22)), Text(t, style: TextStyle(color: C.dim, fontSize: 12))]),
       ])),
       Sec(title: l.form, child: Wrap(spacing: 6, children: [

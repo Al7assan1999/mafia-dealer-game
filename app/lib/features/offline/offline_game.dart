@@ -231,7 +231,7 @@ class OfflineGame extends ChangeNotifier {
   OfflineGame? playAgain() {
     if (screen != Screen.end) return null;
     close();
-    return start(prefs, audio, Setup(s.names, Counts(_count(Role.mafia), 1, _count(Role.detective)), s.rules, s.mode), s.deal + 1).game;
+    return start(prefs, audio, Setup(s.names, Counts(_count(Role.mafia), 1, _count(Role.detective)), s.rules, s.mode, _count(Role.bodyguard) > 0), s.deal + 1).game;
   }
   int _count(Role r) => s.roles.where((x) => x == r).length;
 

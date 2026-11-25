@@ -7,16 +7,17 @@ extension _LobbyViews on _RoomScreenState {
     final rules = defaultRules.merge(Map<String, Object?>.from(room['rules'] as Map));
     final counts = Counts((room['counts'] as Map)['mafia'] as int, 1, (room['counts'] as Map)['detective'] as int);
     final mode = modes.contains(room['mode']) ? room['mode'] as String : 'classic'; // a server before 1.0.0 sends none
-    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts, mode);
+    final bg = room['bodyguard'] == true; // [S18] the Sniper and Jester modes' optional Bodyguard
+    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts, mode, bg);
     // [S17-4, his ruling] a phone older than 1.0.0 can't be dealt in, Classic too (the server refuses the deal as well);
     // every phone counts, mine included, as on the server
     final old = ms.where((m) => !(m['v'] is int && (m['v'] as int) >= modesBuild)).toList();
-    void setup(Counts cc, Rules rr, [Mode? mm]) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
-      if (room['kick'] != null) 'kick': room['kick'], 'mode': mm ?? mode});
+    void setup(Counts cc, Rules rr, [Mode? mm, bool? bb]) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
+      if (room['kick'] != null) 'kick': room['kick'], 'mode': mm ?? mode, 'bodyguard': bb ?? bg});
     return Stage(center: false, bottom: [
       if (host) ...[
         Text([l.playersCount(ms.length), modeName(l, mode), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
-              if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester].join(' · '),
+              if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester, if (v.counts.bodyguard > 0) l.bodyguard].join(' · '),
             key: const Key('dealSummary'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
         if (old.isNotEmpty) Text(l.eOldApp, key: const Key('oldAppNote'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         if (v.error == 'modeFew') Text(l.eModeFew(modeMin[mode]!), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
@@ -63,7 +64,8 @@ extension _LobbyViews on _RoomScreenState {
             icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
             onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })) : null,
           child: Column(children: [for (final m in ms) _member(l, m, host)])),
-      ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(counts, rules, mm) : null),
+      ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(counts, rules, mm) : null,
+          bodyguard: bg, onBodyguard: host ? (bb) => setup(counts, rules, null, bb) : null),
       DeckEditor(players: ms.length, counts: v.counts, mode: mode, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
       ]) Padding(padding: const EdgeInsetsDirectional.only(end: 24), child: w),

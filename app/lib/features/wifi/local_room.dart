@@ -72,6 +72,7 @@ class LocalRoom {
   Rules rules = defaultRules;
   int mafia = 1, detective = 0;
   Mode mode = 'classic'; // 1.0.0
+  bool bodyguard = false; // 1.1.0: the Sniper and Jester modes' optional Bodyguard
   GameState? game;
   GameRecord? rec;
   var seats = <String>[], ready = <String>[];
@@ -104,7 +105,7 @@ class LocalRoom {
   Map<String, Object?> info() {
     final host = hostOf();
     return {
-      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'mode': mode, 'buzzMax': buzzMax, 'kick': kick,
+      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'mode': mode, 'bodyguard': bodyguard, 'buzzMax': buzzMax, 'kick': kick,
       'status': status, 'deal': deal, 'gameId': gameId, 'valid': valid,
       'members': [
         for (final m in _here)
@@ -238,13 +239,14 @@ class LocalRoom {
           final m = inp['mode'] ?? 'classic'; // an older host sends none: Classic
           if (!modes.contains(m)) return err('bad_request');
           mode = m as String;
+          bodyguard = inp['bodyguard'] == true;
         } catch (_) { return err('bad_request'); }
       case 'deal':
         if (running) return err('started');
         final players = _here;
-        // his ruling (S17, Q4): every seat must be on 1.0.0, Classic too (an older phone doesn't know the Godfather)
+        // his rulings (S17 Q4, S18): every seat must be on 1.1.0, Classic too (an older phone doesn't know the new rules)
         if (players.any((p) => (p.build ?? 0) < modesBuild)) return err('old_app');
-        final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules, mode), _rng, deal + 1);
+        final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules, mode, bodyguard), _rng, deal + 1);
         if (r.error != null) return err(r.error!);
         deal++;
         game = r.state;
@@ -411,7 +413,7 @@ class LocalRoom {
   Map<String, Object?> toJson() => {
         'v': 1, 'code': code, 'hostUid': hostUid, 'members': [for (final m in members) m.toJson()], 'kicked': kicked, 'nextCn': nextCn,
         'deal': deal, 'buzzMax': buzzMax, 'kick': kick, 'rev': rev, 'cut': cut, 'rules': rules.toJson(), 'mafia': mafia, 'detective': detective,
-        'mode': mode, 'rec': rec?.toJson(), 'seats': seats, 'ready': ready, 'gameId': gameId, 'valid': valid,
+        'mode': mode, 'bodyguard': bodyguard, 'rec': rec?.toJson(), 'seats': seats, 'ready': ready, 'gameId': gameId, 'valid': valid,
         'past': [for (final p in past) {'rev': p.rev, 'events': p.events}], 'lastIn': lastIn, 'chatSeq': chatSeq, 'chat': chat,
       };
 
@@ -421,7 +423,7 @@ class LocalRoom {
     kicked.addAll((j['kicked'] as List).cast<String>());
     nextCn = j['nextCn'] as int; deal = j['deal'] as int; buzzMax = j['buzzMax'] as int; kick = j['kick'] as String? ?? 'lobby'; rev = j['rev'] as int; cut = j['cut'] as int;
     rules = defaultRules.merge(Map<String, Object?>.from(j['rules'] as Map));
-    mafia = j['mafia'] as int; detective = j['detective'] as int; mode = j['mode'] as String? ?? 'classic';
+    mafia = j['mafia'] as int; detective = j['detective'] as int; mode = j['mode'] as String? ?? 'classic'; bodyguard = j['bodyguard'] == true;
     seats = (j['seats'] as List).cast<String>(); ready = (j['ready'] as List).cast<String>();
     gameId = j['gameId'] as String?; valid = j['valid'] as bool?;
     for (final p in (j['past'] as List).cast<Map>()) { past.add((rev: p['rev'] as int, events: (p['events'] as List).map((e) => Map<String, Object?>.from(e as Map)).toList())); }
@@ -457,17 +459,18 @@ Map<String, Object?> viewJson(View v) {
     'recap': rc == null ? null : {
       'winner': rc.winner.name, 'names': rc.names, 'roles': rc.roles.map((r) => r.name).toList(), 'alive': rc.alive, 'day': rc.day,
       'stats': {'first': rc.stats.first, 'kills': rc.stats.kills, 'outs': rc.stats.outs, 'saves': rc.stats.saves, 'caught': [for (final c in rc.stats.caught) [c.$1, c.$2]],
-        'shots': [for (final c in rc.stats.shots) [c.$1, c.$2]]},
+        'shots': [for (final c in rc.stats.shots) [c.$1, c.$2]], 'guards': [for (final c in rc.stats.guards) [c.$1, c.$2]]},
       if (rc.sheikh != null) 'mode': rc.mode,
       if (rc.sheikh != null) 'sheikh': rc.sheikh,
     },
     if (v.seat != null) ...{
       'seat': v.seat, 'role': v.role?.name, 'alive': v.alive, 'mates': v.mates, 'sheikh': v.sheikh,
       'check': v.check == null ? null : {'seat': v.check!.seat, 'mafia': v.check!.mafia},
+      'checks': v.checks?.map((c) => {'seat': c.seat, 'mafia': c.mafia}).toList(),
       'ph': v.ph,
       'night': v.night == null ? null : {
         'key': v.night!.key,
-        'opts': [for (final o in v.night!.opts) {'seat': o.seat, 'disabled': o.disabled, 'self': o.self, 'teammate': o.teammate, 'lastTarget': o.lastTarget, 'lastNight': o.lastNight, 'mateVotes': o.mateVotes, 'sheikh': o.sheikh}],
+        'opts': [for (final o in v.night!.opts) {'seat': o.seat, 'disabled': o.disabled, 'self': o.self, 'teammate': o.teammate, 'lastTarget': o.lastTarget, 'lastNight': o.lastNight, 'mateVotes': o.mateVotes, 'sheikh': o.sheikh, if (o.check != null) 'check': o.check}],
         'skip': v.night!.canSkip ? {'mateVotes': v.night!.skipMateVotes, 'sheikh': v.night!.skipSheikh} : null,
       },
       'voteOpts': v.voteOpts?.map((o) => {'seat': o.seat, 'disabled': o.disabled}).toList(),

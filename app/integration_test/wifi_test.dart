@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:mafia_dealer/core/version.dart' show modesBuild;
 import 'package:mafia_dealer/state/account.dart';
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/core/api.dart';
@@ -33,7 +34,7 @@ class Bot {
   final sent = <String>{};
 
   Future<void> join(String code) async {
-    final q = '?v=100017${rev > 0 ? '&rev=$rev' : ''}'; // a 1.0.0 phone (S17: older ones can't be dealt in)
+    final q = '?v=$modesBuild${rev > 0 ? '&rev=$rev' : ''}'; // a phone on the build every table needs (S17, S18)
     ws = await WebSocket.connect('ws://127.0.0.1:$lanPort/v1/rooms/$code/ws$q', protocols: ['mafia.v1', Identity(uid, 'Bot $uid', userId: userId).token()]);
     ws!.listen((raw) {
       if (raw == 'pong') return;

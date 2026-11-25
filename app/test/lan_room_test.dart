@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mafia_dealer/core/version.dart' show modesBuild;
 import 'package:mafia_dealer/features/wifi/lan.dart';
 import 'package:mafia_dealer/features/wifi/local_room.dart';
 import 'package:mafia_engine/mafia_engine.dart';
@@ -34,7 +35,7 @@ Identity id(int i) => Identity('p$i', 'P${i + 1}');
 /// n phones in the room, in join order (p0 hosts).
 (LocalRoom, List<Phone>) table(int n) {
   final r = newRoom(), ps = [for (var i = 0; i < n; i++) Phone('p$i')];
-  for (var i = 0; i < n; i++) { expect(r.join(ps[i], id(i), build: 100017), isNull); } // 1.0.0 phones (S17: older ones can't be dealt in)
+  for (var i = 0; i < n; i++) { expect(r.join(ps[i], id(i), build: modesBuild), isNull); } // phones on the build every table needs (S17, S18)
   return (r, ps);
 }
 

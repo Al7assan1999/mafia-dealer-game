@@ -26,6 +26,7 @@ class _SetupState extends State<SetupScreen> {
   late int mafia, detective;
   late Rules rules;
   Mode mode = 'classic';
+  bool bodyguard = false; // [S18] the Sniper and Jester modes' optional Bodyguard
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _SetupState extends State<SetupScreen> {
     try { rules = defaultRules.merge(Map<String, Object?>.from(((acc ?? s)?['rules'] as Map?) ?? {})); } catch (_) { rules = defaultRules; }
     final m = acc?['mode'] ?? s?['mode']; // a setup saved before 1.0.0 has none: Classic
     if (modes.contains(m)) mode = m as String;
+    bodyguard = (acc?['bodyguard'] ?? s?['bodyguard']) == true;
   }
 
   Account? get _acc => widget.account?.signedIn == true ? widget.account : null;
@@ -61,7 +63,7 @@ class _SetupState extends State<SetupScreen> {
     final roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ..._roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))].take(30).toList();
     // Classic keeps the table's counts; another mode's deck comes from the player count
     final keep = mode == 'classic' ? counts : Counts(mafia, 1, detective);
-    final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode};
+    final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode, 'bodyguard': bodyguard};
     if (_acc != null) {
       _acc!.saveNames(roster).catchError((_) {}); // offline: the next deal saves them
       _acc!.saveSetup(saved).catchError((_) {});
@@ -69,14 +71,14 @@ class _SetupState extends State<SetupScreen> {
       p.roster = roster;
     }
     p.setup = saved;
-    final r = OfflineGame.start(p, widget.audio, Setup(ns, counts, rules, mode));
+    final r = OfflineGame.start(p, widget.audio, Setup(ns, counts, rules, mode, bodyguard));
     if (r.game == null) return;
     widget.onDealt != null ? widget.onDealt!(r.game!) : Navigator.of(context).pop(r.game);
   }
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective), mode), err = _error(l, v);
+    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective), mode, bodyguard), err = _error(l, v);
     final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
     return Scaffold(
       appBar: AppBar(title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
@@ -120,7 +122,8 @@ class _SetupState extends State<SetupScreen> {
             ],
           ]),
         ),
-        ModePicker(players: ns.length, mode: mode, onChanged: (m) => setState(() => mode = m)),
+        ModePicker(players: ns.length, mode: mode, onChanged: (m) => setState(() => mode = m),
+            bodyguard: bodyguard, onBodyguard: (b) => setState(() => bodyguard = b)),
         DeckEditor(players: ns.length, counts: v.counts, mode: mode, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
         RulesEditor(rules: rules, onChanged: (r) => setState(() => rules = r)),
       ]),
@@ -132,7 +135,9 @@ class _SetupState extends State<SetupScreen> {
 /// players is shown but can't be picked; the best one for this many players is marked Suggested. Read-only without
 /// onChanged.
 class ModePicker extends StatelessWidget {
-  const ModePicker({super.key, required this.players, required this.mode, this.onChanged});
+  const ModePicker({super.key, required this.players, required this.mode, this.onChanged, this.bodyguard = false, this.onBodyguard});
+  final bool bodyguard; // [S18] the Sniper and Jester modes' optional Bodyguard
+  final ValueChanged<bool>? onBodyguard;
   final int players;
   final Mode mode;
   final ValueChanged<Mode>? onChanged;
@@ -141,7 +146,7 @@ class ModePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = L.of(context), best = suggestedMode(players);
     return Sec(title: l.mode, child: Column(children: [
-      for (final m in modes) () {
+      for (final m in modes) ...[() {
         final on = m == mode, open = players >= modeMin[m]!;
         return Padding(padding: const EdgeInsets.only(bottom: 8), child: Semantics(selected: on, button: onChanged != null, enabled: open, child: InkWell(
           key: Key('mode_$m'),
@@ -166,6 +171,14 @@ class ModePicker extends StatelessWidget {
           ),
         )));
       }(),
+        // [S18, his ruling] the Sniper and Jester modes may add the Bodyguard: the switch sits under the chosen tile
+        if (m == mode && bodyguardOptional(m))
+          Padding(padding: const EdgeInsetsDirectional.only(start: 12, bottom: 8), child: SwitchListTile(key: const Key('withBodyguard'),
+              contentPadding: EdgeInsets.zero, value: bodyguard, onChanged: onBodyguard, activeThumbColor: C.red2,
+              secondary: Icon(roleIcon(Role.bodyguard), color: roleColor(Role.bodyguard)),
+              title: Text(l.withBodyguard, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(l.withBodyguardD, style: TextStyle(color: C.mute, fontSize: 13)))),
+      ],
     ]));
   }
 }
@@ -193,7 +206,8 @@ class DeckEditor extends StatelessWidget {
             on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null, steppers: classic),
         if (counts.sniper > 0) _count(l.sniper, l.dSniper, Role.sniper, counts.sniper, null, null),
         if (counts.jester > 0) _count(l.jester, l.dJester, Role.jester, counts.jester, null, null),
-        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d - counts.sniper - counts.jester).clamp(0, 99), null, null),
+        if (counts.bodyguard > 0) _count(l.bodyguard, l.dBodyguard, Role.bodyguard, counts.bodyguard, null, null),
+        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d - counts.sniper - counts.jester - counts.bodyguard).clamp(0, 99), null, null),
         if (!classic) Text(l.modeFixed, key: const Key('modeFixed'), style: TextStyle(color: C.dim, fontSize: 12))
         else if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),
       ]),
