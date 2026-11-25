@@ -1,6 +1,11 @@
 part of 'room_screen.dart';
 
 extension _EndViews on _RoomScreenState {
+  void _mark(bool valid) {
+    c.send({'t': 'mark', 'valid': valid});
+    toast(context, valid ? L.of(context).markedValid : L.of(context).markedInvalid);
+  }
+
   Widget _end(L l, Map<String, Object?> view) {
     if (!revealed) return _suspense(l, l.gameOver, C.glory, Icons.emoji_events_outlined);
     final rc = Map<String, Object?>.from(view['recap'] as Map), winner = Winner.values.asNameMap()[rc['winner']] ?? Winner.citizens, mafia = winner == Winner.mafia;
@@ -12,11 +17,13 @@ extension _EndViews on _RoomScreenState {
     return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
       if (c.isHost) ...[
         if (c.room?['gameId'] != null) Row(children: [
-          Expanded(child: Btn(l.valid, key: const Key('markValid'), ghost: valid != true, onTap: _h(() => c.send({'t': 'mark', 'valid': true})))),
+          // [1.0.1 hotfix] the choice shows a tick and says what it means (a tap on the one already chosen looked dead)
+          Expanded(child: Btn(l.valid, key: const Key('markValid'), ghost: valid != true, icon: valid == true ? Icons.check : null, onTap: _h(() => _mark(true)))),
           const SizedBox(width: 10),
-          Expanded(child: Btn(l.invalid, key: const Key('markInvalid'), ghost: valid != false, onTap: _h(() => c.send({'t': 'mark', 'valid': false})))),
+          Expanded(child: Btn(l.invalid, key: const Key('markInvalid'), ghost: valid != false, icon: valid == false ? Icons.check : null, onTap: _h(() => _mark(false)))),
         ]),
-        if (widget.lan && _wifiKey != null) WifiApproval(account: widget.account, prefs: widget.prefs, gameKey: _wifiKey!),
+        // Wi-Fi: an Invalid game isn't offered to online history
+        if (widget.lan && _wifiKey != null && valid != false) WifiApproval(account: widget.account, prefs: widget.prefs, gameKey: _wifiKey!),
         Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: _h(() => c.send({'t': 'deal'}))),
         Btn(l.toLobby, key: const Key('toLobby'), ghost: true, onTap: _h(() => c.send({'t': 'lobby'}))),
       ] else

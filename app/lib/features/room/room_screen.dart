@@ -327,7 +327,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (phase == 'end') return _end(l, view);
     if (ph == 'night') return _night(l, view);
     if (ph == 'vote') return _vote(l, view);
-    if (ph == 'dead') return _dead(l, view);
+    // [1.0.1 hotfix] an out player (the host too) sees "You are out" only while the others act (night, vote); the morning,
+    // the day (the host's timer) and the verdict are the table's, for everyone
+    if (ph == 'dead' && (phase == 'night' || phase == 'vote')) return _dead(l, view);
     return switch (phase) {
       'night' => _waiting(l, view, l.lockedWait, C.night),
       'vote' => _waiting(l, view, l.votedWait, C.day),

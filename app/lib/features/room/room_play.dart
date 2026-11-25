@@ -26,7 +26,11 @@ extension _PlayViews on _RoomScreenState {
   Widget _deal(L l, Map<String, Object?> view) {
     final role = roleOf(view['role']);
     final meReady = c.members.any((m) => m['uid'] == c.myUid && m['ready'] == true), ms = c.members;
-    final start = [if (c.isHost) Btn(l.startNow, key: const Key('start'), ghost: true, onTap: _h(() => c.send({'t': 'start'})))];
+    // [1.0.1 hotfix] the host's Start is not on the role card (it was taken for "next" and skipped everyone's card):
+    // it shows once the host is ready, and asks first
+    final start = [if (c.isHost) Btn(l.startNow, key: const Key('start'), ghost: true, onTap: _h(() async {
+      if (await ask(context, l.startNowQ, l.startNowD, l.startNow)) c.send({'t': 'start'});
+    }))];
     if (role == null) return Stage(card: true, foot: _foot(L.of(context)), children: [Big(l.waitHost)]);
     if (meReady) {
       return Stage(card: true, foot: _foot(L.of(context)), bottom: start, children: [
@@ -37,7 +41,7 @@ extension _PlayViews on _RoomScreenState {
     final me = view['seat'] as int, sh = view['sheikh'] as int?;
     return RoleCard(name: _name(me), role: role, mates: [for (final j in (view['mates'] as List)) _name(j as int)],
         isSheikh: sh == me, sheikh: sh != null && sh != me ? _name(sh) : null,
-        done: l.readyBtn, onDone: () => c.send({'t': 'ready', 'deal': c.room!['deal']}), extra: start);
+        done: l.readyBtn, onDone: () => c.send({'t': 'ready', 'deal': c.room!['deal']}));
   }
 
   Widget _option(String label, Object value, {List<String> tags = const [], bool disabled = false, Color? accent}) =>

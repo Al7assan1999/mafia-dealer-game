@@ -143,7 +143,8 @@ void main() {
           await t.pump();
           await tapKey(t, 'memorized');
         } else if (on('start')) {
-          await tapKey(t, 'start');
+          await tapKey(t, 'start');  // [1.0.1] it asks first
+          if (find.text('Start now').evaluate().length > 1) { await t.tap(find.text('Start now').last); await t.pump(); }
         }
         continue;
       }

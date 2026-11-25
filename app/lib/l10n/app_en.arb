@@ -1463,5 +1463,9 @@
   },
   "gModesT": "Modes",
   "gModes": "Pick a mode with one tap. Classic is the game you know: you choose how many Mafia. In the other modes the roles are set by the number of players. Every game has a Godfather, one of the Mafia: his pick settles a tied Mafia vote, and the Detective sees him as not Mafia.",
-  "tieLowest": "The Godfather is out: a tie goes to the lowest seat that voted."
+  "tieLowest": "The Godfather is out: a tie goes to the lowest seat that voted.",
+  "startNowQ": "Start before everyone is ready?",
+  "startNowD": "Players who haven't tapped I'm ready yet go straight to the night.",
+  "markedValid": "This game counts in stats",
+  "markedInvalid": "This game won't count in stats"
 }

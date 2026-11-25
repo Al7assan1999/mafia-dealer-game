@@ -380,8 +380,9 @@ export class Room extends DurableObject<Env> {
         if (g?.phase !== 'end' || !st.gameId) return err('phase');
         await this.env.DB.prepare('UPDATE games SET valid = ? WHERE id = ?').bind(inp.valid ? 1 : 0, st.gameId).run();
         st.valid = inp.valid;
+        await this.commit(st, before);  // [1.0.1 hotfix] the host sees the mark at once; the titles are worked out after
         await refreshTitles(this.env, { push: fcmSender, now: () => Date.now() });
-        break;
+        return;
       case 'lobby':
         if (g?.phase !== 'end') return err('phase');
         st.game = null; st.seats = []; st.ready = []; st.gameId = null; st.valid = null; st.rec = null; st.lastIn = {};
