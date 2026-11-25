@@ -7,23 +7,27 @@ const seatOk = (s: GameState, i: unknown): i is number => Number.isInteger(i) &&
 
 /** What seat p may pick tonight (the target buttons). */
 export function nightOptions(s: GameState, p: number): NightOptions {
-  const r = s.roles[p], R = s.rules, key = r === 'citizen' && !R.decoy ? 'none' : r;
+  const r = s.roles[p], R = s.rules;
+  // the Jester, and the Sniper once his bullet is spent, pick like a Citizen
+  const k0 = r === 'jester' || (r === 'sniper' && s.shotUsed) ? 'citizen' : r, key = k0 === 'citizen' && !R.decoy ? 'none' : k0;
   const res: NightOptions = { key, opts: [], skip: null };
   if (key === 'none') return res;
   const mates = (pred: (v: NightChoice) => boolean) => Object.entries(s.night.mafia).filter(([k, v]) => +k !== p && pred(v)).length;
+  const sh = s.sheikh, shPick = r === 'mafia' && sh !== undefined && sh !== p && s.alive[sh] ? s.night.mafia[sh] : undefined;
   for (const j of aliveSeats(s)) {
-    const o = { seat: j, disabled: false, self: j === p, teammate: false, lastTarget: false, lastNight: false, mateVotes: 0 };
+    const o = { seat: j, disabled: false, self: j === p, teammate: false, lastTarget: false, lastNight: false, mateVotes: 0, sheikh: shPick === j };
     if (r === 'mafia' && s.roles[j] === 'mafia') { o.disabled = true; o.teammate = j !== p; }
     if (r === 'mafia' && R.norep && s.lastTarget === j) { o.disabled = true; o.lastTarget = true; }
     if (r === 'doctor') {
       if (j === p && !R.self) o.disabled = true;
       if (R.rep && s.lastProt[p] === j) { o.disabled = true; o.lastNight = true; }
     }
-    if (r === 'detective' && j === p) o.disabled = true;
+    if ((key === 'detective' || key === 'sniper') && j === p) o.disabled = true;
     if (r === 'mafia') o.mateVotes = mates(v => v === j);
     res.opts.push(o);
   }
-  if (r === 'mafia' && R.skip && !s.skipUsed) res.skip = { mateVotes: mates(v => v === 'skip') };
+  if (r === 'mafia' && R.skip && !s.skipUsed) res.skip = { mateVotes: mates(v => v === 'skip'), sheikh: shPick === 'skip' };
+  if (key === 'sniper') res.skip = { mateVotes: 0, sheikh: false };  // keep the bullet
   return res;
 }
 
@@ -45,36 +49,53 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     s.morning = null; s.verdict = null; s.vote = null;
     phase('night');
   };
-  const checkWin = (lead: { k: 'killed' | 'votedOut'; seat: number } | null) => {
-    const w = winnerOf(s); if (!w) return false;
+  const checkWin = (lead: { k: 'killed' | 'votedOut'; seat: number } | null, forced: Winner | null = null) => {
+    const w = forced ?? winnerOf(s); if (!w) return false;
     pauseTimer(); s.winner = w; log({ t: 'win', winner: w, lead }); phase('end'); return true;
   };
 
   const resolveNight = () => {
-    // the Mafia's decision: the most votes among the living Mafia; a tie kills nobody (tieSkip) or, in older games, is
-    // broken at random. A tie never spends the one-time skip.
-    const votes = Object.values(s.night.mafia); let target: number | null = null, skip = false;
+    // the Mafia's decision: the most votes among the living Mafia. A tie (1.0.0) goes to the Sheikh's pick, even one
+    // nobody else made; with no pick from him (out, or didn't vote) to the lowest seat that voted for a tied pick.
+    // Older games: a tie kills nobody (tieSkip, without spending the skip) or, before Sprint 7, a random pick.
+    // 1.0.0: only the living count (a Mafia or the Sniper removed mid-night after choosing has no say)
+    const live = ([k]: [string, unknown]) => s.sheikh === undefined || s.alive[+k];
+    const votes = Object.entries(s.night.mafia).filter(live); let target: number | null = null, skip = false;
     if (votes.length) {
-      const c: Record<string, number> = {}; votes.forEach(v => { c[String(v)] = (c[String(v)] || 0) + 1; });
+      const c: Record<string, number> = {}; votes.forEach(([, v]) => { c[String(v)] = (c[String(v)] || 0) + 1; });
       const max = Math.max(...Object.values(c)), top = Object.keys(c).filter(k => c[k] === max);
-      const w = top.length > 1 && s.rules.tieSkip ? null : top[Math.floor(ctx.rng() * top.length)];
+      let w: string | null;
+      if (s.sheikh === undefined) w = top.length > 1 && s.rules.tieSkip ? null : top[Math.floor(ctx.rng() * top.length)];
+      else if (top.length === 1) w = top[0];
+      else {
+        const sv = s.alive[s.sheikh] ? s.night.mafia[s.sheikh] : undefined;
+        w = sv != null ? String(sv) : String(votes.filter(([, v]) => top.includes(String(v))).sort((x, y) => +x[0] - +y[0])[0][1]);
+      }
       if (w === 'skip') { skip = true; s.skipUsed = true; } else if (w != null) target = +w;
     }
+    // the Sniper's one bullet: nothing stops it, not even the Doctor
+    const sn = Object.entries(s.night.sniper ?? {}).filter(live).find(([, v]) => v !== 'skip'), shot = sn ? (sn[1] as number) : null;
     const doc = Object.entries(s.night.doctor).filter(([, q]) => q != null) as [string, number][];
     const prot = new Set(doc.map(([, q]) => q));
     s.lastProt = { ...s.night.doctor };
     const saved = target != null && prot.has(target), dead = target != null && !saved ? target : null;
+    const kept = saved && shot !== target;  // a save the Sniper didn't undo
     if (dead != null) s.alive[dead] = false;
+    if (shot != null) { s.alive[shot] = false; s.shotUsed = true; (s.stats.shots ??= []).push([+sn![0], shot]); }
     log({ t: 'night', day: s.day, mafia: skip ? { k: 'skip' } : target == null ? { k: 'none' } : saved ? { k: 'saved', seat: target } : { k: 'kill', seat: target },
-      prot: doc.map(([, q]) => q), checked: Object.values(s.night.detective).filter((q): q is number => q != null) });
+      prot: doc.map(([, q]) => q), checked: Object.values(s.night.detective).filter((q): q is number => q != null), ...(shot != null ? { shot } : {}) });
     s.lastTarget = target;
-    if (saved) doc.forEach(([p, q]) => { if (q === target) s.stats.saves.push(+p); });
+    if (kept) doc.forEach(([p, q]) => { if (q === target) s.stats.saves.push(+p); });
     if (dead != null) { if (s.stats.first == null) s.stats.first = dead; s.stats.kills.push(dead); }
     for (const [p, q] of Object.entries(s.night.detective)) {
-      if (q != null && s.roles[q] === 'mafia' && !s.stats.caught.some(([x, y]) => x === +p && y === q)) s.stats.caught.push([+p, q]);
+      if (q != null && s.roles[q] === 'mafia' && q !== s.sheikh && !s.stats.caught.some(([x, y]) => x === +p && y === q)) s.stats.caught.push([+p, q]);
     }
-    s.morning = { dead, saved: saved && s.rules.saverev ? target : null };
-    if (checkWin(dead != null ? { k: 'killed', seat: dead } : null)) return;
+    // the morning names the dead in seat order: nobody can tell which death was the Sniper's
+    const deaths = [...new Set([dead, shot].filter((x): x is number => x != null))].sort((x, y) => x - y);
+    s.morning = { dead: deaths[0] ?? null, saved: kept && s.rules.saverev ? target : null, ...(s.sheikh !== undefined ? { dead2: deaths[1] ?? null } : {}) };
+    // the death that decides the game leads its announcement: a Mafia shot by the Sniper when the town wins
+    const lead = deaths.find(x => s.roles[x] === 'mafia' && !aliveSeats(s).some(i => s.roles[i] === 'mafia')) ?? dead ?? shot;
+    if (checkWin(lead != null ? { k: 'killed', seat: lead } : null)) return;
     phase('morning');
   };
 
@@ -83,7 +104,8 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     if (out != null) { s.alive[out] = false; s.stats.outs.push(out); }
     s.verdict = { out, kind, tally };
     log({ t: 'day', day: s.day, out, kind, tally });
-    if (checkWin(out != null ? { k: 'votedOut', seat: out } : null)) return;
+    // the Jester wins alone when the day vote puts him out
+    if (checkWin(out != null ? { k: 'votedOut', seat: out } : null, out != null && s.roles[out] === 'jester' ? 'jester' : null)) return;
     phase('verdict');
   };
   const tally = () => {
@@ -118,6 +140,7 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
       if (r === 'mafia') s.night.mafia[a.seat] = a.choice;
       if (r === 'doctor') s.night.doctor[a.seat] = a.choice as number;
       if (r === 'detective') s.night.detective[a.seat] = a.choice as number;
+      if (no.key === 'sniper') (s.night.sniper ??= {})[a.seat] = a.choice as number | 'skip';
       s.night.done[a.seat] = true;
       settle(); break;
     }

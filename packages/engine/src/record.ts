@@ -2,20 +2,22 @@
 // (the server checks Wi-Fi games this way, and the Dart engine must replay the same records to the same result).
 import { apply } from './game.ts';
 import { createGame } from './setup.ts';
-import type { Action, Ctx, GameEvent, GameState, LogEvent, Result, Role, Rules, Winner } from './types.ts';
+import type { Action, Ctx, GameEvent, GameState, LogEvent, Mode, Result, Role, Rules, Winner } from './types.ts';
 
 /** One action as it was applied: when (ms) and the random draws it used (tie-breaks), so a replay is exact. */
 export interface RecordedAction { a: Action; at: number; r?: number[] }
 export interface GameRecord {
   format: 1;
   deal: number; names: string[]; rules: Rules; roles: Role[];
+  mode?: Mode; sheikh?: number;  // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
   actions: RecordedAction[];
   winner: Winner | null; log: LogEvent[];  // the result the recorder saw; a replay must reach the same
 }
 
 /** A new record for a game just dealt (phase 'deal'). */
 export const startRecord = (s: GameState): GameRecord =>
-  ({ format: 1, deal: s.deal, names: [...s.names], rules: { ...s.rules }, roles: [...s.roles], actions: [], winner: null, log: [] });
+  ({ format: 1, deal: s.deal, names: [...s.names], rules: { ...s.rules }, roles: [...s.roles],
+    ...(s.sheikh !== undefined ? { mode: s.mode ?? 'classic', sheikh: s.sheikh } : {}), actions: [], winner: null, log: [] });
 
 /** apply(), and on success the action joins the record (with its draws) and the record's result follows the game. */
 export function step(rec: GameRecord, s: GameState, a: Action, ctx: Ctx): Result<{ state: GameState; events: GameEvent[] }> {
@@ -38,15 +40,17 @@ function check(rec: GameRecord): Result<{ state: GameState }> {
   const no = (error: string) => ({ ok: false as const, error });
   if (rec?.format !== 1) return no('format');
   if (!Array.isArray(rec.roles) || !Array.isArray(rec.names) || rec.roles.length !== rec.names.length || !Array.isArray(rec.actions)) return no('shape');
-  const count = (x: Role) => rec.roles.filter(y => y === x).length;
-  if (count('mafia') + count('doctor') + count('detective') + count('citizen') !== rec.roles.length) return no('roles');
-  const counts = { mafia: count('mafia'), doctor: count('doctor'), detective: count('detective') };
-  const c = createGame({ names: rec.names, counts, rules: recordRules(rec.rules) }, () => 0, rec.deal);
+  const count = (x: Role) => rec.roles.filter(y => y === x).length, all: Role[] = ['mafia', 'doctor', 'detective', 'citizen', 'sniper', 'jester'];
+  if (all.reduce((n, x) => n + count(x), 0) !== rec.roles.length) return no('roles');
+  const old = rec.sheikh === undefined;  // before 1.0.0: Classic, no Sheikh
+  if (old ? rec.mode !== undefined : !(Number.isInteger(rec.sheikh) && rec.roles[rec.sheikh!] === 'mafia' && typeof rec.mode === 'string')) return no('roles');
+  const counts = { mafia: count('mafia'), doctor: count('doctor'), detective: count('detective'), sniper: count('sniper'), jester: count('jester') };
+  const c = createGame({ names: rec.names, counts, rules: recordRules(rec.rules), mode: rec.mode }, () => 0, rec.deal);
   if (!c.ok) return no('setup: ' + c.error);
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)
-  if (c.state.roles.filter(x => x === 'mafia').length !== counts.mafia || c.state.roles.filter(x => x === 'detective').length !== counts.detective
-    || counts.doctor !== 1) return no('roles');
-  let s: GameState = { ...c.state, roles: [...rec.roles] }, last = -Infinity;
+  if (all.some(x => c.state.roles.filter(y => y === x).length !== count(x))) return no('roles');
+  let s: GameState = { ...c.state, roles: [...rec.roles], sheikh: rec.sheikh }, last = -Infinity;
+  if (old) { delete s.sheikh; delete s.mode; delete s.shotUsed; delete s.night.sniper; delete s.stats.shots; }
   for (const [i, x] of rec.actions.entries()) {
     if (!Number.isFinite(x?.at) || x.at < last) return no(`action ${i}: time`);
     last = x.at;

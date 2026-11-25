@@ -47,7 +47,7 @@ test('test9: norep + saverev — a saved target is named, and the Mafia can\'t p
     const choice = no.key === 'none' ? null : r === 'mafia' || r === 'doctor' ? tgt : no.opts.find(o => !o.disabled)!.seat;
     s = must(s, { t: 'night', seat: p, choice }).state;
   }
-  assert.deepEqual(s.morning, { dead: null, saved: tgt });
+  assert.deepEqual(s.morning, { dead: null, saved: tgt, dead2: null });
   s = must(must(must(s, { t: 'startDay' }).state, { t: 'decide', choice: 'none' }).state, { t: 'nextNight' }).state;
   for (const m of alive(s).filter(i => s.roles[i] === 'mafia')) {
     const o = nightOptions(s, m).opts.find(x => x.seat === tgt)!;

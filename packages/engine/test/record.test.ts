@@ -30,6 +30,20 @@ test('records from before the tie rule (no tieSkip: random tie-breaks) still rep
   assert.ok(old.some(r => r.actions.some(a => a.a.t === 'night' && a.r?.length)), 'some old games broke a Mafia tie at random');
 });
 
+test('records from before 1.0.0 (no Sheikh, no modes: ties kill nobody) still replay to their result', () => {
+  const old: GameRecord[] = JSON.parse(readFileSync(new URL('../fixtures/records-before-sheikh.json', import.meta.url), 'utf8'));
+  assert.equal(old.length, SEEDS);
+  assert.ok(old.every(r => r.rules.tieSkip && !('sheikh' in r) && !('mode' in r)));
+  old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
+});
+
+test('the shared games cover every mode and every 1.0.0 ending', () => {
+  const saved: GameRecord[] = JSON.parse(readFileSync(FILE, 'utf8'));
+  for (const m of ['classic', 'sniper', 'jester', 'all']) assert.ok(saved.some(r => r.mode === m), 'mode ' + m);
+  for (const w of ['mafia', 'citizens']) assert.ok(saved.some(r => r.winner === w), 'winner ' + w);  // the Jester's win: roles.test.ts
+  assert.ok(saved.some(r => r.log.some(e => e.t === 'night' && e.shot != null)), 'a Sniper shot');
+});
+
 test('an edited record is refused', () => {
   const g = play(7).rec;
   assert.ok(replay(copy(g)).ok);
@@ -40,13 +54,15 @@ test('an edited record is refused', () => {
   // a Mafia made a Citizen (and the other way): the night picks no longer fit their roles
   const roles = copy(g), m = roles.roles.indexOf('mafia'), c = roles.roles.indexOf('citizen');
   [roles.roles[m], roles.roles[c]] = [roles.roles[c], roles.roles[m]];
-  refused(roles, /^(action \d+: \w+|result)$/);
+  refused(roles, /^(action \d+: \w+|result|roles)$/);  // roles: the swapped Mafia was the Sheikh
   const extra = copy(g); extra.roles[extra.roles.indexOf('citizen')] = 'doctor'; refused(extra, 'roles');
   const illegal = copy(g); illegal.actions.splice(1, 0, { a: { t: 'nextNight' }, at: illegal.actions[0].at }); refused(illegal, 'action 1: phase');
   const time = copy(g); time.actions[2].at = time.actions[1].at - 1; refused(time, 'action 2: time');
-  const draws = copy(g), k = draws.actions.findIndex(x => x.r);
-  draws.actions[k].r!.push(0.5); refused(draws, `action ${k}: random`);
+  const draws = copy(g); draws.actions[1].r = [0.5]; refused(draws, 'action 1: random');  // 1.0.0 games draw nothing after the deal
   refused({ ...copy(g), format: 2 } as unknown as GameRecord, 'format');
   refused({ format: 1, actions: [{}] } as unknown as GameRecord, 'shape');
   refused({ ...copy(g), actions: [{ a: null, at: 1 }] } as unknown as GameRecord, 'shape');
+  // the Sheikh must be one of the Mafia; a mode without a Sheikh is not a record any version writes
+  const sh = copy(g); sh.sheikh = sh.roles.indexOf('citizen'); refused(sh, 'roles');
+  const nm = copy(g); delete nm.sheikh; refused(nm, 'roles');
 });

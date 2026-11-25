@@ -14,6 +14,13 @@ export function game(roles: Role[], rules: Partial<Rules> = {}, now = 1_000_000)
   return must(s, { t: 'begin' }, now).state;
 }
 
+/** The same game as dealt before 1.0.0: no Sheikh, so ties follow the game's own tie rule. */
+export function legacy(s: GameState): GameState {
+  const t: GameState = JSON.parse(JSON.stringify(s));
+  delete t.sheikh; delete t.mode; delete t.shotUsed; delete t.night.sniper; delete t.stats.shots;
+  return t;
+}
+
 /** apply() that must succeed. */
 export function must(s: GameState, a: Action, now = 1_000_000, seed = 1): { state: GameState; events: GameEvent[] } {
   const r = apply(s, a, { rng: seeded(seed), now });

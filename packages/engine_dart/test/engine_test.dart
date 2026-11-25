@@ -21,15 +21,19 @@ List<int> alive(GameState s) => aliveSeats(s);
   }
   over['nightT'] = pick([0, 30, 60]);
   final rules = defaultRules.merge(over);
-  final names = [for (var i = 0; i < n; i++) 'Player ${i + 1}'];
-  final c = createGame(Setup(names, Counts(mafia, 1, mafia >= 2 ? 1 : 0), rules), r);
+  final names = [for (var i = 0; i < n; i++) 'Player ${i + 1}'], mode = pick(modes.where((m) => modeMin[m]! <= n).toList());
+  final c = createGame(Setup(names, Counts(mafia, 1, mafia >= 2 ? 1 : 0), rules, mode), r);
   expect(c.error, isNull);
   var s = c.state!, now = 1000000, steps = 0;
   final rec = startRecord(s);
 
   void check() {
     final al = alive(s), m = al.where((i) => s.roles[i] == Role.mafia).length;
-    if (s.phase == Phase.end) {
+    expect(s.roles[s.sheikh!], Role.mafia, reason: 'the Sheikh is one of the Mafia');
+    final last = s.log.lastOrNull;
+    if (s.phase == Phase.end && s.winner == Winner.jester) {
+      expect(last is WinLog && last.lead?.k == 'votedOut' && s.roles[last.lead!.seat] == Role.jester, isTrue);
+    } else if (s.phase == Phase.end) {
       expect(s.winner, m == 0 ? Winner.citizens : Winner.mafia);
     } else {
       expect(m > 0 && m < al.length - m, isTrue, reason: 'seed $seed: game should have ended');
@@ -38,12 +42,21 @@ List<int> alive(GameState s) => aliveSeats(s);
       final v = viewFor(s, i, now);
       if (s.phase != Phase.end && !(rules.ghost && !s.alive[i])) expect(v.roles, isNull, reason: 'no roles before the end');
       if (s.roles[i] != Role.mafia) expect(v.mates, isEmpty);
-      if (v.check != null) expect(s.roles[i], Role.detective);
+      if (v.check != null) {
+        expect(s.roles[i], Role.detective);
+        if (v.check!.seat == s.sheikh) expect(v.check!.mafia, isFalse, reason: 'the Sheikh reads not Mafia');
+      }
     }
     for (final (d, q) in s.stats.caught) {
       expect(s.roles[d], Role.detective);
       expect(s.roles[q], Role.mafia);
+      expect(q, isNot(s.sheikh));
     }
+    for (final (x, q) in s.stats.shots) {
+      expect(s.roles[x], Role.sniper);
+      expect(s.alive[q], isFalse);
+    }
+    expect(s.stats.shots.length <= 1, isTrue, reason: 'one bullet');
   }
 
   void go(Action a) {
@@ -110,6 +123,24 @@ void main() {
     }
   });
 
+  test('records from before 1.0.0 (no Sheikh, no modes: ties kill nobody) still replay', () {
+    final old = jsonDecode(File('../engine/fixtures/records-before-sheikh.json').readAsStringSync()) as List;
+    expect(old, hasLength(60));
+    for (final (i, r) in old.indexed) {
+      expect((r as Map).containsKey('sheikh'), isFalse);
+      expect(replay(r).error, isNull, reason: 'game ${i + 1}');
+    }
+  });
+
+  test('the scripted 1.0.0 games (the Sheikh, the Sniper, the Jester; roles.test.ts) replay to the same result', () {
+    final games = jsonDecode(File('../engine/fixtures/records-roles.json').readAsStringSync()) as List;
+    expect(games.length, greaterThanOrEqualTo(10));
+    for (final (i, r) in games.indexed) {
+      expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
+    }
+    expect(games.any((r) => (r as Map)['winner'] == 'jester'), isTrue);
+  });
+
   test('the same seeds make byte-identical records', () {
     final mine = jsJson([for (var seed = 1; seed <= 60; seed++) play(seed).rec.toJson()]);
     expect(mine, fixtures.readAsStringSync().trimRight());
@@ -141,7 +172,7 @@ void main() {
     final roles = copy(g), rl = roles['roles'] as List, m = rl.indexOf('mafia'), c = rl.indexOf('citizen');
     rl[m] = 'citizen';
     rl[c] = 'mafia';
-    refused(roles, RegExp(r'action \d+: \w+|result'));
+    refused(roles, RegExp(r'action \d+: \w+|result|roles')); // roles: the swapped Mafia was the Sheikh
     final extra = copy(g), el = extra['roles'] as List;
     el[el.indexOf('citizen')] = 'doctor';
     refused(extra, 'roles');
@@ -151,12 +182,27 @@ void main() {
     final time = copy(g), tl = time['actions'] as List;
     (tl[2] as Map)['at'] = ((tl[1] as Map)['at'] as int) - 1;
     refused(time, 'action 2: time');
-    final draws = copy(g), dl = draws['actions'] as List, k = dl.indexWhere((x) => (x as Map).containsKey('r'));
-    ((dl[k] as Map)['r'] as List).add(0.5);
-    refused(draws, 'action $k: random');
+    final draws = copy(g), dl = draws['actions'] as List;
+    (dl[1] as Map)['r'] = [0.5]; // 1.0.0 games draw nothing after the deal
+    refused(draws, 'action 1: random');
     refused(copy(g)..['format'] = 2, 'format');
     refused({'format': 1, 'actions': [{}]}, 'shape');
     refused(copy(g)..['actions'] = [{'a': null, 'at': 1}], 'shape');
+    // the Sheikh must be one of the Mafia; a mode without a Sheikh is not a record any version writes
+    refused(copy(g)..['sheikh'] = (g['roles'] as List).indexOf('citizen'), 'roles');
+    refused(copy(g)..remove('sheikh'), 'roles');
+  });
+
+  test('modes: the deck is fixed by player count; each mode has its minimum', () {
+    const none = Counts(1, 1, 0);
+    expect(modeCounts('sniper', 6, none), const Counts(2, 1, 1, sniper: 1));
+    expect(modeCounts('jester', 8, none), const Counts(2, 1, 1, jester: 1));
+    expect(modeCounts('all', 12, none), const Counts(3, 1, 1, sniper: 1, jester: 1));
+    List<String> ns(int n) => [for (var i = 0; i < n; i++) 'N$i'];
+    expect(validateSetup(ns(5), none, 'sniper').error, 'modeFew');
+    expect(validateSetup(ns(8), none, 'all').error, 'modeFew');
+    expect(validateSetup(ns(9), none, 'all').error, isNull);
+    expect(createGame(Setup(ns(9), none, defaultRules, 'nope'), seeded(1)).error, 'mode');
   });
 
   test('setup limits and messages', () {

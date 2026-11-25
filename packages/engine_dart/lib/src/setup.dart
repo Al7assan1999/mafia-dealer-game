@@ -31,15 +31,29 @@ Counts normalizeCounts(int n, Counts counts) {
   return c;
 }
 
-/// 'tooFew' | 'tooManyPlayers' | 'tooManyRoles' | 'mafiaGap' | 'badName' | 'dupNames'
+/// The modes (1.0.0), in the order the setup shows them, and the fewest players each needs.
+const modes = <Mode>['classic', 'sniper', 'jester', 'all'];
+const modeMin = <Mode, int>{'classic': 4, 'sniper': 6, 'jester': 6, 'all': 9};
+
+/// The deck a mode deals for n players. Classic: the table's counts; the others: fixed by n (Mafia about one in four,
+/// the Detective with 2+ Mafia, plus the mode's own roles).
+Counts modeCounts(Mode mode, int n, Counts counts) {
+  if (mode == 'classic') return normalizeCounts(n, counts);
+  final mafia = recMafia(n);
+  return Counts(mafia, 1, mafia >= 2 ? 1 : 0,
+      sniper: mode == 'sniper' || mode == 'all' ? 1 : 0, jester: mode == 'jester' || mode == 'all' ? 1 : 0);
+}
+
+/// 'tooFew' | 'tooManyPlayers' | 'tooManyRoles' | 'mafiaGap' | 'badName' | 'dupNames' | 'modeFew'
 typedef SetupCheck = ({Counts counts, String? error});
 
-SetupCheck validateSetup(List<String> names, Counts counts) {
-  final n = names.length, c = normalizeCounts(n, counts);
+SetupCheck validateSetup(List<String> names, Counts counts, [Mode mode = 'classic']) {
+  final n = names.length, c = modeCounts(mode, n, counts);
   SetupCheck err(String e) => (counts: c, error: e);
   if (n < minPlayers) return err('tooFew');
   if (n > maxPlayers) return err('tooManyPlayers');
-  if (n - c.mafia - c.doctor - c.detective < 0) return err('tooManyRoles');
+  if (n < modeMin[mode]!) return err('modeFew');
+  if (n - c.mafia - c.doctor - c.detective - c.sniper - c.jester < 0) return err('tooManyRoles');
   if (n - 2 * c.mafia < 2) return err('mafiaGap');
   if (names.any((x) => x.trim().isEmpty || x.trim().length > maxName)) return err('badName');
   if (names.map(nameKey).toSet().length < n) return err('dupNames');
@@ -82,11 +96,11 @@ List<T> shuffle<T>(List<T> a, Rng rng) {
 
 /// Deals a new game (phase deal), or returns the setup error.
 ({GameState? state, String? error}) createGame(Setup setup, Rng rng, [int deal = 1]) {
-  final v = validateSetup(setup.names, setup.counts);
+  if (!modes.contains(setup.mode)) return (state: null, error: 'mode');
+  final v = validateSetup(setup.names, setup.counts, setup.mode);
   if (v.error != null) return (state: null, error: v.error);
-  final names = setup.names.map((x) => x.trim()).toList(), rules = setup.rules, deck = <Role>[];
-  for (final r in [Role.mafia, Role.doctor, Role.detective]) {
-    final k = r == Role.mafia ? v.counts.mafia : r == Role.doctor ? v.counts.doctor : v.counts.detective;
+  final names = setup.names.map((x) => x.trim()).toList(), rules = setup.rules, deck = <Role>[], c = v.counts;
+  for (final (r, k) in [(Role.mafia, c.mafia), (Role.doctor, c.doctor), (Role.detective, c.detective), (Role.sniper, c.sniper), (Role.jester, c.jester)]) {
     for (var i = 0; i < k; i++) {
       deck.add(r);
     }
@@ -94,9 +108,11 @@ List<T> shuffle<T>(List<T> a, Rng rng) {
   while (deck.length < names.length) {
     deck.add(Role.citizen);
   }
+  final roles = shuffle(deck, rng), mafia = [for (var i = 0; i < roles.length; i++) if (roles[i] == Role.mafia) i];
   return (
     state: GameState(
-      deal: deal, names: names, roles: shuffle(deck, rng), alive: names.map((_) => true).toList(), rules: rules,
+      deal: deal, names: names, roles: roles, alive: names.map((_) => true).toList(), rules: rules,
+      mode: setup.mode, sheikh: mafia[(rng() * mafia.length).floor()], // one of the Mafia, at random
       phase: Phase.deal, day: 1, night: Night(), skipUsed: false, lastTarget: null, lastProt: SplayTreeMap(),
       morning: null, timer: DayTimer(false, rules.timer, 0), vote: null, verdict: null, winner: null, log: [],
       stats: Stats(),

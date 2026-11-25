@@ -19,19 +19,36 @@ class GameRecord {
   final List<String> names;
   final Rules rules;
   final List<Role> roles;
+  final Mode mode;
+  final int? sheikh; // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
   final List<RecordedAction> actions;
   Winner? winner;
   List<Object?> log; // JSON, as the recorder saw it
-  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log);
+  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh});
 
   Map<String, Object?> toJson() => {
         'format': 1, 'deal': deal, 'names': names, 'rules': rules.toJson(), 'roles': roles.map((r) => r.name).toList(),
+        if (sheikh != null) 'mode': mode,
+        if (sheikh != null) 'sheikh': sheikh,
         'actions': actions.map((x) => x.toJson()).toList(), 'winner': winner?.name, 'log': log,
       };
 }
 
+/// A record read back from its JSON (a saved or resumed game). Check it with [replay] first.
+GameRecord recordFromJson(Map<String, Object?> j) => GameRecord(
+      j['deal'] as int, (j['names'] as List).cast<String>(), recordRules(Map<String, Object?>.from(j['rules'] as Map)),
+      (j['roles'] as List).map((x) => Role.values.byName(x as String)).toList(),
+      (j['actions'] as List).map((x) {
+        final m = x as Map;
+        return RecordedAction(Action.fromJson(Map<String, Object?>.from(m['a'] as Map)), m['at'] as int,
+            (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
+      }).toList(),
+      j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>(),
+      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?);
+
 /// A new record for a game just dealt (phase deal).
-GameRecord startRecord(GameState s) => GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, []);
+GameRecord startRecord(GameState s) =>
+    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh);
 
 /// apply(), and on success the action joins the record (with its draws) and the record's result follows the game.
 Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
@@ -62,18 +79,22 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   if (roles0.any((x) => !Role.values.any((r) => r.name == x))) return no('roles');
   final roles = roles0.map((x) => Role.values.byName(x as String)).toList();
   int count(Role x) => roles.where((y) => y == x).length;
-  final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective));
+  final sheikh = json['sheikh'], mode = json['mode'];
+  final old = !json.containsKey('sheikh'); // before 1.0.0: Classic, no Sheikh
+  if (old ? json.containsKey('mode') : !(sheikh is int && sheikh >= 0 && sheikh < roles.length && roles[sheikh] == Role.mafia && mode is String)) {
+    return no('roles');
+  }
+  final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective), sniper: count(Role.sniper), jester: count(Role.jester));
   if (names0.any((x) => x is! String)) return no('setup: badName');
   final rules = recordRules(Map<String, Object?>.from(json['rules'] as Map));
-  final c = createGame(Setup(names0.cast<String>(), counts, rules), () => 0, json['deal'] as int);
+  final c = createGame(Setup(names0.cast<String>(), counts, rules, old ? 'classic' : mode as String), () => 0, json['deal'] as int);
   if (c.error != null) return no('setup: ${c.error}');
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)
   final dealt = c.state!.roles;
-  if (dealt.where((x) => x == Role.mafia).length != counts.mafia || dealt.where((x) => x == Role.detective).length != counts.detective ||
-      counts.doctor != 1) {
-    return no('roles');
-  }
-  var s = c.state!..roles = roles;
+  if (Role.values.any((r) => dealt.where((x) => x == r).length != count(r))) return no('roles');
+  var s = c.state!
+    ..roles = roles
+    ..sheikh = old ? null : sheikh as int;
   num last = double.negativeInfinity;
   for (var i = 0; i < actions.length; i++) {
     final x = actions[i] as Map;

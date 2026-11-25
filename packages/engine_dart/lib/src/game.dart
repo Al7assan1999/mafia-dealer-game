@@ -16,23 +16,30 @@ List<String> _jsKeys(Map<String, int> c) {
 
 /// What seat p may pick tonight (the target buttons).
 NightOptions nightOptions(GameState s, int p) {
-  final r = s.roles[p], R = s.rules, key = r == Role.citizen && !R.decoy ? 'none' : r.name;
+  final r = s.roles[p], R = s.rules;
+  // the Jester, and the Sniper once his bullet is spent, pick like a Citizen
+  final k0 = r == Role.jester || (r == Role.sniper && s.shotUsed) ? 'citizen' : r.name, key = k0 == 'citizen' && !R.decoy ? 'none' : k0;
   final res = NightOptions(key);
   if (key == 'none') return res;
   int mates(bool Function(Object v) pred) => s.night.mafia.entries.where((e) => e.key != p && pred(e.value)).length;
+  final sh = s.sheikh, shPick = r == Role.mafia && sh != null && sh != p && s.alive[sh] ? s.night.mafia[sh] : null;
   for (final j in aliveSeats(s)) {
-    final o = NightOption(j, j == p);
+    final o = NightOption(j, j == p)..sheikh = shPick == j;
     if (r == Role.mafia && s.roles[j] == Role.mafia) { o.disabled = true; o.teammate = j != p; }
     if (r == Role.mafia && R.norep && s.lastTarget == j) { o.disabled = true; o.lastTarget = true; }
     if (r == Role.doctor) {
       if (j == p && !R.self) o.disabled = true;
       if (R.rep && s.lastProt[p] == j) { o.disabled = true; o.lastNight = true; }
     }
-    if (r == Role.detective && j == p) o.disabled = true;
+    if ((key == 'detective' || key == 'sniper') && j == p) o.disabled = true;
     if (r == Role.mafia) o.mateVotes = mates((v) => v == j);
     res.opts.add(o);
   }
-  if (r == Role.mafia && R.skip && !s.skipUsed) res.skipMateVotes = mates((v) => v == 'skip');
+  if (r == Role.mafia && R.skip && !s.skipUsed) {
+    res.skipMateVotes = mates((v) => v == 'skip');
+    res.skipSheikh = shPick == 'skip';
+  }
+  if (key == 'sniper') res.skipMateVotes = 0; // keep the bullet
   return res;
 }
 
@@ -60,42 +67,62 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
     s.morning = null; s.verdict = null; s.vote = null;
     phase(Phase.night);
   }
-  bool checkWin(Lead? lead) {
-    final w = _winnerOf(s);
+  bool checkWin(Lead? lead, [Winner? forced]) {
+    final w = forced ?? _winnerOf(s);
     if (w == null) return false;
     pauseTimer(); s.winner = w; log(WinLog(w, lead)); phase(Phase.end);
     return true;
   }
 
   void resolveNight() {
-    // the Mafia's decision: the most votes among the living Mafia; a tie kills nobody (tieSkip) or, in older games, is
-    // broken at random. A tie never spends the one-time skip.
-    final votes = s.night.mafia.values.toList();
+    // the Mafia's decision: the most votes among the living Mafia. A tie (1.0.0) goes to the Sheikh's pick, even one
+    // nobody else made; with no pick from him (out, or didn't vote) to the lowest seat that voted for a tied pick.
+    // Older games: a tie kills nobody (tieSkip, without spending the skip) or, before Sprint 7, a random pick.
+    // 1.0.0: only the living count (a Mafia or the Sniper removed mid-night after choosing has no say)
+    bool live(MapEntry<int, Object> e) => s.sheikh == null || s.alive[e.key];
+    final votes = s.night.mafia.entries.where(live).toList(); // seats ascending
     int? target;
     var skip = false;
     if (votes.isNotEmpty) {
       final c = <String, int>{};
-      for (final v in votes) { c['$v'] = (c['$v'] ?? 0) + 1; }
+      for (final e in votes) { c['${e.value}'] = (c['${e.value}'] ?? 0) + 1; }
       final max = c.values.reduce(math.max), top = _jsKeys(c).where((k) => c[k] == max).toList();
-      final w = top.length > 1 && s.rules.tieSkip ? null : top[(ctx.rng() * top.length).floor()];
+      String? w;
+      final sh = s.sheikh;
+      if (sh == null) {
+        w = top.length > 1 && s.rules.tieSkip ? null : top[(ctx.rng() * top.length).floor()];
+      } else if (top.length == 1) {
+        w = top[0];
+      } else {
+        final sv = s.alive[sh] ? s.night.mafia[sh] : null;
+        w = sv != null ? '$sv' : '${votes.firstWhere((e) => top.contains('${e.value}')).value}';
+      }
       if (w == 'skip') { skip = true; s.skipUsed = true; } else if (w != null) { target = int.parse(w); }
     }
+    // the Sniper's one bullet: nothing stops it, not even the Doctor
+    final sn = s.night.sniper.entries.where(live).where((e) => e.value != 'skip').firstOrNull, shot = sn?.value as int?;
     final doc = s.night.doctor.entries.where((e) => e.value != null).map((e) => (e.key, e.value!)).toList();
     final prot = doc.map((d) => d.$2).toSet();
     s.lastProt = s.night.copy().doctor;
     final saved = target != null && prot.contains(target), dead = target != null && !saved ? target : null;
+    final kept = saved && shot != target; // a save the Sniper didn't undo
     if (dead != null) s.alive[dead] = false;
+    if (shot != null) { s.alive[shot] = false; s.shotUsed = true; s.stats.shots.add((sn!.key, shot)); }
     log(NightLog(s.day, skip ? 'skip' : target == null ? 'none' : saved ? 'saved' : 'kill', skip ? null : target,
-        doc.map((d) => d.$2).toList(), s.night.detective.values.whereType<int>().toList()));
+        doc.map((d) => d.$2).toList(), s.night.detective.values.whereType<int>().toList(), shot));
     s.lastTarget = target;
-    if (saved) { for (final d in doc) { if (d.$2 == target) s.stats.saves.add(d.$1); } }
+    if (kept) { for (final d in doc) { if (d.$2 == target) s.stats.saves.add(d.$1); } }
     if (dead != null) { s.stats.first ??= dead; s.stats.kills.add(dead); }
     for (final e in s.night.detective.entries) {
       final p = e.key, q = e.value;
-      if (q != null && s.roles[q] == Role.mafia && !s.stats.caught.any((x) => x.$1 == p && x.$2 == q)) s.stats.caught.add((p, q));
+      if (q != null && s.roles[q] == Role.mafia && q != s.sheikh && !s.stats.caught.any((x) => x.$1 == p && x.$2 == q)) s.stats.caught.add((p, q));
     }
-    s.morning = Morning(dead, saved && s.rules.saverev ? target : null);
-    if (checkWin(dead != null ? Lead('killed', dead) : null)) return;
+    // the morning names the dead in seat order: nobody can tell which death was the Sniper's
+    final deaths = {?dead, ?shot}.toList()..sort();
+    s.morning = Morning(deaths.firstOrNull, kept && s.rules.saverev ? target : null, deaths.length > 1 ? deaths[1] : null);
+    // the death that decides the game leads its announcement: a Mafia shot by the Sniper when the town wins
+    final lead = deaths.where((x) => s.roles[x] == Role.mafia && !aliveSeats(s).any((i) => s.roles[i] == Role.mafia)).firstOrNull ?? dead ?? shot;
+    if (checkWin(lead != null ? Lead('killed', lead) : null)) return;
     phase(Phase.morning);
   }
 
@@ -104,7 +131,8 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
     if (out != null) { s.alive[out] = false; s.stats.outs.add(out); }
     s.verdict = Verdict(out, kind, tally);
     log(DayLog(s.day, out, kind, tally));
-    if (checkWin(out != null ? Lead('votedOut', out) : null)) return;
+    // the Jester wins alone when the day vote puts him out
+    if (checkWin(out != null ? Lead('votedOut', out) : null, out != null && s.roles[out] == Role.jester ? Winner.jester : null)) return;
     phase(Phase.verdict);
   }
 
@@ -154,6 +182,7 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       if (r == Role.mafia) s.night.mafia[seat] = a.choice!;
       if (r == Role.doctor) s.night.doctor[seat] = a.choice as int;
       if (r == Role.detective) s.night.detective[seat] = a.choice as int;
+      if (no.key == 'sniper') s.night.sniper[seat] = a.choice!;
       s.night.done.add(seat);
       settle();
 

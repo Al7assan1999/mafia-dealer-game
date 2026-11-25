@@ -1,6 +1,6 @@
 // One random game from a seed, checking what must always hold after every action. Returns its record.
 import assert from 'node:assert/strict';
-import { apply, createGame, DEFAULT_RULES, maxMafia, seeded, startRecord, step, viewFor, type Action, type GameRecord, type GameState, type SeatView } from '../src/index.ts';
+import { apply, createGame, DEFAULT_RULES, maxMafia, MODE_MIN, MODES, seeded, startRecord, step, viewFor, type Action, type GameRecord, type GameState, type SeatView } from '../src/index.ts';
 
 const alive = (s: GameState) => s.alive.map((a, i) => (a ? i : -1)).filter(i => i >= 0);
 
@@ -9,8 +9,8 @@ export function play(seed: number): { steps: number; rec: GameRecord; state: Gam
   const n = 4 + Math.floor(r() * 17), mafia = 1 + Math.floor(r() * maxMafia(n));
   const rules = { ...DEFAULT_RULES, skip: chance(.5), norep: chance(.5), saverev: chance(.5), decoy: chance(.5), self: chance(.5),
     rep: chance(.5), reveal: chance(.5), ghost: chance(.5), skipVote: chance(.5), nightT: pick([0, 30, 60]) };
-  const names = Array.from({ length: n }, (_, i) => 'Player ' + (i + 1));
-  const c = createGame({ names, counts: { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0 }, rules }, r);
+  const names = Array.from({ length: n }, (_, i) => 'Player ' + (i + 1)), mode = pick(MODES.filter(m => MODE_MIN[m] <= n));
+  const c = createGame({ names, counts: { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0 }, rules, mode }, r);
   assert.ok(c.ok);
   let s = c.state, now = 1_000_000, steps = 0;
   const rec = startRecord(s);
@@ -23,15 +23,20 @@ export function play(seed: number): { steps: number; rec: GameRecord; state: Gam
   const check = () => {
     assert.deepEqual(JSON.parse(JSON.stringify(s)), s, 'plain JSON');
     const al = alive(s), m = al.filter(i => s.roles[i] === 'mafia').length;
-    if (s.phase === 'end') assert.equal(s.winner, m === 0 ? 'citizens' : 'mafia');
+    assert.equal(s.roles[s.sheikh!], 'mafia', 'the Sheikh is one of the Mafia');
+    const last = s.log.at(-1);
+    if (s.phase === 'end' && s.winner === 'jester') assert.ok(last?.t === 'win' && last.lead?.k === 'votedOut' && s.roles[last.lead.seat] === 'jester');
+    else if (s.phase === 'end') assert.equal(s.winner, m === 0 ? 'citizens' : 'mafia');
     else assert.ok(m > 0 && m < al.length - m, `seed ${seed}: game should have ended`);
     for (let i = 0; i < n; i++) {
       const v = viewFor(s, i, now) as SeatView;
       if (s.phase !== 'end' && !(rules.ghost && !s.alive[i])) assert.equal(v.roles, null, 'no roles before the end');
       if (s.roles[i] !== 'mafia') assert.deepEqual(v.mates, []);
-      if (v.check) assert.equal(s.roles[i], 'detective');
+      if (v.check) { assert.equal(s.roles[i], 'detective'); if (v.check.seat === s.sheikh) assert.equal(v.check.mafia, false, 'the Sheikh reads not Mafia'); }
     }
-    for (const [d, q] of s.stats.caught) { assert.equal(s.roles[d], 'detective'); assert.equal(s.roles[q], 'mafia'); }
+    for (const [d, q] of s.stats.caught) { assert.equal(s.roles[d], 'detective'); assert.equal(s.roles[q], 'mafia'); assert.notEqual(q, s.sheikh); }
+    for (const [x, q] of s.stats.shots ?? []) { assert.equal(s.roles[x], 'sniper'); assert.equal(s.alive[q], false); }
+    assert.ok((s.stats.shots ?? []).length <= 1, 'one bullet');
   };
 
   go({ t: 'begin' });
