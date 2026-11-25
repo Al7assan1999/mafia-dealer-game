@@ -24,7 +24,7 @@ if (cmd === 'seed') {
 }
 if (cmd !== 'run') { console.log('usage: node load.mjs seed <players> | run <players> [games] [pace]'); process.exit(1); }
 
-const BUILD = 100017;  // MODES_BUILD in packages/protocol/src/live.ts: the room deals only to 1.0.0 apps
+const BUILD = 100019;  // MODES_BUILD in packages/protocol/src/live.ts: the room deals only to 1.1.0 apps
 const GAMES = +gArg || 1, PACE = pArg == null ? 1 : +pArg, GAME_MS = 180e3;
 const sleep = ms => new Promise(r => setTimeout(r, ms * PACE));
 const c = { http: 0, httpErr: 0, wsOpen: 0, wsFail: 0, wsDrop: 0, wsIn: 0, pings: 0, wsOut: 0, outBytes: 0, chats: 0, games: 0, stuck: 0 };

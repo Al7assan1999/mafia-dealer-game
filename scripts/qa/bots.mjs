@@ -4,8 +4,8 @@
 // node bots.mjs friend <token> <handle>    → friend request to <handle>
 const EVERYONE = -1; // packages/protocol/src/live.ts
 const base = 'http://127.0.0.1:8790';
-// the app build the bots report: 1.0.0 by default; BOT_BUILD=100016 (or 0: none) plays an older phone, which can't be dealt in
-const BOT_BUILD = process.env.BOT_BUILD ?? '100017';
+// the app build the bots report: 1.1.0 by default; BOT_BUILD=100018 (or 0: none) plays an older phone, which can't be dealt in
+const BOT_BUILD = process.env.BOT_BUILD ?? '100019';
 const api = async (tok, method, path, body) => {
   const r = await fetch(base + path, { method, headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}) }, body: body && JSON.stringify(body) });
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(`${method} ${path} ${r.status} ${JSON.stringify(j)}`); return j;
