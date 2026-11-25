@@ -90,12 +90,15 @@ class Audio {
   void day() { sfx('day_start'); say([_pick(['v_day', 'v_day_2'])], delay: .4); }
   void timeUp() { sfx('time_up'); say(['v_timeup'], delay: 1.1); }
 
-  void morning(String? dead, String? role, String? saved, void Function(double) arm) {
+  /// "They were: …" (recorded for the four first roles only; the newer ones are shown, not said)
+  static String? _was(String? role) => const {'mafia', 'doctor', 'detective', 'citizen'}.contains(role) ? 'v_was_$role' : null;
+
+  void morning(String? dead, String? role, String? saved, void Function(double) arm, [String? dead2, String? role2]) {
     sfx(dead != null ? 'morning_dead' : 'morning_safe');
     arm(dead != null ? 3.6 : 4.4);
     if (dead != null) {
-      say([_pick(['v_killed_1', 'v_killed_2', 'v_killed_3']), name(dead, monster: true), role == null ? null : 'v_was_$role'],
-          delay: 2.8, at: (i) { if (i == 1) arm(0); });
+      say([_pick(['v_killed_1', 'v_killed_2', 'v_killed_3']), name(dead, monster: true), _was(role),
+          if (dead2 != null) ...[name(dead2, monster: true), _was(role2)]], delay: 2.8, at: (i) { if (i == 1) arm(0); });
     } else if (saved != null) {
       say([_pick(['v_saved_1', 'v_saved_2']), name(saved)], delay: 3.4, at: (i) { if (i == 1) arm(0); });
     } else {
@@ -107,7 +110,7 @@ class Audio {
     sfx('verdict');
     arm(1.4);
     if (out != null) {
-      say([_pick(['v_vote_out', 'v_vote_out_2']), name(out), role == null ? null : 'v_was_$role'], delay: 1.3, at: (i) { if (i == 1) arm(0); });
+      say([_pick(['v_vote_out', 'v_vote_out_2']), name(out), _was(role)], delay: 1.3, at: (i) { if (i == 1) arm(0); });
     } else {
       say([kind == 'tie' ? 'v_vote_tie' : 'v_vote_none'], delay: 1.2, at: (i) { if (i == 0) arm(.6); });
     }
@@ -116,8 +119,15 @@ class Audio {
   /// The clips that announce what ended the game (a kill or a vote), said before the win.
   List<String?> lead(String k, String who, String? role) => [
         k == 'killed' ? _pick(['v_killed_1', 'v_killed_2', 'v_killed_3']) : _pick(['v_vote_out', 'v_vote_out_2']),
-        name(who, monster: k == 'killed'), role == null ? null : 'v_was_$role',
+        name(who, monster: k == 'killed'), _was(role),
       ];
+
+  /// [S17] the Jester was voted out: the vote, then his laugh
+  void jesterWin(List<String?> lead, void Function(double) arm) {
+    sfx('verdict');
+    arm(4);
+    say([...lead, 'v_laugh'], delay: 1.3, at: (i) { if (i == lead.length) arm(.3); });
+  }
 
   void mafiaWin(List<String> mafia, List<String?> lead, void Function(double) arm) {
     lead.isNotEmpty ? sfx('verdict') : sfx('mafia_win');

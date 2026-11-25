@@ -25,6 +25,7 @@ class _SetupState extends State<SetupScreen> {
   late final List<TextEditingController> names;
   late int mafia, detective;
   late Rules rules;
+  Mode mode = 'classic';
 
   @override
   void initState() {
@@ -35,6 +36,8 @@ class _SetupState extends State<SetupScreen> {
     mafia = (counts?['mafia'] ?? s?['mafia']) as int? ?? 1;
     detective = (counts?['detective'] ?? s?['detective']) as int? ?? 1;
     try { rules = defaultRules.merge(Map<String, Object?>.from(((acc ?? s)?['rules'] as Map?) ?? {})); } catch (_) { rules = defaultRules; }
+    final m = acc?['mode'] ?? s?['mode']; // a setup saved before 1.0.0 has none: Classic
+    if (modes.contains(m)) mode = m as String;
   }
 
   Account? get _acc => widget.account?.signedIn == true ? widget.account : null;
@@ -48,14 +51,17 @@ class _SetupState extends State<SetupScreen> {
 
   String? _error(L l, SetupCheck v) => switch (v.error) {
         'tooFew' => l.eTooFew, 'tooManyPlayers' => l.eTooMany, 'tooManyRoles' => l.eTooManyRoles,
-        'mafiaGap' => l.eMafiaGap(maxMafia(names.length)), 'badName' => l.eBadName, 'dupNames' => l.eDupNames, _ => null,
+        'mafiaGap' => l.eMafiaGap(maxMafia(names.length)), 'badName' => l.eBadName, 'dupNames' => l.eDupNames,
+        'modeFew' => l.eModeFew(modeMin[mode]!), _ => null,
       };
 
   void _deal(L l, Counts counts) {
     final ns = _names(l), p = widget.prefs;
     p.players = [for (final c in names) c.text.trim()];
     final roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ..._roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))].take(30).toList();
-    final saved = {'mafia': counts.mafia, 'detective': counts.detective, 'rules': rules.toJson()};
+    // Classic keeps the table's counts; another mode's deck comes from the player count
+    final keep = mode == 'classic' ? counts : Counts(mafia, 1, detective);
+    final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode};
     if (_acc != null) {
       _acc!.saveNames(roster).catchError((_) {}); // offline: the next deal saves them
       _acc!.saveSetup(saved).catchError((_) {});
@@ -63,14 +69,14 @@ class _SetupState extends State<SetupScreen> {
       p.roster = roster;
     }
     p.setup = saved;
-    final r = OfflineGame.start(p, widget.audio, Setup(ns, counts, rules));
+    final r = OfflineGame.start(p, widget.audio, Setup(ns, counts, rules, mode));
     if (r.game == null) return;
     widget.onDealt != null ? widget.onDealt!(r.game!) : Navigator.of(context).pop(r.game);
   }
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective)), err = _error(l, v);
+    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective), mode), err = _error(l, v);
     final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
     return Scaffold(
       appBar: AppBar(title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
@@ -114,41 +120,88 @@ class _SetupState extends State<SetupScreen> {
             ],
           ]),
         ),
-        DeckEditor(players: ns.length, counts: v.counts, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
+        ModePicker(players: ns.length, mode: mode, onChanged: (m) => setState(() => mode = m)),
+        DeckEditor(players: ns.length, counts: v.counts, mode: mode, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
         RulesEditor(rules: rules, onChanged: (r) => setState(() => rules = r)),
       ]),
     );
   }
 }
 
+/// [S17] The modes: one tap picks a fixed set of roles (the offline setup and the lobby). A mode that needs more
+/// players is shown but can't be picked; the best one for this many players is marked Suggested. Read-only without
+/// onChanged.
+class ModePicker extends StatelessWidget {
+  const ModePicker({super.key, required this.players, required this.mode, this.onChanged});
+  final int players;
+  final Mode mode;
+  final ValueChanged<Mode>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context), best = suggestedMode(players);
+    return Sec(title: l.mode, child: Column(children: [
+      for (final m in modes) () {
+        final on = m == mode, open = players >= modeMin[m]!;
+        return Padding(padding: const EdgeInsets.only(bottom: 8), child: Semantics(selected: on, button: onChanged != null, enabled: open, child: InkWell(
+          key: Key('mode_$m'),
+          borderRadius: BorderRadius.circular(C.p.radius),
+          onTap: onChanged != null && open && !on ? () => onChanged!(m) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: on ? C.red2.withValues(alpha: .10) : null, border: Border.all(color: on ? C.red2 : C.line, width: on ? 2 : 1),
+                borderRadius: BorderRadius.circular(C.p.radius)),
+            child: Row(children: [
+              Icon(on ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: on ? C.red2 : open ? C.mute : C.dim, size: 22),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(modeName(l, m), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: open ? C.text : C.dim)),
+                Text(modeLine(l, m), style: TextStyle(color: open ? C.mute : C.dim, fontSize: 13, height: 1.35)),
+              ])),
+              if (!open) Text(l.modeFrom(modeMin[m]!), key: Key('modeFrom_$m'), style: TextStyle(color: C.dim, fontSize: 12))
+              else if (m == best && players >= minPlayers) Container(key: Key('suggested_$m'), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(border: Border.all(color: C.gold), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
+                  child: Text(l.suggested, style: TextStyle(color: C.gold, fontSize: 12, fontWeight: FontWeight.w700))),
+            ]),
+          ),
+        )));
+      }(),
+    ]));
+  }
+}
+
 /// The roles: Mafia and Detective +/- inside the engine's limits for this many players (the offline setup and the
-/// online lobby). Read-only without onChanged.
+/// online lobby). Read-only without onChanged, and for any mode but Classic (its deck is fixed by the player count).
 class DeckEditor extends StatelessWidget {
-  const DeckEditor({super.key, required this.players, required this.counts, this.onChanged});
+  const DeckEditor({super.key, required this.players, required this.counts, this.onChanged, this.mode = 'classic'});
   final int players;
   final Counts counts;
+  final Mode mode;
   final ValueChanged<Counts>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), n = players, m = counts.mafia, d = counts.detective, on = onChanged;
+    final l = L.of(context), n = players, m = counts.mafia, d = counts.detective, classic = mode == 'classic', on = classic ? onChanged : null;
     void set(int mm, int dd) => on?.call(Counts(mm, 1, dd));
     return Sec(
       title: l.deck,
       child: Column(children: [
-        _count(l.mafia, l.dMafia, Role.mafia, m, on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : null,
-            on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : null),
+        _count(l.mafia, '${l.dMafia} · ${m > 1 ? l.oneSheikh : l.sheikh}', Role.mafia, m, on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : null,
+            on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : null, steppers: classic),
         _count(l.doctor, '${l.dDoctor} · ${l.docOne}', Role.doctor, 1, null, null),
         _count(l.detective, m < 2 ? '${l.dDetective} · ${l.detNeed2}' : l.dDetective, Role.detective, d,
-            on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null),
-        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d).clamp(0, 99), null, null),
-        if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),
+            on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null, steppers: classic),
+        if (counts.sniper > 0) _count(l.sniper, l.dSniper, Role.sniper, counts.sniper, null, null),
+        if (counts.jester > 0) _count(l.jester, l.dJester, Role.jester, counts.jester, null, null),
+        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d - counts.sniper - counts.jester).clamp(0, 99), null, null),
+        if (!classic) Text(l.modeFixed, key: const Key('modeFixed'), style: TextStyle(color: C.dim, fontSize: 12))
+        else if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),
       ]),
     );
   }
 
   // [look] each role in its own bordered card: a tinted icon box, the name in its colour, − n + in squares
-  Widget _count(String name, String desc, Role r, int n, VoidCallback? minus, VoidCallback? plus) => Container(
+  Widget _count(String name, String desc, Role r, int n, VoidCallback? minus, VoidCallback? plus, {bool steppers = true}) => Container(
         margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(border: Border.all(color: C.line), borderRadius: BorderRadius.circular(C.p.radius)),
         child: Row(children: [
@@ -160,9 +213,9 @@ class DeckEditor extends StatelessWidget {
             Text(name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: roleColor(r))),
             Text(desc, style: TextStyle(color: C.mute, fontSize: 13, height: 1.35)),
           ])),
-          if (r == Role.mafia || r == Role.detective) SqBtn(Icons.remove, key: Key('minus_${r.name}'), onTap: minus, size: 36),
+          if (steppers && (r == Role.mafia || r == Role.detective)) SqBtn(Icons.remove, key: Key('minus_${r.name}'), onTap: minus, size: 36),
           SizedBox(width: 32, child: Text('$n', key: Key('count_${r.name}'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700))),
-          if (r == Role.mafia || r == Role.detective) SqBtn(Icons.add, key: Key('plus_${r.name}'), onTap: plus, size: 36),
+          if (steppers && (r == Role.mafia || r == Role.detective)) SqBtn(Icons.add, key: Key('plus_${r.name}'), onTap: plus, size: 36),
         ]),
       );
 }

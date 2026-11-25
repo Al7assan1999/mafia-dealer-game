@@ -6,18 +6,24 @@ extension _LobbyViews on _RoomScreenState {
     final room = c.room!, host = c.isHost, ms = c.members;
     final rules = defaultRules.merge(Map<String, Object?>.from(room['rules'] as Map));
     final counts = Counts((room['counts'] as Map)['mafia'] as int, 1, (room['counts'] as Map)['detective'] as int);
-    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts);
-    void setup(Counts cc, Rules rr) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
-      if (room['kick'] != null) 'kick': room['kick']});
+    final mode = modes.contains(room['mode']) ? room['mode'] as String : 'classic'; // a server before 1.0.0 sends none
+    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts, mode);
+    // [S17-4, his ruling] a phone older than 1.0.0 can't be dealt in, Classic too (the server refuses the deal as well);
+    // every phone counts, mine included, as on the server
+    final old = ms.where((m) => !(m['v'] is int && (m['v'] as int) >= modesBuild)).toList();
+    void setup(Counts cc, Rules rr, [Mode? mm]) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
+      if (room['kick'] != null) 'kick': room['kick'], 'mode': mm ?? mode});
     return Stage(center: false, bottom: [
       if (host) ...[
-        Text([l.playersCount(ms.length), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
-              switch (presetOf(rules)) { 'classic' => l.presetClassic, 'beginner' => l.presetBeginner, _ => l.presetCustom }].join(' · '),
+        Text([l.playersCount(ms.length), modeName(l, mode), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
+              if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester].join(' · '),
             key: const Key('dealSummary'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
+        if (old.isNotEmpty) Text(l.eOldApp, key: const Key('oldAppNote'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
+        if (v.error == 'modeFew') Text(l.eModeFew(modeMin[mode]!), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         for (final m in ms.where((m) => m['online'] == false))
           Text(l.offlineDealt(m['display'] as String), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFD9A441))),
         if (ms.length < minPlayers) Text(l.eNoMembers, textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
-        Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null ? _h(() => c.send({'t': 'deal'})) : null),
+        Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null && old.isEmpty ? _h(() => c.send({'t': 'deal'})) : null),
         Row(children: [
           if (!widget.lan) ...[
             Expanded(child: Btn(l.inviteFriends, key: const Key('inviteFriends'), ghost: true, onTap: () => _inviteSheet(l))),
@@ -57,7 +63,8 @@ extension _LobbyViews on _RoomScreenState {
             icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
             onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })) : null,
           child: Column(children: [for (final m in ms) _member(l, m, host)])),
-      DeckEditor(players: ms.length, counts: v.counts, onChanged: host ? (cc) => setup(cc, rules) : null),
+      ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(counts, rules, mm) : null),
+      DeckEditor(players: ms.length, counts: v.counts, mode: mode, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
       ]) Padding(padding: const EdgeInsetsDirectional.only(end: 24), child: w),
     ]);
@@ -79,8 +86,10 @@ extension _LobbyViews on _RoomScreenState {
           ]),
           Text([if (m['handle'] != null) atHandle(m['handle'] as String), if (m['ready'] == true) l.readyTag, if (m['muted'] == true) l.mutedTag].join(' · '),
               style: TextStyle(color: C.mute, fontSize: 12)),
-          if (!me && appBuild > 0 && m['v'] is int && (m['v'] as int) < appBuild)
+          if (!me && m['v'] is int && (m['v'] as int) >= modesBuild && (m['v'] as int) < roomBuild)
             Text(l.oldVersion, key: Key('oldVersion_${m['cn']}'), style: TextStyle(color: C.gold, fontSize: 12)),
+          if (!(m['v'] is int && (m['v'] as int) >= modesBuild))
+            Text(l.eModeOld, key: Key('modeOld_${m['cn']}'), style: TextStyle(color: C.red2, fontSize: 12)),
         ])),
         if (!me)
           SafetyMenu(

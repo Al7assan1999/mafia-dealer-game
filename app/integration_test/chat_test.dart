@@ -63,7 +63,7 @@ void main() {
     // a scripted player joins and says hello
     final bot = await signUp('d$run@example.com', 'd_$run');
     final got = <Map<String, Object?>>[];
-    final ws = await WebSocket.connect(bot.socket('/v1/rooms/${conn.code}/ws').toString(), protocols: ['mafia.v1', bot.token!]);
+    final ws = await WebSocket.connect(bot.socket('/v1/rooms/${conn.code}/ws?v=100017').toString(), protocols: ['mafia.v1', bot.token!]);
     ws.listen((raw) { if (raw != 'pong') got.add(jsonDecode(raw as String) as Map<String, Object?>); });
     await waitUntil(t, () => conn.members.length == 2, 'the bot in the room');
     ws.add(jsonEncode({'t': 'chat', 'to': -1, 'text': 'hello from the bot', 'cid': 'b1'}));

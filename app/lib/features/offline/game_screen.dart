@@ -70,6 +70,8 @@ class _GameScreenState extends State<GameScreen> {
         Screen.dealPass => _pass(l, l.iam(_name(g.who)), () => g.dealOpen(g.who), top: l.cardOf(g.who + 1, g.s.alive.length), glyph: Icons.smartphone_outlined),
         Screen.dealCard => RoleCard(key: ValueKey('card${g.who}'), foot: _foot(l), name: _name(g.who), role: g.s.roles[g.who],
             mates: [for (final j in g.view(g.who).mates) _name(j)], done: g.who == g.n - 1 ? l.memorizedLast : l.memorized,
+            isSheikh: g.view(g.who).sheikh == g.who,
+            sheikh: switch (g.view(g.who).sheikh) { final sh? when sh != g.who => _name(sh), _ => null },
             onDone: () => g.dealDone(g.who)),
         Screen.nightPass => _pass(l, l.open(_name(g.who)), () => g.nightOpen(g.who), color: C.night, top: l.night(g.s.day), glyph: Icons.nightlight_outlined),
         Screen.nightPick => _nightPick(l),
@@ -119,25 +121,26 @@ class _GameScreenState extends State<GameScreen> {
   // ---------------------------------------------------------------- night
   Widget _nightPick(L l) {
     final seat = g.who, v = g.view(seat), no = v.night!, role = g.s.roles[seat];
-    final (title, desc) = switch (no.key) {
-      'mafia' => (l.aMafia, l.aMafiaD), 'doctor' => (l.aDoctor, l.aDoctorD), 'detective' => (l.aDetective, l.aDetectiveD),
-      'citizen' => (l.aCitizen, l.aCitizenD), _ => (l.aNone, l.aNoneD),
-    };
-    final none = no.key == 'none';
+    final (title, desc) = nightText(l, no.key);
+    final none = no.key == 'none', sniper = no.key == 'sniper';
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () { final c = none ? null : _pick; if (none || c != null) _do(() => g.nightPick(seat, c)); } : null),
     ], children: [
       Row(children: [
         Icon(roleIcon(role), color: roleColor(role)),
         const SizedBox(width: 8),
-        Text(roleName(l, role), style: head.copyWith(color: roleColor(role), fontSize: 18)),
-        const Spacer(),
-        Text('${_name(seat)} · ${l.night(g.s.day)}', style: TextStyle(color: C.mute)),
+        Expanded(child: Text(seatRole(l, role, v.sheikh == seat), overflow: TextOverflow.ellipsis, style: head.copyWith(color: roleColor(role), fontSize: 18))),
+        const SizedBox(width: 8),
+        Flexible(child: Text('${_name(seat)} · ${l.night(g.s.day)}', overflow: TextOverflow.ellipsis, textAlign: TextAlign.end, style: TextStyle(color: C.mute))),
       ]),
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
       Text(desc, style: TextStyle(color: C.mute)),
       if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.mates(v.mates.map(_name).join(', ')), style: TextStyle(color: C.red2))),
+      // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
+      if (no.key == 'mafia' && v.sheikh != null && v.mates.isNotEmpty)
+        Padding(padding: const EdgeInsets.only(top: 4), child: Text(g.s.alive[v.sheikh!] ? l.tieSheikh : l.tieLowest, key: const Key('tieSheikh'),
+            style: TextStyle(color: C.mute, fontSize: 13))),
       if (g.s.night.endsAt != 0) _nightClock(l),
       const SizedBox(height: 16),
       if (!none)
@@ -146,15 +149,17 @@ class _GameScreenState extends State<GameScreen> {
             if (o.self) l.you,
             if (o.teammate) l.teammate,
             if (o.mateVotes > 0) '${l.mateVote} ×${o.mateVotes}',
+            if (o.sheikh) l.sheikhPick,
             if (o.lastTarget) l.lastTgt,
             if (o.lastNight) l.lastNight,
           ]),
-      if (no.canSkip) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((no.skipMateVotes ?? 0) > 0) '${l.mateVote} ×${no.skipMateVotes}']),
+      if (no.canSkip && sniper) _option(l.keepBullet, 'skip', tags: [l.keepBulletD])
+      else if (no.canSkip) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((no.skipMateVotes ?? 0) > 0) '${l.mateVote} ×${no.skipMateVotes}', if (no.skipSheikh) l.sheikhPick]),
     ]);
   }
 
   Widget _nightLocked(L l) {
-    final seat = g.who, check = g.s.roles[seat] == Role.detective ? g.s.night.detective[seat] : null, last = g.s.phase != Phase.night;
+    final seat = g.who, check = g.view(seat).check, last = g.s.phase != Phase.night;
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, bottom: [Btn(last ? l.doneLast : l.done, key: const Key('nightNext'), onTap: () => g.nightNext(seat))], children: [
       Icon(Icons.lock_outline, color: C.mute, size: 48),
       const SizedBox(height: 14),
@@ -164,8 +169,8 @@ class _GameScreenState extends State<GameScreen> {
           padding: const EdgeInsets.only(top: 22),
           child: Sec(
             color: C.card2,
-            child: Text(l.checkResult(_name(check), g.s.roles[check] == Role.mafia ? l.mafia : l.notMafia), key: const Key('checkResult'),
-                textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: g.s.roles[check] == Role.mafia ? C.red2 : C.green)),
+            child: Text(l.checkResult(_name(check.seat), check.mafia ? l.mafia : l.notMafia), key: const Key('checkResult'),
+                textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: check.mafia ? C.red2 : C.green)),
           ),
         ),
     ]);
@@ -184,14 +189,16 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _morning(L l) {
     if (!g.revealed) return _suspense(l, l.sunrise, C.day, Icons.wb_sunny_outlined);
-    final m = g.s.morning!, d = m.dead;
+    final m = g.s.morning!, d = m.dead, sniper = g.s.roles.contains(Role.sniper);
     return Stage(card: true, foot: _foot(L.of(context)), color: d != null ? C.blood : C.day, bottom: [Btn(l.startDay(g.s.day), key: const Key('startDay'), onTap: g.startDay)], children: [
       Tag(l.morningOf(g.s.day)),
       const SizedBox(height: 24),
       if (d != null) ...[
-        Text(l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
-        Big(_name(d), size: 42, color: C.red2),
-        if (g.s.rules.reveal) Text(l.wasRole(roleName(l, g.s.roles[d])), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        Text(m.dead2 != null ? l.diedIs : sniper ? l.diedOne : l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
+        for (final x in [d, ?m.dead2]) ...[
+          Big(_name(x), size: 42, color: C.red2),
+          if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[x], x == g.s.sheikh)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        ],
       ] else if (m.saved != null) ...[
         Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(m.saved!), size: 42, color: C.green),
@@ -239,7 +246,7 @@ class _GameScreenState extends State<GameScreen> {
         for (var i = 0; i < g.n; i++)
           Chip(
             key: Key('roster_$i'),
-            label: Text(g.s.alive[i] ? _name(i) : '${_name(i)} · ${g.s.rules.reveal ? roleName(l, g.s.roles[i]) : l.outTag}',
+            label: Text(g.s.alive[i] ? _name(i) : '${_name(i)} · ${g.s.rules.reveal ? seatRole(l, g.s.roles[i], i == g.s.sheikh) : l.outTag}',
                 style: TextStyle(color: g.s.alive[i] ? C.text : C.dim, decoration: g.s.alive[i] ? null : TextDecoration.lineThrough)),
             backgroundColor: g.s.alive[i] ? C.card2 : C.bg, side: BorderSide(color: C.line),
           ),
@@ -268,7 +275,7 @@ class _GameScreenState extends State<GameScreen> {
       if (v.out != null) ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(v.out!), size: 42, color: C.red2),
-        if (g.s.rules.reveal) Text(l.wasRole(roleName(l, g.s.roles[v.out!])), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[v.out!], v.out == g.s.sheikh)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else
         Big(v.kind == 'tie' ? l.tie : l.skipped),
       if (v.tally != null && v.tally!.isNotEmpty) ...[
@@ -300,9 +307,8 @@ class _GameScreenState extends State<GameScreen> {
       ]),
     ], children: [
       // [S15-4] the old app's recap card
-      RecapCard(mafia: mafia, days: s.day, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
-          best: best == null ? null : (name: _name(best.seat), role: s.roles[best.seat],
-              why: switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv }),
+      RecapCard(winner: s.winner!, days: s.day, sheikh: s.sheikh, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
+          best: best == null ? null : (name: _name(best.seat), role: s.roles[best.seat], why: mvpWhy(l, best.why, best.n)),
           lines: [for (final e in s.log) if (_line(l, e) case final t?) (night: e is NightLog, text: t)]),
       const SizedBox(height: 12),
       Text(l.nothingSaved, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
@@ -310,8 +316,9 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   String? _line(L l, GameEvent e) => switch (e) {
-        NightLog(:final day, :final k, :final seat) => l.hNight(day) +
-            switch (k) { 'kill' => l.hKill(_name(seat!)), 'saved' => l.hSaved(_name(seat!)), 'skip' => l.hSkip, _ => l.hNoMafia },
+        NightLog(:final day, :final k, :final seat, :final shot) => l.hNight(day) +
+            switch (k) { 'kill' => l.hKill(_name(seat!)), 'saved' => l.hSaved(_name(seat!)), 'skip' => l.hSkip, _ => l.hNoMafia } +
+            (shot != null ? l.hShot(_name(shot)) : ''),
         DayLog(:final day, :final out) => l.hDay(day) + (out != null ? l.hOut(_name(out)) : l.hNone),
         RemovedLog(:final seat) => l.hRemoved(_name(seat)),
         _ => null,

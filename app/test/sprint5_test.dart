@@ -189,7 +189,7 @@ void main() {
       r.last.push(roomMsg(1, members: [member(0, host: true), member(1), member(2), member(3, online: false)]));
       r.last.push({'t': 'view', 'rev': 1, 'view': null});
       await frames(t);
-      expect(t.widget<Text>(find.byKey(const Key('dealSummary'))).data, '4 players · 1 Mafia · Doctor · Classic');
+      expect(t.widget<Text>(find.byKey(const Key('dealSummary'))).data, '4 players · Classic · 1 Mafia · Doctor');
       expect(find.text('P4 is offline and would be dealt in'), findsOneWidget);
       r.last.push(roomMsg(2, status: 'game'));
       r.last.push(view(2, 'day', extra: {'timer': {'left': 100}, 'roster': [{'name': 'P1', 'alive': true}, {'name': 'P2', 'alive': false}, {'name': 'P3', 'alive': true}, {'name': 'P4', 'alive': true}]}));

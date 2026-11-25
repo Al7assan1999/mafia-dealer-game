@@ -35,10 +35,10 @@ part 'room_end.dart';
 
 String roomErr(L l, String? code) => switch (code) {
       'no_room' => l.eNoRoom, 'started' => l.eStarted, 'room_full' => l.eRoomFull, 'kicked' => l.eKicked,
-      'forbidden' => l.eForbidden, 'not_open' => l.eNotOpen, 'offline' => l.eOffline, 'lobby_only' => l.eLobbyOnly, _ => l.eOther,
+      'forbidden' => l.eForbidden, 'not_open' => l.eNotOpen, 'offline' => l.eOffline, 'lobby_only' => l.eLobbyOnly,
+      'old_app' => l.eOldApp, _ => l.eOther,
     };
 
-Role? roleOf(Object? r) => r is String && r.isNotEmpty ? Role.values.byName(r) : null;
 
 // ---------------------------------------------------------------- the room
 class RoomScreen extends StatefulWidget {
@@ -130,7 +130,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       final p = widget.prefs;
       if (room['deal'] == 0 && (room['buzzMax'] != p.hostBuzzMax || room['kick'] != p.hostKick)) {
         c.send({'t': 'setup', 'rules': room['rules'], 'counts': {'mafia': (room['counts'] as Map)['mafia'], 'detective': (room['counts'] as Map)['detective']},
-          'buzzMax': p.hostBuzzMax, 'kick': p.hostKick});
+          'buzzMax': p.hostBuzzMax, 'kick': p.hostKick, if (room['mode'] != null) 'mode': room['mode']});
       }
     }
     if (room != null && c.isHost && widget.inviteOnJoin != null && !_invited) {
@@ -193,8 +193,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       case 'day': _timeUpSaid = false; audio.day();
       case 'morning':
         setState(() => revealed = false);
+        final also = r?['also'] as Map?;
         audio.morning(r?['k'] == 'killed' ? nm(r?['seat']) : null, r?['k'] == 'killed' ? roleOf(r?['role']) : null,
-            r?['k'] == 'saved' ? nm(r?['seat']) : null, _armReveal);
+            r?['k'] == 'saved' ? nm(r?['seat']) : null, _armReveal, nm(also?['seat']), roleOf(also?['role']));
       case 'verdict':
         setState(() => revealed = false);
         audio.verdict(r?['k'] == 'out' ? nm(r?['seat']) : null, r?['k'] == 'out' ? roleOf(r?['role']) : null, (r?['k'] as String?) ?? 'skipped', _armReveal);
@@ -204,7 +205,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         final roles = (view['roles'] as List? ?? const []).cast<String>();
         final clips = lead == null ? <String?>[] : audio.lead(lead['k'] as String, _name(lead['seat'] as int), roleOf(roles[lead['seat'] as int]));
         final mafia = [for (var i = 0; i < roles.length; i++) if (roles[i] == 'mafia') _name(i)];
-        view['winner'] == 'mafia' ? audio.mafiaWin(mafia, clips, _armReveal) : audio.citizensWin(mafia, clips, _armReveal);
+        if (view['winner'] == 'mafia') {
+          audio.mafiaWin(mafia, clips, _armReveal);
+        } else if (view['winner'] == 'jester') {
+          audio.jesterWin(clips, _armReveal);
+        } else {
+          audio.citizensWin(mafia, clips, _armReveal);
+        }
     }
   }
 
@@ -312,6 +319,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final view = v;
     if (view == null) return _lobby(l);
     final ph = view['ph'] as String?, phase = view['phase'] as String;
+    // [S17-4] a role a later version deals: this app can't play it, and says so instead of breaking
+    final unknown = [view['role'], ...(view['roles'] as List? ?? const []), ...((view['recap'] as Map?)?['roles'] as List? ?? const [])]
+        .any((r) => r is String && r.isNotEmpty && roleOf(r) == null);
+    if (unknown) return Stage(bottom: [Btn(l.home, onTap: () => Navigator.of(context).pop())], children: [Big(l.updateToPlay, color: C.gold)]);
     if (phase == 'deal') return _deal(l, view);
     if (phase == 'end') return _end(l, view);
     if (ph == 'night') return _night(l, view);

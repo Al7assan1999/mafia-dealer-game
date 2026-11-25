@@ -24,15 +24,28 @@ class GuideScreen extends StatelessWidget {
             onPressed: () => showIntro(context, prefs!))),
         part(l.gGoalT, l.gGoal),
         Sec(title: l.gRolesT, child: Column(children: [
-          for (final (r, d) in [(Role.mafia, l.dMafia), (Role.doctor, l.dDoctor), (Role.detective, l.dDetective), (Role.citizen, l.dCitizen)])
+          // [S17] every role with its power and its side; the Godfather right after the Mafia
+          for (final (r, name, d) in [
+            (Role.mafia, l.mafia, l.dMafia), (Role.mafia, l.sheikh, l.dSheikh),
+            for (final r in Role.values) if (r != Role.mafia) (r, roleName(l, r), roleDesc(l, r)),
+          ])
             Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(children: [
               Icon(roleIcon(r), color: roleColor(r)),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(roleName(l, r), style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
                 Text(d, style: TextStyle(color: C.mute)),
+                Text(sideLine(l, r), style: TextStyle(color: C.dim, fontSize: 12)),
               ])),
             ])),
+        ])),
+        // [S17-6] the modes, from the setup's own list (one source of truth)
+        Sec(title: l.gModesT, key: const Key('guideModes'), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(l.gModes, style: const TextStyle(height: 1.45)),
+          for (final m in modes) Padding(padding: const EdgeInsets.only(top: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${modeName(l, m)} · ${l.modeFrom(modeMin[m]!)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(modeLine(l, m), style: TextStyle(color: C.mute)),
+          ])),
         ])),
         part(l.gNightT, l.gNight),
         part(l.gDayT, l.gDay),

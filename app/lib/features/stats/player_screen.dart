@@ -145,7 +145,8 @@ class _PlayerState extends State<PlayerScreen> {
 
   /// The shareable part: who, the win rate and the four headline numbers.
   Widget _card_(L l, Map<String, Object?> x) {
-    final roles = Map<String, Object?>.from(x['roles'] as Map), best = Role.values.byName(x['best'] as String), br = (roles[best.name] as List).cast<int>();
+    // best1 (1.0.0): any role; best: one of the four a 0.4 app knows
+    final roles = Map<String, Object?>.from(x['roles'] as Map), best = roleOf(x['best1']) ?? Role.values.byName(x['best'] as String), br = (roles[best.name] as List).cast<int>();
     final mafia = (x['mafia'] as List).cast<int>(), side = (x['side'] as List).cast<int>(), nem = x['nemesis'] as Map?, card = x['card'] as Map?;
     Widget tile(String k, String big, String sub, {Color? color}) => Container(
           padding: const EdgeInsets.all(10),
@@ -189,7 +190,7 @@ class _PlayerState extends State<PlayerScreen> {
         if (part != null) Text(l.nTogether(part['n'] as int), style: TextStyle(color: C.dim)),
       ])),
       Sec(title: l.byRole, child: Column(children: [
-        for (final r in Role.values)
+        for (final r in Role.values) if (roles[r.name] is List)
           Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
             SizedBox(width: 86, child: Text(roleName(l, r), style: TextStyle(color: roleColor(r), fontWeight: FontWeight.w700))),
             Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(2), child: LinearProgressIndicator(

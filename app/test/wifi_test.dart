@@ -57,7 +57,7 @@ class _BridgeConn implements LanConn {
 Connector bridge(LocalRoom room) => (url, protocols) async {
       final id = Identity.parse(protocols[1])!, s = _BridgeSock(room);
       s.conn = _BridgeConn(id.uid, s);
-      scheduleMicrotask(() => room.join(s.conn, id, since: int.tryParse(url.queryParameters['rev'] ?? '')));
+      scheduleMicrotask(() => room.join(s.conn, id, since: int.tryParse(url.queryParameters['rev'] ?? ''), build: int.tryParse(url.queryParameters['v'] ?? '')));
       return s;
     };
 
@@ -106,7 +106,7 @@ void main() {
     final room = LocalRoom('654321', 'p0', rng: seeded(3));
     final prefs = await openLan(t, room, host: true);
     final ps = [for (var i = 1; i <= 3; i++) Phone('p$i')];
-    for (final p in ps) { room.join(p, Identity(p.uid, 'Bot${p.uid}')); }
+    for (final p in ps) { room.join(p, Identity(p.uid, 'Bot${p.uid}'), build: 100017); } // 1.0.0 phones (S17)
     await t.pump(const Duration(milliseconds: 300));
     expect(Audio(prefs).muted, isFalse);
     final c = connOf(t);

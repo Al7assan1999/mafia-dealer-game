@@ -48,7 +48,7 @@ class OfflineGame extends ChangeNotifier {
     try {
       final r = replay(j['rec']);
       if (r.error != null) { prefs.game = null; return null; }
-      final rec = _recordOf(j['rec'] as Map<String, Object?>);
+      final rec = recordFromJson(j['rec'] as Map<String, Object?>);
       final g = OfflineGame._(prefs, audio, rec, r.state!, Screen.values.byName(j['screen'] as String), j['who'] as int, true);
       g._watchNight();
       return g;
@@ -57,16 +57,6 @@ class OfflineGame extends ChangeNotifier {
       return null;
     }
   }
-
-  static GameRecord _recordOf(Map<String, Object?> j) => GameRecord(
-        j['deal'] as int, (j['names'] as List).cast<String>(), defaultRules.merge(Map<String, Object?>.from(j['rules'] as Map)),
-        (j['roles'] as List).map((x) => Role.values.byName(x as String)).toList(),
-        (j['actions'] as List).map((x) {
-          final m = x as Map;
-          return RecordedAction(Action.fromJson(Map<String, Object?>.from(m['a'] as Map)), m['at'] as int,
-              (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
-        }).toList(),
-        j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>());
 
   void _save() {
     prefs.game = s.phase == Phase.end && screen == Screen.end && revealed
@@ -141,7 +131,7 @@ class OfflineGame extends ChangeNotifier {
     _go(Screen.morning);
     final m = s.morning!, reveal = s.rules.reveal;
     audio.morning(m.dead == null ? null : s.names[m.dead!], m.dead != null && reveal ? s.roles[m.dead!].name : null,
-        m.saved == null ? null : s.names[m.saved!], _armReveal);
+        m.saved == null ? null : s.names[m.saved!], _armReveal, m.dead2 == null ? null : s.names[m.dead2!], m.dead2 != null && reveal ? s.roles[m.dead2!].name : null);
   }
 
   // ---------------------------------------------------------------- suspense
@@ -228,14 +218,20 @@ class OfflineGame extends ChangeNotifier {
     final win = s.log.whereType<WinLog>().last, lead = win.lead;
     final clips = lead == null ? <String?>[] : audio.lead(lead.k, s.names[lead.seat], s.rules.reveal ? s.roles[lead.seat].name : null);
     final mafia = [for (var i = 0; i < n; i++) if (s.roles[i] == Role.mafia) s.names[i]];
-    s.winner == Winner.mafia ? audio.mafiaWin(mafia, clips, _armReveal) : audio.citizensWin(mafia, clips, _armReveal);
+    if (s.winner == Winner.mafia) {
+      audio.mafiaWin(mafia, clips, _armReveal);
+    } else if (s.winner == Winner.jester) {
+      audio.jesterWin(clips, _armReveal);
+    } else {
+      audio.citizensWin(mafia, clips, _armReveal);
+    }
   }
 
   /// The same players, new roles.
   OfflineGame? playAgain() {
     if (screen != Screen.end) return null;
     close();
-    return start(prefs, audio, Setup(s.names, Counts(_count(Role.mafia), 1, _count(Role.detective)), s.rules), s.deal + 1).game;
+    return start(prefs, audio, Setup(s.names, Counts(_count(Role.mafia), 1, _count(Role.detective)), s.rules, s.mode), s.deal + 1).game;
   }
   int _count(Role r) => s.roles.where((x) => x == r).length;
 

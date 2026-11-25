@@ -8,18 +8,19 @@ import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 class RecapCard extends StatelessWidget {
-  const RecapCard({super.key, required this.mafia, required this.days, required this.players, this.best, this.lines = const []});
-  final bool mafia;
+  const RecapCard({super.key, required this.winner, required this.days, required this.players, this.best, this.lines = const [], this.sheikh});
+  final Winner winner;
   final int days;
   final List<({String name, Role role, bool alive})> players;
+  final int? sheikh; // [S17] the Godfather's seat (named on his line)
   final ({String name, String why, Role role})? best;
   final List<({bool night, String text})> lines;
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), noir = !C.neon;
+    final l = L.of(context), noir = !C.neon, mafia = winner == Winner.mafia, jester = winner == Winner.jester;
     final ink = noir ? C.altText : C.text, soft = noir ? const Color(0xFF5A5248) : C.mute, rule = noir ? const Color(0xFF9A8F7C) : C.line2;
-    final win = noir ? C.red : mafia ? C.red2 : C.gold;
+    final win = jester ? _rc(Role.jester) : noir ? C.red : mafia ? C.red2 : C.gold;
     return Container(
       key: const Key('recap'),
       padding: const EdgeInsets.all(18),
@@ -45,9 +46,9 @@ class RecapCard extends StatelessWidget {
         const SizedBox(height: 14),
         Center(child: Container(width: 76, height: 76, alignment: Alignment.center,
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: noir ? rule : win.withValues(alpha: .5), width: 2)),
-            child: Icon(mafia ? Icons.dangerous_outlined : Icons.emoji_events_outlined, size: 38, color: win))),
+            child: Icon(winIcon(winner), size: 38, color: win))),
         const SizedBox(height: 10),
-        Text(mafia ? l.winMafia : l.winCitizens, key: const Key('winner'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 34, color: win, height: 1.15)),
+        Text(winText(l, winner), key: const Key('winner'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 34, color: win, height: 1.15)),
         Padding(padding: const EdgeInsets.only(top: 4), child: Text(l.rcSub(players.length, days), textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: soft))),
         if (best case final b?) Container(
           margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
@@ -66,14 +67,14 @@ class RecapCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         LayoutBuilder(builder: (context, box) => Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final p in players) Container(
+          for (final (i, p) in players.indexed) Container(
             width: (box.maxWidth - 6) / 2, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(color: _rc(p.role).withValues(alpha: .12), borderRadius: BorderRadius.circular(noir ? 2 : 12),
                 border: BorderDirectional(start: BorderSide(color: _rc(p.role), width: 3))),
             child: Row(children: [
               Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
                   color: p.alive ? ink : ink.withValues(alpha: .6), decoration: p.alive ? null : TextDecoration.lineThrough))),
-              Text(roleName(l, p.role), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
+              Text(seatRole(l, p.role, i == sheikh), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
             ]),
           ),
         ])),
@@ -94,7 +95,8 @@ class RecapCard extends StatelessWidget {
   // the role's colour on paper. [BA P5, S15] Noir's role colours are made for a dark page: on the paper they read at
   // 1.9-2.9:1. These inks read at 4.8:1 or more on the paper and on the player-of-the-game box.
   static Color _rc(Role r) => C.neon ? roleColor(r) : paperInk[r]!;
-  static const paperInk = {Role.mafia: Color(0xFF9E2C25), Role.doctor: Color(0xFF28613A), Role.detective: Color(0xFF315A84), Role.citizen: Color(0xFF6F5015)};
+  static const paperInk = {Role.mafia: Color(0xFF9E2C25), Role.doctor: Color(0xFF28613A), Role.detective: Color(0xFF315A84), Role.citizen: Color(0xFF6F5015),
+    Role.sniper: Color(0xFF5E3D82), Role.jester: Color(0xFF8A3F0E)};
 }
 
 /// [S15] "24 Nov 2026"; the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)

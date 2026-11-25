@@ -53,7 +53,8 @@ class FakeRoom {
 
 const rules = {'skip': true, 'norep': false, 'saverev': false, 'decoy': true, 'self': true, 'rep': false, 'reveal': true, 'timer': 180, 'nightT': 0, 'ghost': false, 'skipVote': true};
 Map<String, Object?> member(int i, {bool host = false, bool online = true, int? seat, bool ready = false}) =>
-    {'uid': 'u$i', 'cn': i + 1, 'display': 'P${i + 1}', 'handle': 'p${i + 1}', 'avatar': {'preset': i % 10}, 'online': online, 'host': host, 'ready': ready, 'muted': false, 'seat': seat};
+    {'uid': 'u$i', 'cn': i + 1, 'display': 'P${i + 1}', 'handle': 'p${i + 1}', 'avatar': {'preset': i % 10}, 'online': online, 'host': host, 'ready': ready, 'muted': false, 'seat': seat,
+      'v': 100017}; // a 1.0.0 phone (S17: older ones can't be dealt in)
 Map<String, Object?> roomMsg(int rev, {bool host = true, String status = 'lobby', List<Map<String, Object?>>? members, int deal = 0}) => {
       't': 'room', 'rev': rev,
       'room': {'code': '123456', 'rules': rules, 'counts': {'mafia': 1, 'doctor': 1, 'detective': 0}, 'buzzMax': 3, 'status': status, 'deal': deal, 'gameId': null, 'valid': null,

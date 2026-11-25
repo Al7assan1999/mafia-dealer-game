@@ -28,7 +28,8 @@ const noirPalette = Palette(name: 'noir',
     text: Color(0xFFECE4D4), mute: Color(0xFFA39A8B), dim: Color(0xFF6F675B), red: Color(0xFFB3241F), red2: Color(0xFFE0574D),
     gold: Color(0xFFD4B483), green: Color(0xFF7FB08B), blue: Color(0xFF86A6C9), priText: Color(0xFFF6EFE2), alt: Color(0xFFE9E1D1),
     altText: Color(0xFF1C1915), night: Color(0xFF08090C), day: Color(0xFF120F0B), blood: Color(0xFF0C0606), glory: Color(0xFF0E0C06),
-    roles: {Role.mafia: Color(0xFFE0574D), Role.doctor: Color(0xFF7FB08B), Role.detective: Color(0xFF86A6C9), Role.citizen: Color(0xFFD4B483)},
+    roles: {Role.mafia: Color(0xFFE0574D), Role.doctor: Color(0xFF7FB08B), Role.detective: Color(0xFF86A6C9), Role.citizen: Color(0xFFD4B483),
+      Role.sniper: Color(0xFFB79AD6), Role.jester: Color(0xFFE39A5B)},
     body: 'Plex', head: 'Elite', headFallback: ['Messiri'], headLs: .4, headWeight: FontWeight.w400, radius: 4, neon: false);
 
 /// The old app's Neon: violet-black with pink and blue glows, glassy cards, a pink-orange gradient, Readex Pro.
@@ -37,7 +38,8 @@ const neonPalette = Palette(name: 'neon',
     text: Color(0xFFF4F2F8), mute: Color(0xFFA59FB3), dim: Color(0xFF6F6880), red: Color(0xFFFF2E63), red2: Color(0xFFFF5C84),
     gold: Color(0xFFFFB547), green: Color(0xFF3CE0A0), blue: Color(0xFF5AA2FF), priText: Color(0xFFFFFFFF), alt: Color(0xFF2B2440),
     altText: Color(0xFFF4F2F8), night: Color(0xFF0F1433), day: Color(0xFF2A1A12), blood: Color(0xFF2A0B16), glory: Color(0xFF2A2010),
-    roles: {Role.mafia: Color(0xFFFF4D7D), Role.doctor: Color(0xFF3CE0A0), Role.detective: Color(0xFF5AA2FF), Role.citizen: Color(0xFFFFC65A)},
+    roles: {Role.mafia: Color(0xFFFF4D7D), Role.doctor: Color(0xFF3CE0A0), Role.detective: Color(0xFF5AA2FF), Role.citizen: Color(0xFFFFC65A),
+      Role.sniper: Color(0xFFB98CFF), Role.jester: Color(0xFFFF8A3D)},
     body: 'Readex', head: 'Readex', headFallback: [], headLs: 0, headWeight: FontWeight.w700, radius: 22, neon: true);
 
 /// The current look's colours. Set from Prefs.theme by the app before it builds.
@@ -340,11 +342,46 @@ TextDirection dirOf(String s) {
   return TextDirection.ltr;
 }
 
-String roleName(L l, Role r) => switch (r) { Role.mafia => l.mafia, Role.doctor => l.doctor, Role.detective => l.detective, Role.citizen => l.citizen };
+String roleName(L l, Role r) => switch (r) {
+      Role.mafia => l.mafia, Role.doctor => l.doctor, Role.detective => l.detective, Role.citizen => l.citizen,
+      Role.sniper => l.sniper, Role.jester => l.jester,
+    };
+/// A seat's role as the table sees it: the Sheikh (1.0.0) is a Mafia with his own name.
+String seatRole(L l, Role r, bool sheikh) => sheikh && r == Role.mafia ? l.sheikh : roleName(l, r);
+String roleDesc(L l, Role r) => switch (r) {
+      Role.mafia => l.dMafia, Role.doctor => l.dDoctor, Role.detective => l.dDetective, Role.citizen => l.dCitizen,
+      Role.sniper => l.dSniper, Role.jester => l.dJester,
+    };
+/// [S17 P2] the role's side and how it wins, in one line
+String sideLine(L l, Role r) => switch (r) { Role.mafia => l.sideMafia, Role.jester => l.sideJester, _ => l.sideTown };
 Color roleColor(Role r) => C.p.roles[r]!;
 IconData roleIcon(Role r) => switch (r) {
-      Role.mafia => Icons.dangerous_outlined, Role.doctor => Icons.healing_outlined, Role.detective => Icons.search, Role.citizen => Icons.person_outline
+      Role.mafia => Icons.dangerous_outlined, Role.doctor => Icons.healing_outlined, Role.detective => Icons.search, Role.citizen => Icons.person_outline,
+      Role.sniper => Icons.gps_fixed, Role.jester => Icons.theater_comedy_outlined,
     };
+/// A role the engine names that this app doesn't know (a later version): null (the screens say "Update the app").
+Role? roleOf(Object? r) => r is String ? Role.values.asNameMap()[r] : null;
+
+/// The night screen's title and line for a night key (engine nightOptions().key).
+(String, String) nightText(L l, String key) => switch (key) {
+      'mafia' => (l.aMafia, l.aMafiaD), 'doctor' => (l.aDoctor, l.aDoctorD), 'detective' => (l.aDetective, l.aDetectiveD),
+      'citizen' => (l.aCitizen, l.aCitizenD), 'sniper' => (l.aSniper, l.aSniperD), _ => (l.aNone, l.aNoneD),
+    };
+
+/// Who won, from a Winner or its name ('mafia' | 'citizens' | 'jester').
+String winText(L l, Object? w) => switch (w is Winner ? w.name : w) { 'mafia' => l.winMafia, 'jester' => l.jesterWins, _ => l.winCitizens };
+IconData winIcon(Object? w) => switch (w is Winner ? w.name : w) {
+      'mafia' => Icons.dangerous_outlined, 'jester' => Icons.theater_comedy_outlined, _ => Icons.emoji_events_outlined };
+Color winColor(Object? w) => switch (w is Winner ? w.name : w) { 'mafia' => C.red2, 'jester' => roleColor(Role.jester), _ => C.gold };
+
+/// Why the player of the game (engine mvp()) earned it.
+String mvpWhy(L l, String why, int? n) => switch (why) {
+      'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(n ?? 1), 'doc' => l.mvpDoc(n ?? 1), 'jester' => l.mvpJester, _ => l.mvpSurv };
+
+String modeName(L l, Mode m) => switch (m) { 'sniper' => l.modeSniper, 'jester' => l.modeJester, 'all' => l.modeAll, _ => l.modeClassic };
+String modeLine(L l, Mode m) => switch (m) { 'sniper' => l.mSniper, 'jester' => l.mJester, 'all' => l.mAll, _ => l.mClassic };
+/// [S17 P1] the mode the setup marks as Suggested for this many players
+Mode suggestedMode(int n) => n >= modeMin['all']! ? 'all' : n >= modeMin['sniper']! ? 'sniper' : 'classic';
 
 /// "Are you sure?" Returns true on yes.
 Future<bool> ask(BuildContext context, String q, String d, String yes) async =>

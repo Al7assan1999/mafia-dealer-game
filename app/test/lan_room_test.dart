@@ -34,7 +34,7 @@ Identity id(int i) => Identity('p$i', 'P${i + 1}');
 /// n phones in the room, in join order (p0 hosts).
 (LocalRoom, List<Phone>) table(int n) {
   final r = newRoom(), ps = [for (var i = 0; i < n; i++) Phone('p$i')];
-  for (var i = 0; i < n; i++) { expect(r.join(ps[i], id(i)), isNull); }
+  for (var i = 0; i < n; i++) { expect(r.join(ps[i], id(i), build: 100017), isNull); } // 1.0.0 phones (S17: older ones can't be dealt in)
   return (r, ps);
 }
 

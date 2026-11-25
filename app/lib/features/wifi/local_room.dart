@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:mafia_engine/mafia_engine.dart';
+import 'package:mafia_dealer/core/version.dart';
 
 // The Wi-Fi room, run by the host phone: a Dart port of the Cloudflare Room (server/src/room.ts) and its chat rules
 // (server/src/chat.ts), sending exactly the same messages, so every phone uses the online screens unchanged.
@@ -70,6 +71,7 @@ class LocalRoom {
   String kick = 'lobby'; // S9-4: the host's kick rule (lobby only, as the old app's default, or any time)
   Rules rules = defaultRules;
   int mafia = 1, detective = 0;
+  Mode mode = 'classic'; // 1.0.0
   GameState? game;
   GameRecord? rec;
   var seats = <String>[], ready = <String>[];
@@ -102,7 +104,7 @@ class LocalRoom {
   Map<String, Object?> info() {
     final host = hostOf();
     return {
-      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'buzzMax': buzzMax, 'kick': kick,
+      'code': code, 'rules': rules.toJson(), 'counts': {'mafia': mafia, 'doctor': 1, 'detective': detective}, 'mode': mode, 'buzzMax': buzzMax, 'kick': kick,
       'status': status, 'deal': deal, 'gameId': gameId, 'valid': valid,
       'members': [
         for (final m in _here)
@@ -233,11 +235,16 @@ class LocalRoom {
           detective = (cc['detective'] as int).clamp(0, 1);
           buzzMax = (inp['buzzMax'] as int? ?? 3).clamp(0, 20);
           if (inp['kick'] == 'lobby' || inp['kick'] == 'any') kick = inp['kick'] as String;
+          final m = inp['mode'] ?? 'classic'; // an older host sends none: Classic
+          if (!modes.contains(m)) return err('bad_request');
+          mode = m as String;
         } catch (_) { return err('bad_request'); }
       case 'deal':
         if (running) return err('started');
         final players = _here;
-        final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules), _rng, deal + 1);
+        // his ruling (S17, Q4): every seat must be on 1.0.0, Classic too (an older phone doesn't know the Godfather)
+        if (players.any((p) => (p.build ?? 0) < modesBuild)) return err('old_app');
+        final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules, mode), _rng, deal + 1);
         if (r.error != null) return err(r.error!);
         deal++;
         game = r.state;
@@ -404,7 +411,7 @@ class LocalRoom {
   Map<String, Object?> toJson() => {
         'v': 1, 'code': code, 'hostUid': hostUid, 'members': [for (final m in members) m.toJson()], 'kicked': kicked, 'nextCn': nextCn,
         'deal': deal, 'buzzMax': buzzMax, 'kick': kick, 'rev': rev, 'cut': cut, 'rules': rules.toJson(), 'mafia': mafia, 'detective': detective,
-        'rec': rec?.toJson(), 'seats': seats, 'ready': ready, 'gameId': gameId, 'valid': valid,
+        'mode': mode, 'rec': rec?.toJson(), 'seats': seats, 'ready': ready, 'gameId': gameId, 'valid': valid,
         'past': [for (final p in past) {'rev': p.rev, 'events': p.events}], 'lastIn': lastIn, 'chatSeq': chatSeq, 'chat': chat,
       };
 
@@ -414,7 +421,7 @@ class LocalRoom {
     kicked.addAll((j['kicked'] as List).cast<String>());
     nextCn = j['nextCn'] as int; deal = j['deal'] as int; buzzMax = j['buzzMax'] as int; kick = j['kick'] as String? ?? 'lobby'; rev = j['rev'] as int; cut = j['cut'] as int;
     rules = defaultRules.merge(Map<String, Object?>.from(j['rules'] as Map));
-    mafia = j['mafia'] as int; detective = j['detective'] as int;
+    mafia = j['mafia'] as int; detective = j['detective'] as int; mode = j['mode'] as String? ?? 'classic';
     seats = (j['seats'] as List).cast<String>(); ready = (j['ready'] as List).cast<String>();
     gameId = j['gameId'] as String?; valid = j['valid'] as bool?;
     for (final p in (j['past'] as List).cast<Map>()) { past.add((rev: p['rev'] as int, events: (p['events'] as List).map((e) => Map<String, Object?>.from(e as Map)).toList())); }
@@ -424,18 +431,10 @@ class LocalRoom {
     final r = j['rec'];
     if (r != null) {
       final re = replay(r); // the game is rebuilt from its record (the engine checks it)
-      if (re.error == null) { game = re.state; rec = _record(Map<String, Object?>.from(r as Map)); }
+      if (re.error == null) { game = re.state; rec = recordFromJson(Map<String, Object?>.from(r as Map)); }
     }
   }
 
-  static GameRecord _record(Map<String, Object?> j) => GameRecord(
-        j['deal'] as int, (j['names'] as List).cast<String>(), recordRules(Map<String, Object?>.from(j['rules'] as Map)),
-        (j['roles'] as List).map((x) => Role.values.byName(x as String)).toList(),
-        (j['actions'] as List).map((x) {
-          final m = x as Map;
-          return RecordedAction(Action.fromJson(Map<String, Object?>.from(m['a'] as Map)), m['at'] as int, (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
-        }).toList(),
-        j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>());
 }
 
 /// A view as JSON, exactly as the TypeScript engine's viewFor() serializes (the phones read the same shape online).
@@ -443,7 +442,8 @@ Map<String, Object?> viewJson(View v) {
   Map<String, Object?>? result() {
     final r = v.result;
     if (r == null) return null;
-    return {'k': r.k, if (r.seat != null) 'seat': r.seat, if (r.k == 'killed' || r.k == 'out') 'role': r.role?.name,
+    return {'k': r.k, if (r.seat != null) 'seat': r.seat, if (r.k == 'killed' || r.k == 'out') 'role': r.role?.name, if (r.sheikh) 'sheikh': true,
+      if (r.also != null) 'also': {'seat': r.also!.seat, 'role': r.also!.role?.name, if (r.also!.sheikh) 'sheikh': true},
       if (r.k == 'out' || r.k == 'tie' || r.k == 'skipped') 'tally': r.tally?.map((x) => x.toJson()).toList()};
   }
   final rc = v.recap;
@@ -456,16 +456,19 @@ Map<String, Object?> viewJson(View v) {
     'voteId': v.voteId, 'result': result(), 'winner': v.winner?.name, 'roles': v.roles?.map((r) => r.name).toList(),
     'recap': rc == null ? null : {
       'winner': rc.winner.name, 'names': rc.names, 'roles': rc.roles.map((r) => r.name).toList(), 'alive': rc.alive, 'day': rc.day,
-      'stats': {'first': rc.stats.first, 'kills': rc.stats.kills, 'outs': rc.stats.outs, 'saves': rc.stats.saves, 'caught': [for (final c in rc.stats.caught) [c.$1, c.$2]]},
+      'stats': {'first': rc.stats.first, 'kills': rc.stats.kills, 'outs': rc.stats.outs, 'saves': rc.stats.saves, 'caught': [for (final c in rc.stats.caught) [c.$1, c.$2]],
+        'shots': [for (final c in rc.stats.shots) [c.$1, c.$2]]},
+      if (rc.sheikh != null) 'mode': rc.mode,
+      if (rc.sheikh != null) 'sheikh': rc.sheikh,
     },
     if (v.seat != null) ...{
-      'seat': v.seat, 'role': v.role?.name, 'alive': v.alive, 'mates': v.mates,
+      'seat': v.seat, 'role': v.role?.name, 'alive': v.alive, 'mates': v.mates, 'sheikh': v.sheikh,
       'check': v.check == null ? null : {'seat': v.check!.seat, 'mafia': v.check!.mafia},
       'ph': v.ph,
       'night': v.night == null ? null : {
         'key': v.night!.key,
-        'opts': [for (final o in v.night!.opts) {'seat': o.seat, 'disabled': o.disabled, 'self': o.self, 'teammate': o.teammate, 'lastTarget': o.lastTarget, 'lastNight': o.lastNight, 'mateVotes': o.mateVotes}],
-        'skip': v.night!.canSkip ? {'mateVotes': v.night!.skipMateVotes} : null,
+        'opts': [for (final o in v.night!.opts) {'seat': o.seat, 'disabled': o.disabled, 'self': o.self, 'teammate': o.teammate, 'lastTarget': o.lastTarget, 'lastNight': o.lastNight, 'mateVotes': o.mateVotes, 'sheikh': o.sheikh}],
+        'skip': v.night!.canSkip ? {'mateVotes': v.night!.skipMateVotes, 'sheikh': v.night!.skipSheikh} : null,
       },
       'voteOpts': v.voteOpts?.map((o) => {'seat': o.seat, 'disabled': o.disabled}).toList(),
     },

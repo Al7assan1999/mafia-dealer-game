@@ -69,8 +69,8 @@ class _HistoryState extends State<HistoryScreen> {
             if (_wifiGame(g) case final d?)
               Card(color: C.card, child: ListTile(
                 key: Key('wifi_${g['id']}'),
-                leading: Icon(d['winner'] == 'mafia' ? Icons.dangerous_outlined : Icons.emoji_events_outlined, color: d['winner'] == 'mafia' ? C.red2 : C.gold),
-                title: Text(d['winner'] == 'mafia' ? l.winMafia : l.winCitizens),
+                leading: Icon(winIcon(d['winner']), color: winColor(d['winner'])),
+                title: Text(winText(l, d['winner'])),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text([
                     if (d['mine'] != null) l.youPlayed(roleName(l, Role.values.byName(d['mine'] as String))),
@@ -124,8 +124,8 @@ class _HistoryState extends State<HistoryScreen> {
               for (final g in shown)
                 Card(color: C.card, child: ListTile(
                   key: Key('game_${g['id']}'),
-                  leading: Icon(g['winner'] == 'mafia' ? Icons.dangerous_outlined : Icons.emoji_events_outlined, color: g['winner'] == 'mafia' ? C.red2 : C.gold),
-                  title: Text(g['winner'] == 'mafia' ? l.winMafia : l.winCitizens),
+                  leading: Icon(winIcon(g['winner']), color: winColor(g['winner'])),
+                  title: Text(winText(l, g['winner'])),
                   subtitle: Text('${l.youPlayed(roleName(l, Role.values.byName(g['role'] as String)))} · ${l.rcSub(g['players'] as int, g['days'] as int)}'
                       '${g['valid'] == true ? '' : ' · ${l.invalid}'}', style: TextStyle(color: C.mute)),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameDetail(account: widget.account, id: g['id'] as String, prefs: widget.prefs))),

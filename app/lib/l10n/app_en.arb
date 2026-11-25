@@ -741,7 +741,7 @@
   "gGoal": "A town hides a few Mafia. The Mafia win when they are as many as everyone else. The town wins when every Mafia is out.",
   "gRolesT": "The roles",
   "gNightT": "Night",
-  "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone. Citizens tap anyone, so nobody can tell roles apart.",
+  "gNight": "Everyone takes a secret turn. The Mafia choose someone to eliminate, the Doctor protects someone, the Detective checks someone. Citizens tap anyone, so nobody can tell roles apart. A tied Mafia vote goes to the Godfather's pick; if he is out or didn't vote, to the Mafia in the lowest seat who voted.",
   "gDayT": "Day and reveals",
   "gDay": "The narrator reveals who died. Then everyone talks: who is lying? Then the town votes someone out, or nobody.",
   "gTipsT": "Tips",
@@ -1397,5 +1397,71 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sniper": "Sniper",
+  "jester": "Jester",
+  "sheikh": "Godfather",
+  "dSniper": "One bullet for the whole game. Nothing stops it, not even the Doctor",
+  "dJester": "Wins alone if the town votes him out by day",
+  "dSheikh": "Leads the Mafia: his pick settles a tie, and the Detective sees him as not Mafia",
+  "sheikhIs": "Your Godfather: {n}",
+  "@sheikhIs": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "youSheikh": "You are the Godfather: your pick settles a tie, and the Detective sees you as not Mafia.",
+  "oneSheikh": "one of them is the Godfather",
+  "sideMafia": "Mafia side · win when the Mafia are as many as everyone else",
+  "sideTown": "Citizens' side · win when every Mafia is out",
+  "sideJester": "On nobody's side · win alone if voted out by day",
+  "mode": "Mode",
+  "modeClassic": "Classic",
+  "modeSniper": "Sniper",
+  "modeJester": "Jester",
+  "modeAll": "All roles",
+  "mClassic": "Mafia, Doctor and Detective: you pick how many",
+  "mSniper": "Classic plus a Sniper with one bullet",
+  "mJester": "Classic plus a Jester who wants to be voted out",
+  "mAll": "Every role, the Sniper and the Jester too",
+  "modeFrom": "{n, plural, =1{From 1 player} other{From {n} players}}",
+  "@modeFrom": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "suggested": "Suggested",
+  "modeFixed": "Set by the mode for this many players",
+  "eModeFew": "{n, plural, =1{This mode needs at least 1 player} other{This mode needs at least {n} players}}",
+  "@eModeFew": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "eOldApp": "Everyone must update the app to 1.0.0 to play",
+  "eModeOld": "needs 1.0.0",
+  "updateToPlay": "This game uses a role your app doesn't know yet. Update the app to play.",
+  "aSniper": "Take your shot?",
+  "aSniperD": "One bullet for the whole game. Whoever you pick dies tonight, even if the Doctor protects them.",
+  "keepBullet": "Keep the bullet",
+  "keepBulletD": "save it for another night",
+  "sheikhPick": "Godfather's pick",
+  "tieSheikh": "A tie goes to the Godfather's pick.",
+  "diedIs": "Last night, these players died",
+  "diedOne": "Last night, this player died",
+  "jesterWins": "The Jester wins",
+  "mvpJester": "Got the town to vote him out",
+  "hShot": " · the Sniper shot {n}",
+  "@hShot": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "gModesT": "Modes",
+  "gModes": "Pick a mode with one tap. Classic is the game you know: you choose how many Mafia. In the other modes the roles are set by the number of players. Every game has a Godfather, one of the Mafia: his pick settles a tied Mafia vote, and the Detective sees him as not Mafia.",
+  "tieLowest": "The Godfather is out: a tie goes to the lowest seat that voted."
 }

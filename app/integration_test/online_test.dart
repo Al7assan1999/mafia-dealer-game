@@ -50,7 +50,7 @@ class Bot {
   final sent = <String>{};
 
   Future<void> join(String code) async {
-    ws = await WebSocket.connect(api.socket('/v1/rooms/$code/ws').toString(), protocols: ['mafia.v1', api.token!]);
+    ws = await WebSocket.connect(api.socket('/v1/rooms/$code/ws?v=100017').toString(), protocols: ['mafia.v1', api.token!]);
     ws!.listen((raw) {
       if (raw == 'pong') return;
       final m = jsonDecode(raw as String) as Map<String, Object?>;

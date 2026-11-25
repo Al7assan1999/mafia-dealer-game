@@ -216,7 +216,7 @@ class Account extends ChangeNotifier {
   Future<void> saveNames(List<String> n) async { names = n; await _try(() => api.put('/v1/me/roster', {'names': n})); }
   Future<void> saveSetup(Map<String, Object?> s) async {
     final r = s['rules'], c = {'mafia': s['mafia'] ?? (s['counts'] as Map?)?['mafia'], 'detective': s['detective'] ?? (s['counts'] as Map?)?['detective']};
-    setup = {'counts': c, 'rules': r};
+    setup = {'counts': c, 'rules': r, if (s['mode'] != null) 'mode': s['mode']};
     await _try(() => api.put('/v1/me/setup', setup!));
   }
 

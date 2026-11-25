@@ -31,7 +31,7 @@ void main() {
   });
 
   testWidgets('S15-4: the recap card: who won, the player of the game, every role in the grid, the dead crossed out', (t) async {
-    await t.pumpWidget(MaterialApp(localizationsDelegates: L.localizationsDelegates, home: Scaffold(body: SingleChildScrollView(child: RecapCard(mafia: false, days: 3,
+    await t.pumpWidget(MaterialApp(localizationsDelegates: L.localizationsDelegates, home: Scaffold(body: SingleChildScrollView(child: RecapCard(winner: Winner.citizens, days: 3,
         players: const [(name: 'Dareer', role: Role.mafia, alive: false), (name: 'Sami', role: Role.doctor, alive: true), (name: 'Hokan', role: Role.citizen, alive: true)],
         best: (name: 'Sami', why: 'Saved 2', role: Role.doctor), lines: const [(night: true, text: 'Night 1: nobody died'), (night: false, text: 'Day 1: Dareer out')])))));
     await frames(t, 2);
@@ -43,7 +43,7 @@ void main() {
     expect(find.text('Day 1: Dareer out'), findsOneWidget);
     // [QA] S15 Arabic pass: the date came in Arabic-Indic digits (٢٤ … ٢٠٢٦) next to 0-9 everywhere else
     await t.pumpWidget(MaterialApp(locale: const Locale('ar'), supportedLocales: L.supportedLocales, localizationsDelegates: L.localizationsDelegates,
-        home: Scaffold(body: SingleChildScrollView(child: RecapCard(mafia: true, days: 1, players: const [(name: 'Dareer', role: Role.mafia, alive: true)],
+        home: Scaffold(body: SingleChildScrollView(child: RecapCard(winner: Winner.mafia, days: 1, players: const [(name: 'Dareer', role: Role.mafia, alive: true)],
             best: null, lines: const [])))));
     await frames(t, 2);
     final now = DateTime.now();

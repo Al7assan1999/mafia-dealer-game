@@ -34,7 +34,9 @@ extension _PlayViews on _RoomScreenState {
         Big(l.readyN(ms.where((m) => m['ready'] == true).length, ms.where((m) => m['seat'] != null).length)),
       ]);
     }
-    return RoleCard(name: _name(view['seat'] as int), role: role, mates: [for (final j in (view['mates'] as List)) _name(j as int)],
+    final me = view['seat'] as int, sh = view['sheikh'] as int?;
+    return RoleCard(name: _name(me), role: role, mates: [for (final j in (view['mates'] as List)) _name(j as int)],
+        isSheikh: sh == me, sheikh: sh != null && sh != me ? _name(sh) : null,
         done: l.readyBtn, onDone: () => c.send({'t': 'ready', 'deal': c.room!['deal']}), extra: start);
   }
 
@@ -44,10 +46,8 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _night(L l, Map<String, Object?> view) {
     final no = Map<String, Object?>.from(view['night'] as Map), key = no['key'] as String, role = roleOf(view['role'])!;
-    final (title, desc) = switch (key) {
-      'mafia' => (l.aMafia, l.aMafiaD), 'doctor' => (l.aDoctor, l.aDoctorD), 'detective' => (l.aDetective, l.aDetectiveD),
-      'citizen' => (l.aCitizen, l.aCitizenD), _ => (l.aNone, l.aNoneD),
-    };
+    final (title, desc) = nightText(l, key);
+    final sh = view['sheikh'] as int?;
     final none = key == 'none', skip = no['skip'] as Map?, secs = _secondsLeft();
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () => _send({'t': 'night', 'choice': none ? null : _pick, 'day': view['day']}) : null),
@@ -55,14 +55,18 @@ extension _PlayViews on _RoomScreenState {
     ], children: [
       Row(children: [
         Icon(roleIcon(role), color: roleColor(role)), const SizedBox(width: 8),
-        Text(roleName(l, role), style: head.copyWith(color: roleColor(role), fontSize: 18)),
-        const Spacer(), Text(l.night(view['day'] as int), style: TextStyle(color: C.mute)),
+        Expanded(child: Text(seatRole(l, role, sh == view['seat']), overflow: TextOverflow.ellipsis, style: head.copyWith(color: roleColor(role), fontSize: 18))),
+        const SizedBox(width: 8), Text(l.night(view['day'] as int), style: TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
       Text(title, style: head.copyWith(fontSize: 26)),
       Text(desc, style: TextStyle(color: C.mute)),
       if ((view['mates'] as List).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6),
           child: Text(l.mates([for (final j in view['mates'] as List) _name(j as int)].join(', ')), style: TextStyle(color: C.red2))),
+      // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
+      if (key == 'mafia' && sh != null && (view['mates'] as List).isNotEmpty)
+        Padding(padding: const EdgeInsets.only(top: 4), child: Text(((view['roster'] as List)[sh] as Map)['alive'] == true ? l.tieSheikh : l.tieLowest,
+            key: const Key('tieSheikh'), style: TextStyle(color: C.mute, fontSize: 13))),
       if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), key: const Key('nightClock'), style: TextStyle(color: C.red2))),
       const SizedBox(height: 16),
       if (!none)
@@ -71,10 +75,13 @@ extension _PlayViews on _RoomScreenState {
             if (o['self'] == true) l.you,
             if (o['teammate'] == true) l.teammate,
             if ((o['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${o['mateVotes']}',
+            if (o['sheikh'] == true) l.sheikhPick,
             if (o['lastTarget'] == true) l.lastTgt,
             if (o['lastNight'] == true) l.lastNight,
           ]),
-      if (skip != null) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((skip['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${skip['mateVotes']}']),
+      if (skip != null && key == 'sniper') _option(l.keepBullet, 'skip', tags: [l.keepBulletD])
+      else if (skip != null) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((skip['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${skip['mateVotes']}',
+        if (skip['sheikh'] == true) l.sheikhPick]),
     ]);
   }
 
@@ -111,7 +118,8 @@ extension _PlayViews on _RoomScreenState {
       _progress(l, view),
       if (roles != null) Padding(padding: const EdgeInsets.only(top: 18), child: Sec(title: l.roles, child: Column(children: [
         for (var i = 0; i < roles.length; i++)
-          Row(children: [Expanded(child: Text(_name(i))), Text(roleName(l, roleOf(roles[i])!), style: TextStyle(color: roleColor(roleOf(roles[i])!)))]),
+          if (roleOf(roles[i]) case final r?)
+            Row(children: [Expanded(child: Text(_name(i))), Text(roleName(l, r), style: TextStyle(color: roleColor(r)))]),
       ]))),
     ]);
   }
@@ -138,14 +146,18 @@ extension _PlayViews on _RoomScreenState {
 
   Widget _morning(L l, Map<String, Object?> view) {
     if (!revealed) return _suspense(l, l.sunrise, C.day, Icons.wb_sunny_outlined);
-    final r = Map<String, Object?>.from(view['result'] as Map? ?? const {'k': 'nobody'}), role = roleOf(r['role']);
+    final r = Map<String, Object?>.from(view['result'] as Map? ?? const {'k': 'nobody'});
     return Stage(card: true, foot: _foot(L.of(context)), color: r['k'] == 'killed' ? C.blood : C.day, bottom: _hostBar(l, view, _phaseButtons(l, view)), children: [
       Tag(l.morningOf(view['day'] as int)),
       const SizedBox(height: 24),
       if (r['k'] == 'killed') ...[
-        Text(l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
-        Big(_name(r['seat'] as int), size: 42, color: C.red2),
-        if (role != null) Text(l.wasRole(roleName(l, role)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        // a mode with a Sniper never says who killed whom (the engine names the dead in seat order)
+        Text(r['also'] != null ? l.diedIs : c.room?['mode'] == 'sniper' || c.room?['mode'] == 'all' ? l.diedOne : l.victimIs,
+            textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
+        for (final x in [r, if (r['also'] case final Map a) a]) ...[
+          Big(_name(x['seat'] as int), size: 42, color: C.red2),
+          if (roleOf(x['role']) case final xr?) Text(l.wasRole(seatRole(l, xr, x['sheikh'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        ],
       ] else if (r['k'] == 'saved') ...[
         Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.green),
@@ -206,7 +218,7 @@ extension _PlayViews on _RoomScreenState {
       if (r['k'] == 'out') ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.red2),
-        if (role != null) Text(l.wasRole(roleName(l, role)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        if (role != null) Text(l.wasRole(seatRole(l, role, r['sheikh'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else
         Big(r['k'] == 'tie' ? l.tie : l.skipped),
       if (tally != null && tally.isNotEmpty) ...[

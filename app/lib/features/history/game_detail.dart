@@ -43,14 +43,14 @@ class _GameDetailState extends State<GameDetail> {
     String line(Map e) => switch (e['t']) {
           'night' => l.hNight(e['day'] as int) + switch ((e['mafia'] as Map)['k']) {
               'kill' => l.hKill(name[(e['mafia'] as Map)['seat']] ?? '?'), 'saved' => l.hSaved(name[(e['mafia'] as Map)['seat']] ?? '?'),
-              'skip' => l.hSkip, _ => l.hNoMafia },
+              'skip' => l.hSkip, _ => l.hNoMafia } + (e['shot'] is int ? l.hShot(name[e['shot']] ?? '?') : ''),
           'day' => l.hDay(e['day'] as int) + (e['out'] != null ? l.hOut(name[e['out']] ?? '?') : l.hNone),
           'removed' => l.hRemoved(name[e['seat']] ?? '?'),
           _ => '',
         };
-    final mafia = game['winner'] == 'mafia';
+    final sheikh = (game['sheikh'] ?? (game['record'] as Map?)?['sheikh']) as int?;
     return Scaffold(
-      appBar: AppBar(title: Text(mafia ? l.winMafia : l.winCitizens, style: head.copyWith(fontSize: 20)), actions: [
+      appBar: AppBar(title: Text(winText(l, game['winner']), style: head.copyWith(fontSize: 20)), actions: [
         if (widget.prefs case final p?) ListenableBuilder(listenable: p, builder: (context, _) {
           final hidden = p.hiddenGames.contains(widget.id);
           return IconButton(key: const Key('hideGame'), tooltip: hidden ? l.unhideGame : l.hideGame,
@@ -70,8 +70,7 @@ class _GameDetailState extends State<GameDetail> {
             Icon(roleIcon(Role.values.byName(ps[best.seat]['role'] as String)), color: roleColor(Role.values.byName(ps[best.seat]['role'] as String))), const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(ps[best.seat]['name'] as String, key: const Key('detailMvp'), style: head.copyWith(fontSize: 20)),
-              Text(switch (best.why) { 'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(best.n ?? 1), 'doc' => l.mvpDoc(best.n ?? 1), _ => l.mvpSurv },
-                  style: TextStyle(color: C.mute)),
+              Text(mvpWhy(l, best.why, best.n), style: TextStyle(color: C.mute)),
             ])),
           ])),
         Sec(title: l.roles, child: Column(children: [
@@ -84,7 +83,7 @@ class _GameDetailState extends State<GameDetail> {
               child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
                 Icon(roleIcon(Role.values.byName(p['role'] as String)), size: 18, color: roleColor(Role.values.byName(p['role'] as String))), const SizedBox(width: 8),
                 Expanded(child: Text(p['name'] as String, style: TextStyle(decoration: p['alive'] == true ? null : TextDecoration.lineThrough))),
-                Text(roleName(l, Role.values.byName(p['role'] as String))),
+                Text(seatRole(l, Role.values.byName(p['role'] as String), p['seat'] == sheikh)),
               ])),
             ),
         ])),
