@@ -33,7 +33,7 @@ class Bot {
   final sent = <String>{};
 
   Future<void> join(String code) async {
-    final q = rev > 0 ? '?rev=$rev' : '';
+    final q = '?v=100017${rev > 0 ? '&rev=$rev' : ''}'; // a 1.0.0 phone (S17: older ones can't be dealt in)
     ws = await WebSocket.connect('ws://127.0.0.1:$lanPort/v1/rooms/$code/ws$q', protocols: ['mafia.v1', Identity(uid, 'Bot $uid', userId: userId).token()]);
     ws!.listen((raw) {
       if (raw == 'pong') return;
