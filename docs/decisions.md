@@ -33,3 +33,10 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   and its rollback ran cleanly on the copy, everything else untouched; the export was deleted.
 - **2026-11-25 · The Godfather on reveal.** His ruling (BA proposal accepted): with "Roles revealed" on, a dead or
   voted-out Godfather is named "Godfather", not "Mafia". Why: the table then knows ties now go to the lowest seat.
+- **2026-11-25 · 1.0.1 hotfix (his playtest: four room bugs, "fix and cpr asap").** [David · Dev] defaults:
+  an out player (host included) sees "You are out" only during the night and the vote; the morning, the day and the
+  verdict show the table's screen, so an out host runs the timer and sees the night's result. The host's Start now
+  is no longer on the role card (it read as "next" and skipped everyone's card); it shows after "I'm ready" and asks
+  first. Valid / Invalid: the server marked games correctly in every test, so the fix makes the choice visible (a
+  tick, and a note of what it means) and answers before the titles are recalculated; in Wi-Fi rooms, an Invalid game
+  isn't offered to online history (before, the buttons had no effect there).
