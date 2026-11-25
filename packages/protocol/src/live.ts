@@ -1,12 +1,15 @@
 // Live messages: the room socket (/v1/rooms/:code/ws) and the hub socket (/v1/hub/ws).
 // Sockets authenticate with the subprotocols ['mafia.v1', <session token>].
 import { z } from 'zod';
-import type { Counts, GameEvent, PublicView, Role, Rules, SeatView } from '@mafia/engine';
+import type { Counts, GameEvent, Mode, PublicView, Role, Rules, SeatView } from '@mafia/engine';
 import type { Avatar } from './index.ts';
 
 export const SUBPROTOCOL = 'mafia.v1';
 export const CHAT_RX = 30, CHAT_MAX = 200, CHAT_KEEP = 50, CHAT_EDIT_MS = 15 * 60e3;
 export const EVERYONE = -1;
+/** The first app build (1.0.0): an older app can't be dealt into any game (his ruling, Sprint 17). */
+export const MODES_BUILD = 100017;
+export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'all']);
 
 const seat = z.number().int().min(0).max(19);
 const cn = z.number().int().min(EVERYONE).max(999);
@@ -22,7 +25,8 @@ export const RulesIn = z.object({
 export const RoomIn = z.discriminatedUnion('t', [
   // host
   z.object({ t: z.literal('setup'), rules: RulesIn, counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(), buzzMax: z.number().int().min(0).max(20),
-    kick: z.enum(['lobby', 'any']).optional() }).strict(),  // S9-4: the host's kick rule (Settings)
+    kick: z.enum(['lobby', 'any']).optional(),  // S9-4: the host's kick rule (Settings)
+    mode: ModeIn.optional() }).strict(),        // 1.0.0; an older host sends none: Classic
   z.object({ t: z.literal('deal') }).strict(),          // deal roles (also Play again after the end)
   z.object({ t: z.literal('start') }).strict(),         // begin without waiting for everyone's "ready"
   z.object({ t: z.literal('startDay') }).strict(),
@@ -51,7 +55,7 @@ export type RoomIn = z.infer<typeof RoomIn>;
 
 export interface RoomMember { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; online: boolean; host: boolean; ready: boolean; muted: boolean; seat: number | null; v: number | null }  // v: app build
 export interface RoomInfo {
-  code: string; members: RoomMember[]; rules: Rules; counts: Counts; buzzMax: number; kick: 'lobby' | 'any';
+  code: string; members: RoomMember[]; rules: Rules; counts: Counts; mode: Mode; buzzMax: number; kick: 'lobby' | 'any';
   status: 'lobby' | 'game'; deal: number; gameId: string | null; valid: boolean | null;
 }
 export interface ChatMsg { id: number; from: number; to: number; text: string; at: number; reply?: number; mentions?: number[]; rx?: Record<number, number[]>; edited?: true; outOnly?: true }
@@ -86,7 +90,7 @@ export interface Notification {
 }
 /** A request to add a Wi-Fi game to online history, as the bell and History show it. */
 export interface WifiNote {
-  request: string; status: WifiStatus; reason: string | null; players: number; winner: 'mafia' | 'citizens' | null; playedAt: number;
+  request: string; status: WifiStatus; reason: string | null; players: number; winner: 'mafia' | 'citizens' | 'jester' | null; playedAt: number;
   seat: number | null; role: Role | null;  // mine in that game
 }
 export type WifiStatus = 'pending' | 'approved' | 'declined' | 'expired' | 'rejected';
@@ -103,7 +107,7 @@ export const WifiRequestIn = z.object({
 export const WifiAnswer = z.object({ yes: z.boolean() }).strict();
 /** A Wi-Fi request in History → Wi-Fi: mine as host (any status), or an approved game I played in. */
 export interface WifiGameInfo {
-  id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | null;
+  id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | 'jester' | null;
   host: boolean; waiting: number; total: number; gameId: string | null; seat: number | null; role: Role | null; record: unknown | null;
 }
 

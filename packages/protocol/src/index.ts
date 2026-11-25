@@ -49,7 +49,7 @@ export type ApiError =
   | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big'
   | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names' | 'banned' | 'blocked';
 export * from './live.ts';
-import { RulesIn } from './live.ts';
+import { ModeIn, RulesIn } from './live.ts';
 
 /** The account's saved player names (the setup's chips) and last setup. Names: 1-18 characters, at most 30, no two
  *  the same ignoring case and spacing (checked on the server). */
@@ -58,6 +58,7 @@ export const SavedNames = z.object({ names: z.array(z.string().trim().min(1).max
 export const SavedSetup = z.object({
   counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(),
   rules: RulesIn,
+  mode: ModeIn.optional(),  // 1.0.0
 }).strict();
 export type SavedSetup = z.infer<typeof SavedSetup>;
 

@@ -11,13 +11,15 @@ import { ApiErr, avatarOf, card, DAY, type AppEnv, type Deps, type Env, type Use
 
 export interface SSeat { key: string; userId: string | null; name: string; role: Role; alive: boolean }
 export interface SGame {
-  id: string; source: 'online' | 'wifi' | 'old'; playedAt: number; winner: 'mafia' | 'citizens'; days: number; seats: SSeat[];
+  id: string; source: 'online' | 'wifi' | 'old'; playedAt: number; winner: 'mafia' | 'citizens' | 'jester'; days: number; seats: SSeat[];
   ev: { first: number | null; kills: number[]; outs: number[]; saves: number[]; caught: number[] };  // caught: detective seats
 }
 export interface PlayerStat { key: string; userId: string | null; name: string; g: number; w: number; mg: number; mw: number; tg: number; tw: number; sv: number; ct: number; fk: number; q: boolean; r: number }
 export type TitleKey = 'best' | 'mafia' | 'det' | 'doc' | 'first';
 
-const won = (g: SGame, i: number) => (g.seats[i].role === 'mafia' ? g.winner === 'mafia' : g.winner === 'citizens');
+/** Each role's side: the Mafia (the Sheikh is one of them), the Jester alone, everyone else the Citizens. */
+const sideOf = (r: Role) => (r === 'mafia' ? 'mafia' : r === 'jester' ? 'jester' : 'citizens');
+const won = (g: SGame, i: number) => g.winner === sideOf(g.seats[i].role);
 export const userKey = (id: string) => 'u:' + id;
 export const nameKeyOf = (n: string) => 'n:' + nameKey(n);
 
@@ -29,7 +31,7 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
     if (!p) P.set(s.key, p = { key: s.key, userId: s.userId, name: s.name, g: 0, w: 0, mg: 0, mw: 0, tg: 0, tw: 0, sv: 0, ct: 0, fk: 0, q: false, r: 0 });
     const w = won(g, i);
     p.g++; if (w) p.w++;
-    if (s.role === 'mafia') { p.mg++; if (w) p.mw++; } else { p.tg++; if (w) p.tw++; }
+    if (s.role === 'mafia') { p.mg++; if (w) p.mw++; } else if (s.role !== 'jester') { p.tg++; if (w) p.tw++; }
     if (g.ev.first === i) p.fk++;
     p.sv += g.ev.saves.filter(x => x === i).length;
     p.ct += g.ev.caught.filter(x => x === i).length;
@@ -48,7 +50,7 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
 /** The old app's profileView(), plus the best partner (the Mafia teammate you win with most). */
 export function profile(games: SGame[], key: string) {
   const mine = games.filter(g => g.seats.some(s => s.key === key)).sort((a, b) => b.playedAt - a.playedAt);
-  const R: Record<Role, [number, number]> = { mafia: [0, 0], doctor: [0, 0], detective: [0, 0], citizen: [0, 0] };
+  const R: Record<Role, [number, number]> = { mafia: [0, 0], doctor: [0, 0], detective: [0, 0], citizen: [0, 0], sniper: [0, 0], jester: [0, 0] };
   const by = new Map<string, { name: string; userId: string | null; n: number }>(), mates = new Map<string, { name: string; userId: string | null; n: number }>();
   let w = 0, sv = 0, ct = 0, kd = 0, vo = 0;
   const form: boolean[] = [];
@@ -63,20 +65,21 @@ export function profile(games: SGame[], key: string) {
     for (const q of g.ev.kills) if (q === i) { kd++; g.seats.forEach((s, j) => { if (s.role === 'mafia' && j !== i) bump(by, s); }); }
     if (r === 'mafia' && x) g.seats.forEach((s, j) => { if (s.role === 'mafia' && j !== i) bump(mates, s); });
   }
-  const roles = Object.keys(R) as Role[];
-  const best = roles.filter(r => R[r][0] >= 2).sort((a, b) => (R[b][1] / R[b][0] - R[a][1] / R[a][0]) || (R[b][0] - R[a][0]))[0]
+  const pick = (roles: Role[]) => roles.filter(r => R[r][0] >= 2).sort((a, b) => (R[b][1] / R[b][0] - R[a][1] / R[a][0]) || (R[b][0] - R[a][0]))[0]
     ?? roles.slice().sort((a, b) => R[b][0] - R[a][0])[0];
-  const side = (['doctor', 'detective', 'citizen'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
+  // [Quin Q1] `best` stays one of the four roles a 0.4 app knows (it reads it as a role name); 1.0.0 reads `best1`
+  const best = pick(['mafia', 'doctor', 'detective', 'citizen']), best1 = pick(Object.keys(R) as Role[]);
+  const side = (['doctor', 'detective', 'citizen', 'sniper'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
   const most = (m: typeof by) => [...m.values()].sort((a, b) => b.n - a.n)[0] ?? null;
   const seat = mine[0]?.seats.find(s => s.key === key);
   return {
-    key, name: seat?.name ?? '', userId: seat?.userId ?? null, games: mine.length, wins: w, best, roles: R,
+    key, name: seat?.name ?? '', userId: seat?.userId ?? null, games: mine.length, wins: w, best, best1, roles: R,
     mafia: R.mafia, side, nemesis: most(by), partner: most(mates), moments: { saves: sv, caught: ct, killed: kd, out: vo }, form,
   };
 }
 
 // ---------------------------------------------------------------- loading the games
-interface GRow { id: string; source: string; played_at: number; winner: 'mafia' | 'citizens'; days: number; stats: string }
+interface GRow { id: string; source: string; played_at: number; winner: 'mafia' | 'citizens' | 'jester'; days: number; stats: string }
 interface PRow { game_id: string; seat: number; user_id: string | null; name: string; role: Role; alive: number }
 
 /** Online / Wi-Fi games from `games`: all of them (Everyone) or the ones `uid` played in. Valid only. */

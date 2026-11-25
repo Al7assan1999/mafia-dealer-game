@@ -150,12 +150,13 @@ games.get('/', async c => {
 games.get('/:id', async c => {
   const db = c.env.DB, id = c.req.param('id');
   const mine = await db.prepare('SELECT 1 FROM game_players WHERE game_id = ? AND user_id = ?').bind(id, c.var.user.id).first();
-  const g = mine && await db.prepare('SELECT * FROM games WHERE id = ?').bind(id).first<{ id: string; host_id: string | null; winner: string; days: number; valid: number; rules: string; log: string; stats: string; played_at: number }>();
+  const g = mine && await db.prepare('SELECT * FROM games WHERE id = ?').bind(id).first<{ id: string; host_id: string | null; winner: string; days: number; valid: number; rules: string; log: string; stats: string; played_at: number; record: string | null }>();
   if (!g) throw new ApiErr(404, 'not_found');
   const { results } = await db.prepare('SELECT seat, user_id, name, role, alive FROM game_players WHERE game_id = ? ORDER BY seat').bind(id).all<{ seat: number; user_id: string | null; name: string; role: string; alive: number }>();
   return c.json({
     id: g.id, winner: g.winner, days: g.days, valid: !!g.valid, playedAt: g.played_at, host: g.host_id === c.var.user.id,
     rules: JSON.parse(g.rules), log: JSON.parse(g.log), stats: JSON.parse(g.stats),
+    sheikh: (g.record ? JSON.parse(g.record).sheikh : null) ?? null,  // 1.0.0: the Godfather's seat
     players: results.map(p => ({ seat: p.seat, userId: p.user_id, name: p.name, role: p.role, alive: !!p.alive })),
   });
 });
