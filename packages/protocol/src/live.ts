@@ -7,9 +7,10 @@ import type { Avatar } from './index.ts';
 export const SUBPROTOCOL = 'mafia.v1';
 export const CHAT_RX = 30, CHAT_MAX = 200, CHAT_KEEP = 50, CHAT_EDIT_MS = 15 * 60e3;
 export const EVERYONE = -1;
-/** The first app build (1.0.0): an older app can't be dealt into any game (his ruling, Sprint 17). */
-export const MODES_BUILD = 100017;
-export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'all']);
+/** The first app build every table needs: 1.1.0 (release run 19). An older app can't be dealt into any game
+ *  (his rulings: Sprint 17 for 1.0.0, Sprint 18 for 1.1.0, which knows the Bodyguard and the new night rules). */
+export const MODES_BUILD = 100019;
+export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'bodyguard', 'all']);
 
 const seat = z.number().int().min(0).max(19);
 const cn = z.number().int().min(EVERYONE).max(999);
@@ -26,7 +27,8 @@ export const RoomIn = z.discriminatedUnion('t', [
   // host
   z.object({ t: z.literal('setup'), rules: RulesIn, counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(), buzzMax: z.number().int().min(0).max(20),
     kick: z.enum(['lobby', 'any']).optional(),  // S9-4: the host's kick rule (Settings)
-    mode: ModeIn.optional() }).strict(),        // 1.0.0; an older host sends none: Classic
+    mode: ModeIn.optional(),                    // 1.0.0; an older host sends none: Classic
+    bodyguard: z.boolean().optional() }).strict(),  // 1.1.0: the Sniper and Jester modes' optional Bodyguard
   z.object({ t: z.literal('deal') }).strict(),          // deal roles (also Play again after the end)
   z.object({ t: z.literal('start') }).strict(),         // begin without waiting for everyone's "ready"
   z.object({ t: z.literal('startDay') }).strict(),
@@ -55,7 +57,7 @@ export type RoomIn = z.infer<typeof RoomIn>;
 
 export interface RoomMember { uid: string; cn: number; display: string; handle: string | null; avatar: Avatar; online: boolean; host: boolean; ready: boolean; muted: boolean; seat: number | null; v: number | null }  // v: app build
 export interface RoomInfo {
-  code: string; members: RoomMember[]; rules: Rules; counts: Counts; mode: Mode; buzzMax: number; kick: 'lobby' | 'any';
+  code: string; members: RoomMember[]; rules: Rules; counts: Counts; mode: Mode; bodyguard: boolean; buzzMax: number; kick: 'lobby' | 'any';
   status: 'lobby' | 'game'; deal: number; gameId: string | null; valid: boolean | null;
 }
 export interface ChatMsg { id: number; from: number; to: number; text: string; at: number; reply?: number; mentions?: number[]; rx?: Record<number, number[]>; edited?: true; outOnly?: true }

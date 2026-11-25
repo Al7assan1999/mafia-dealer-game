@@ -59,6 +59,7 @@ export const SavedSetup = z.object({
   counts: z.object({ mafia: z.number().int().min(1).max(10), detective: z.number().int().min(0).max(1) }).strict(),
   rules: RulesIn,
   mode: ModeIn.optional(),  // 1.0.0
+  bodyguard: z.boolean().optional(),  // 1.1.0: the Sniper and Jester modes' optional Bodyguard
 }).strict();
 export type SavedSetup = z.infer<typeof SavedSetup>;
 

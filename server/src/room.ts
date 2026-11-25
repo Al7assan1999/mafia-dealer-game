@@ -14,6 +14,7 @@ interface RoomState {
   code: string; hostUid: string; members: Member[]; kicked: string[]; nextCn: number; sizeSent?: number;
   rules: Rules; counts: Counts; buzzMax: number; kick?: 'lobby' | 'any';  // kick: S9-4 (missing in older rooms = lobby only)
   mode?: Mode;  // 1.0.0 (missing in older rooms = Classic)
+  bodyguard?: boolean;  // 1.1.0: the Sniper and Jester modes' optional Bodyguard
   deal: number; game: GameState | null; seats: string[]; ready: string[]; gameId: string | null; valid: boolean | null;
   lastActive: number;
   rev: number;                                  // grows with every change: phones reconnect with the last one they saw
@@ -86,7 +87,7 @@ export class Room extends DurableObject<Env> {
   private info(st: RoomState, except?: WebSocket): RoomInfo {
     const host = this.hostOf(st, except);
     return {
-      code: st.code, rules: st.rules, counts: st.counts, mode: st.mode ?? 'classic', buzzMax: st.buzzMax, kick: st.kick ?? 'lobby', status: statusOf(st), deal: st.deal,
+      code: st.code, rules: st.rules, counts: st.counts, mode: st.mode ?? 'classic', bodyguard: !!st.bodyguard, buzzMax: st.buzzMax, kick: st.kick ?? 'lobby', status: statusOf(st), deal: st.deal,
       gameId: st.gameId, valid: st.valid,
       members: st.members.filter(m => !m.left).map(m => ({
         uid: m.uid, cn: m.cn, display: m.display, handle: m.handle, avatar: m.avatar, online: this.online(m.uid, except), v: m.v ?? null,
@@ -322,14 +323,14 @@ export class Room extends DurableObject<Env> {
       case 'setup':
         if (running(st)) return err('started');
         st.rules = { ...inp.rules, tieSkip: true }; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax; if (inp.kick) st.kick = inp.kick;
-        st.mode = inp.mode ?? 'classic';
+        st.mode = inp.mode ?? 'classic'; st.bodyguard = inp.bodyguard ?? false;
         break;
       case 'deal': {  // also Play again after the end: the same room, new roles
         if (running(st)) return err('started');
         const players = st.members.filter(x => !x.left), mode = st.mode ?? 'classic';
-        // his ruling (S17, Q4): every seat must be on 1.0.0, Classic too (an older app doesn't know the Godfather)
+        // his rulings (S17 Q4, S18): every seat must be on 1.1.0, Classic too (an older app doesn't know the new rules)
         if (players.some(x => !(x.v && x.v >= MODES_BUILD))) return err('old_app');
-        const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules, mode }, rng, st.deal + 1);
+        const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules, mode, bodyguard: !!st.bodyguard }, rng, st.deal + 1);
         if (!r.ok) return err(r.error);
         st.deal++; st.game = r.state; st.seats = players.map(x => x.uid); st.ready = []; st.gameId = null; st.valid = null;
         st.rec = startRecord(r.state); st.lastIn = {};

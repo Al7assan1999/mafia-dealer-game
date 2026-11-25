@@ -1,6 +1,7 @@
 // Helpers for the live tests: accounts made straight in D1, REST calls and real sockets through the Worker.
 import { env, SELF } from 'cloudflare:test';
 import { sha256, token, type Env } from '../src/lib.ts';
+import { MODES_BUILD } from '@mafia/protocol';
 
 export const DB = () => (env as unknown as Env).DB;
 
@@ -32,7 +33,7 @@ export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 /** A connected socket that remembers every message and the latest room / view. */
 export async function connect(path: string, tok: string) {
   // a room socket is a 1.0.0 phone unless the path says otherwise (S17: older apps can't be dealt in)
-  if (path.startsWith('/v1/rooms/') && !path.includes('?')) path += '?v=100017';
+  if (path.startsWith('/v1/rooms/') && !path.includes('?')) path += '?v=' + MODES_BUILD;  // a phone on the build every table needs
   const r = await SELF.fetch('https://x' + path, { headers: { upgrade: 'websocket', 'sec-websocket-protocol': 'mafia.v1, ' + tok } });
   const ws = r.webSocket;
   if (!ws) throw new Error('no socket: ' + r.status + ' ' + await r.text());
