@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { Handled, Invite, JoinRequest, MarkGame, MarkRead, type Notification } from '@mafia/protocol';
 import { notify } from './hub.ts';
+import { isAdmin } from './safety.ts';
 import { dismissWifi, expire, readWifi, wifiNotes } from './wifi.ts';
 import { bellNotes, dismissBell, readBell, refreshTitles } from './stats.ts';
 import { allow, ApiErr, body, card, HOUR, type AppEnv, type Ctx, type UserRow } from './lib.ts';
@@ -149,7 +150,8 @@ games.get('/', async c => {
 });
 games.get('/:id', async c => {
   const db = c.env.DB, id = c.req.param('id');
-  const mine = await db.prepare('SELECT 1 FROM game_players WHERE game_id = ? AND user_id = ?').bind(id, c.var.user.id).first();
+  // [S19 P2] the admin too: a reported problem can name a game he didn't play
+  const mine = isAdmin(c.env, c.var.user.id) || await db.prepare('SELECT 1 FROM game_players WHERE game_id = ? AND user_id = ?').bind(id, c.var.user.id).first();
   const g = mine && await db.prepare('SELECT * FROM games WHERE id = ?').bind(id).first<{ id: string; host_id: string | null; winner: string; days: number; valid: number; rules: string; log: string; stats: string; played_at: number; record: string | null }>();
   if (!g) throw new ApiErr(404, 'not_found');
   const { results } = await db.prepare('SELECT seat, user_id, name, role, alive FROM game_players WHERE game_id = ? ORDER BY seat').bind(id).all<{ seat: number; user_id: string | null; name: string; role: string; alive: number }>();

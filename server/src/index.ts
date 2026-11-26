@@ -9,6 +9,7 @@ import { ApiErr, userFromToken, type AppEnv, type Ctx, type Deps, type Env } fro
 import { games, invites, joinRequests, notes, rooms } from './social.ts';
 import { avatars, friends, me, requests, users } from './users.ts';
 import { adminRoutes, blockRoutes, reportRoutes } from './safety.ts';
+import { feedbackRoutes } from './feedback.ts';  // also adds the admin's /v1/admin/feedback
 import { fcmSender, pushRoutes } from './push.ts';
 import { expire, wifiRoutes } from './wifi.ts';
 import { statsRoutes } from './stats.ts';
@@ -36,7 +37,10 @@ export function createApp(deps: Deps) {
   app.use('*', async (c, next) => { c.set('deps', deps); await next(); });
   // bearer tokens, no cookies: any origin may call (the app runs from https://localhost inside Capacitor)
   app.use('/v1/*', cors({ origin: '*', allowHeaders: ['content-type', 'authorization'], allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] }));
-  app.use('/v1/*', bodyLimit({ maxSize: 300 * 1024, onError: c => c.json({ error: 'too_big' }, 413) }));
+  // [S19, Quin Q1] the suggestions box takes one screenshot of up to 300 KB, which is ~400 KB as base64 JSON
+  const small = bodyLimit({ maxSize: 300 * 1024, onError: c => c.json({ error: 'too_big' }, 413) });
+  const shot = bodyLimit({ maxSize: 420 * 1024, onError: c => c.json({ error: 'too_big' }, 413) });
+  app.use('/v1/*', (c, next) => (c.req.path === '/v1/feedback' ? shot : small)(c, next));
 
   app.get('/', c => c.text('mafia-dealer-game'));
   app.get('/v1/health', c => c.json({ ok: true }));
@@ -64,7 +68,7 @@ export function createApp(deps: Deps) {
   app.route('/v1/sessions', sessions);
   app.route('/v1/avatars', avatars);
   const routes = [['/v1/me', me], ['/v1/me/push', pushRoutes], ['/v1/wifi-requests', wifiRoutes], ['/v1/stats', statsRoutes], ['/v1/legacy', legacyRoutes], ['/v1/users', users], ['/v1/friends', friends], ['/v1/friend-requests', requests],
-    ['/v1/blocks', blockRoutes], ['/v1/reports', reportRoutes], ['/v1/admin', adminRoutes],
+    ['/v1/blocks', blockRoutes], ['/v1/reports', reportRoutes], ['/v1/feedback', feedbackRoutes], ['/v1/admin', adminRoutes],
     ['/v1/rooms', rooms], ['/v1/invites', invites], ['/v1/join-requests', joinRequests], ['/v1/notifications', notes], ['/v1/games', games]] as const;
   for (const [path, r] of routes) { app.use(path, requireUser); app.use(path + '/*', requireUser); app.route(path, r); }
 

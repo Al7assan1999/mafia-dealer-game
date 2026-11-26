@@ -11,7 +11,7 @@ export interface PushMsg { token: string; title: string; body: string; channel: 
 /** Sends pushes; returns the tokens FCM says are gone (the app was uninstalled), which are then deleted. */
 export type PushSender = (env: Env, msgs: PushMsg[]) => Promise<string[]>;
 
-export type PushKind = 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'approved' | 'declined' | 'expired' | 'title_lost' | 'test';
+export type PushKind = 'invite' | 'join_request' | 'let_in' | 'friend_request' | 'friend_accept' | 'wifi_confirm' | 'approved' | 'declined' | 'expired' | 'title_lost' | 'feedback_done' | 'test';
 const RLM = String.fromCharCode(0x200f);  // keeps an Arabic line right-to-left when it starts with a Latin name
 const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => string>> = {
   en: {
@@ -25,6 +25,7 @@ const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => st
     declined: () => 'Your Wi-Fi game was not added: a player said Not me',
     expired: () => 'Your Wi-Fi game was not added: not everyone confirmed in time',
     title_lost: (n, t) => `${n} took ${t} from you`,
+    feedback_done: (_, k) => k === 'problem' ? "We've looked at the problem you reported. Thank you!" : 'We read your suggestion. Thank you!',
     test: () => 'Notifications work on this phone ✓',
   },
   ar: {
@@ -38,13 +39,14 @@ const TEXT: Record<'en' | 'ar', Record<PushKind, (n: string, code: string) => st
     declined: () => 'لم تُضف لعبة الواي فاي: أحد اللاعبين قال «لست أنا»',
     expired: () => 'لم تُضف لعبة الواي فاي: لم يؤكد الجميع في الوقت المحدد',
     title_lost: (n, t) => `${RLM}${n} أخذ منك لقب ${TITLE_AR[t] ?? t}`,
+    feedback_done: (_, k) => k === 'problem' ? 'اطّلعنا على المشكلة التي أبلغت عنها. شكرًا لك!' : 'قرأنا اقتراحك. شكرًا لك!',
     test: () => 'الإشعارات تعمل على هذا الهاتف ✓',
   },
 };
 const TITLE_AR: Record<string, string> = { 'Best player': 'أفضل لاعب', 'Best Mafia': 'أفضل مافيا', 'Best Detective': 'أفضل محقق', 'Best Doctor': 'أفضل طبيب', 'Most killed first': 'الأكثر قتلًا أولًا' };
 const CHANNEL: Record<PushKind, PushMsg['channel']> = {
   invite: 'invites', join_request: 'invites', let_in: 'invites', friend_request: 'friends', friend_accept: 'friends',
-  wifi_confirm: 'approvals', approved: 'approvals', declined: 'approvals', expired: 'approvals', title_lost: 'titles', test: 'friends',
+  wifi_confirm: 'approvals', approved: 'approvals', declined: 'approvals', expired: 'approvals', title_lost: 'titles', feedback_done: 'friends', test: 'friends',
 };
 
 /** Pushes to every device of `uid`. `tag` makes a newer push replace an older one (one per sender and kind). */

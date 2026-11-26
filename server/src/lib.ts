@@ -99,3 +99,12 @@ export async function allow(db: D1Database, key: string, limit: number, windowMs
      RETURNING count`).bind(key, now, windowMs).first<{ count: number }>();
   return (r?.count ?? 1) <= limit;
 }
+
+/** base64 → bytes with a plain loop (Uint8Array.from(atob(..), fn) costs ~35 ms of CPU for 300 KB; this ~1 ms). null if not base64. */
+export function fromB64(b64: string): Uint8Array | null {
+  let s: string;
+  try { s = atob(b64); } catch { return null; }
+  const u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return u;
+}

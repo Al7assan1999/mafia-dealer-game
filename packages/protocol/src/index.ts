@@ -4,6 +4,9 @@ import { z } from 'zod';
 export const ROLES = ['', 'mafia', 'doctor', 'detective', 'citizen'] as const;
 export const AVATAR_PRESETS = 10;
 export const MAX_AVATAR_BYTES = 150_000;
+/** Sprint 19: the suggestions box. One screenshot, shrunk on the phone; the limits against spam (his numbers). */
+export const MAX_SHOT_BYTES = 300_000;
+export const FEEDBACK_LIMITS = { perDay: 3, waiting: 5, box: 300 } as const;
 
 export const Email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 export const Code = z.string().regex(/^\d{6}$/);
@@ -47,7 +50,7 @@ export interface FriendsAnswer { friends: UserCard[]; incoming: UserCard[]; outg
 export type ApiError =
   | 'bad_request' | 'auth' | 'code' | 'slow_down' | 'google' | 'needs_handle' | 'handle_taken'
   | 'not_found' | 'self' | 'full' | 'no_request' | 'too_big'
-  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names' | 'banned' | 'blocked';
+  | 'not_friends' | 'not_open' | 'not_member' | 'forbidden' | 'no_room' | 'started' | 'kicked' | 'room_full' | 'busy' | 'mail' | 'dup_names' | 'banned' | 'blocked' | 'box_full';
 export * from './live.ts';
 import { ModeIn, RulesIn } from './live.ts';
 
@@ -70,3 +73,14 @@ export const ReportIn = z.object({
   room: z.string().regex(/^\d{6}$/).optional(), msgId: z.number().int().min(0).optional(),
 }).strict();
 export const ReportAction = z.object({ action: z.enum(['dismiss', 'ban']) }).strict();
+
+/** Sprint 19: a suggestion or a problem, with at most one screenshot (a JPEG data: URL: the phone always makes one). */
+export const FeedbackIn = z.object({
+  kind: z.enum(['idea', 'problem']),
+  text: z.string().trim().min(10).max(1000),
+  image: z.string().regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/).max(Math.ceil(MAX_SHOT_BYTES * 4 / 3) + 40).optional(),
+  gameId: z.string().min(1).max(64).optional(),
+  info: z.object({ app: z.string().max(20), build: z.number().int().min(0).max(10_000_000), lang: z.string().max(8), os: z.string().max(40) }).strict(),
+}).strict();
+export const FeedbackAction = z.object({ status: z.enum(['read', 'done']) }).strict();
+

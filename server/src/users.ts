@@ -5,7 +5,7 @@ import { deckOk, nameKey } from '@mafia/engine';
 import { notify, pushPresence } from './hub.ts';
 import { blocks, isAdmin } from './safety.ts';
 import { refreshTitles } from './stats.ts';
-import { ApiErr, avatarOf, body, card, type AppEnv, type Ctx, type UserRow } from './lib.ts';
+import { ApiErr, avatarOf, body, card, fromB64, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const MAX_FRIENDS = 300;
 
@@ -57,7 +57,8 @@ me.put('/avatar', async c => {
     await db.batch([db.prepare('UPDATE users SET avatar_preset = ?, avatar_ver = 0 WHERE id = ?').bind(a.preset, id), db.prepare('DELETE FROM avatars WHERE user_id = ?').bind(id)]);
   } else {
     const [, mime, b64] = /^data:(image\/\w+);base64,(.+)$/.exec(a.image)!;
-    const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    const bytes = fromB64(b64);
+    if (!bytes) throw new ApiErr(400, 'bad_request');
     if (bytes.length > MAX_AVATAR_BYTES) throw new ApiErr(413, 'too_big');
     const ver = c.var.deps.now();  // a new version per upload, so cached old photos never show
     await db.batch([
