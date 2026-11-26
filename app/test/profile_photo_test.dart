@@ -39,4 +39,21 @@ void main() {
     expect(find.byKey(const Key('profilePhotoFull')), findsNothing);
     expect(find.byKey(const Key('profileName')), findsOneWidget);
   });
+
+  testWidgets('[1.3.1, his report] the page of a player WITH games: tapping the photo opens it too', (t) async {
+    final s = FakeServer(), tok = s.user('Sami');
+    s.user('Dareer');
+    final d = s.users[s.idOf('Dareer')]!;
+    s.playerAnswer = {'key': 'u:${d['id']}', 'name': 'Dareer', 'userId': d['id'], 'games': 1, 'wins': 1, 'best': 'citizen',
+      'roles': {'mafia': [0, 0], 'doctor': [0, 0], 'detective': [0, 0], 'citizen': [1, 1]}, 'mafia': [0, 0], 'side': [1, 1], 'nemesis': null, 'partner': null,
+      'moments': {'saves': 0, 'caught': 0, 'killed': 0, 'out': 0}, 'form': [true],
+      'card': {'id': d['id'], 'handle': d['handle'], 'display': 'Dareer', 'avatar': {'photo': 4}, 'fav': '', 'rel': 'none'}};
+    final a = await launch(t, server: s, tokens: MemoryTokens()..t = tok, stored: {'guideSeen': true});
+    ActiveRoom.navigatorKey.currentState!.push(MaterialPageRoute(builder: (_) => PlayerScreen(account: a.account, playerKey: 'u:${d['id']}')));
+    await frames(t);
+    expect(find.byKey(const Key('noGamesYet')), findsNothing, reason: 'the page with games');
+    await tapKey(t, 'profilePhoto');
+    await frames(t);
+    expect(find.byKey(const Key('profilePhotoFull')), findsOneWidget);
+  });
 }

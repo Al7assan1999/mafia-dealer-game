@@ -119,17 +119,12 @@ class _PlayerState extends State<PlayerScreen> {
   }
 
   List<Widget> _header(L l, Person f) {
-    final a = widget.account, friend = _rel(f) == 'friends';
+    final friend = _rel(f) == 'friends';
     final status = !friend ? null : friendStatus(l, f);
     final statusColor = !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green;
     final fav = f.fav.isEmpty ? null : Role.values.byName(f.fav);
     return [
-      Center(child: GestureDetector(key: const Key('profilePhoto'),
-          // a real photo opens full size (pinch to zoom); a preset picture has nothing more to show
-          onTap: f.photo == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(), backgroundColor: Colors.black,
-              body: InteractiveViewer(child: Center(child: Image.network(a.api.avatarUrl(f.id, f.photo!), key: const Key('profilePhotoFull'),
-                  errorBuilder: (_, _, _) => Icon(Icons.broken_image_outlined, color: C.mute, size: 64))))))),
-          child: AvatarView.of(a.api, f, size: 96, online: friend ? f.online : null))),
+      Center(child: _photo(f, 96, online: friend ? f.online : null)),
       const SizedBox(height: 12),
       Text(f.display, key: const Key('profileName'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 26)),
       if (f.handle != null) Text(atHandle(f.handle), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
@@ -143,6 +138,14 @@ class _PlayerState extends State<PlayerScreen> {
       ..._actions(l, f),
     ];
   }
+
+  /// The player's picture: a real photo opens full size (pinch to zoom); a preset picture has nothing more to show.
+  /// [1.3.1] one widget for both headers (with games and without): 1.3.0 had it on the no-games one only.
+  Widget _photo(Person f, double size, {bool? online}) => GestureDetector(key: const Key('profilePhoto'),
+      onTap: f.photo == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(), backgroundColor: Colors.black,
+          body: InteractiveViewer(child: Center(child: Image.network(widget.account.api.avatarUrl(f.id, f.photo!), key: const Key('profilePhotoFull'),
+              errorBuilder: (_, _, _) => Icon(Icons.broken_image_outlined, color: C.mute, size: 64))))))),
+      child: AvatarView.of(widget.account.api, f, size: size, online: online));
 
   /// What I can do with this player: add, accept, invite to my lobby, ask to join theirs.
   List<Widget> _actions(L l, Person f) {
@@ -175,7 +178,7 @@ class _PlayerState extends State<PlayerScreen> {
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (card != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [
-        AvatarView.of(widget.account.api, Person(Map<String, Object?>.from(card)), size: 48),
+        _photo(Person(Map<String, Object?>.from(card)), 48), // [1.3.1] the page of a player with games: this is the photo he taps
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(x['name'] as String, style: head.copyWith(fontSize: 22)),
