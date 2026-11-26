@@ -69,3 +69,12 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
 - **2026-11-26 · Side tabs float again (his note).** Reverses S16-1: the lobby cards use the full width and the tabs
   float over the content and drag up and down (the chat tab too, in a game); a tab over a menu is dragged away.
 - **2026-11-26 · A taken username is an alert (his note).** On first sign-in and on the profile.
+- **2026-11-26 · Sprint 19 (1.2.0) scope: the suggestions box.** His sign-off on `docs/sprint-19-prd.md`: signed-in
+  only; 3 a day, 5 waiting, one screenshot ≤ 300 KB, 1000 characters, 300 in the box; admin only; Empty deletes for
+  good. Proposals left to the team: P1 (Mark done → a bell note), P2 (report a problem with this game, an online game's
+  id attached) and P3 (My messages) all taken.
+- **2026-11-26 · S19 P1 is a push, not a bell note.** [Ben · BA] / [David · Dev]: 1.1.x phones show an unknown bell note
+  as "wants to join your room" and the API doesn't know the caller's version, so "Mark done" sends a push (old phones
+  just open the app) and My messages shows Done.
+- **2026-11-26 · S19 box cap.** The box holds 300 items of any status until the admin empties it; "Empty" deletes only
+  what he saw (Quin Q12). A small overshoot under parallel sends is accepted.
