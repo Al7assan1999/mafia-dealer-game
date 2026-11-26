@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 // The server's REST API. Every call has a 10 s timeout; failures become an ApiError with the server's error code,
@@ -50,6 +51,23 @@ class Api {
     try { j = r.body.isEmpty ? {} : jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, Object?>; } catch (_) { j = {}; }
     if (r.statusCode >= 400) throw ApiError(r.statusCode == 401 ? 'auth' : (j['error'] as String? ?? 'server'), r.statusCode);
     return j;
+  }
+
+  /// [S19] raw bytes (the admin's screenshot); the same errors as call().
+  Future<Uint8List> bytes(String path) async {
+    final req = http.Request('GET', Uri.parse('$base$path'));
+    if (token != null && token!.isNotEmpty) req.headers['authorization'] = 'Bearer $token';
+    try {
+      final r = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 20)));
+      if (r.statusCode >= 400) throw ApiError(r.statusCode == 401 ? 'auth' : 'not_found', r.statusCode);
+      return r.bodyBytes;
+    } on TimeoutException {
+      throw ApiError('offline');
+    } on SocketException {
+      throw ApiError('offline');
+    } on http.ClientException {
+      throw ApiError('offline');
+    }
   }
 
   /// The URL of an account's photo (public; the version in the URL busts the cache).

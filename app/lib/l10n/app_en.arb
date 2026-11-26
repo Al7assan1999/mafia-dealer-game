@@ -1510,5 +1510,58 @@
         "type": "String"
       }
     }
-  }
+  },
+  "fbT": "Suggestions & problems",
+  "fbTD": "Tell us an idea or report a problem",
+  "fbSignIn": "Sign in to send",
+  "fbIdea": "Suggestion",
+  "fbProblem": "Problem",
+  "fbIdeaHint": "What would make the game better?",
+  "fbProblemHint": "What happened, and what did you expect?",
+  "fbAddShot": "Add a screenshot (optional)",
+  "fbReplace": "Replace",
+  "fbRemove": "Remove",
+  "fbInfo": "Sent with it: app {v}, your language and your Android version",
+  "fbSend": "Send",
+  "fbThanks": "Thanks, it was sent",
+  "fbTooShort": "Write at least 10 characters",
+  "fbShotBad": "That picture can't be used. Try another one.",
+  "fbDay": "You've sent a lot today; try again tomorrow",
+  "fbWaiting": "You can send more once we've read your last ones",
+  "fbFull": "The box is full right now. Try again later.",
+  "fbMine": "My messages",
+  "fbSent": "Sent",
+  "fbRead": "Read",
+  "fbDone": "Done ✓",
+  "fbAboutGame": "About this game (it is attached)",
+  "fbReportGame": "Report a problem with this game",
+  "fbBoxT": "Suggestions",
+  "fbEmpty": "Empty the box",
+  "fbEmptyQ": "Delete all {n}?",
+  "fbEmptyD": "This can't be undone. Screenshots are deleted too.",
+  "fbAll": "All",
+  "fbIdeas": "Suggestions",
+  "fbProblems": "Problems",
+  "fbEmptyBox": "Nothing in the box",
+  "fbMarkDone": "Mark done (tells the player)",
+  "fbMarkedDone": "Done. The player was told.",
+  "fbDelete": "Delete",
+  "fbDeleteQ": "Delete this one?",
+  "fbOpenGame": "Open the game",
+  "@fbInfo": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
+  "@fbEmptyQ": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fbTooLong": "1000 characters at most",
+  "fbGameGone": "That game can't be attached. Send it without the game."
 }

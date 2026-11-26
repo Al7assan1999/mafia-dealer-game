@@ -13,6 +13,7 @@ import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/core/version.dart';
 import 'package:mafia_dealer/features/account/avatar.dart';
 import 'package:mafia_dealer/features/chat/chat_screen.dart';
+import 'package:mafia_dealer/features/feedback/feedback_screen.dart';
 import 'package:mafia_dealer/features/friends/friends_drawer.dart';
 import 'package:mafia_dealer/features/friends/friends_screen.dart';
 import 'package:mafia_dealer/features/history/wifi_approval.dart';

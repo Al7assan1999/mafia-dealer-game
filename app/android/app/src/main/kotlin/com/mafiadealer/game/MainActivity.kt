@@ -69,6 +69,8 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "cacheDir" -> result.success(cacheDir.absolutePath)
+                // [S19, Quin Q4] the suggestions box says which Android sent it (Platform gives the kernel's version)
+                "android" -> result.success("Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
                 "install" -> try { Updates.install(this, call.argument<String>("path")!!); result.success(true) } catch (e: Exception) { result.error("install", e.message, null) }
                 "openUrl" -> { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(call.argument<String>("url"))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); result.success(true) }
                 else -> result.notImplemented()

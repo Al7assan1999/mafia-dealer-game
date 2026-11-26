@@ -7,7 +7,7 @@ import 'package:mafia_dealer/l10n/app_localizations.dart';
 String errText(L l, Object e) => switch (e is ApiError ? e.code : '') {
       'offline' => l.eOffline, 'code' => l.eCode, 'slow_down' => l.eSlow, 'handle_taken' => l.eTaken, 'bad_request' => l.eOther,
       'not_found' => l.eNoUser, 'self' => l.eSelf, 'full' => l.eFull, 'mail' => l.eMail, 'google' => l.eGoogle,
-      'too_big' => l.eTooBig, 'auth' => l.eSignedOut, 'banned' => l.eBanned, 'blocked' => l.eBlocked, _ => l.eOther,
+      'too_big' => l.eTooBig, 'auth' => l.eSignedOut, 'banned' => l.eBanned, 'blocked' => l.eBlocked, 'box_full' => l.fbFull, _ => l.eOther,
     };
 
 /// [1.1.1 hotfix] 2.5 s (was 4), and a tap puts it away: it never sits over the screen's buttons for long.

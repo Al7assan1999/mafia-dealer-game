@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mafia_dealer/features/feedback/feedback_screen.dart';
 import 'package:mafia_dealer/core/feedback.dart';
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_engine/mafia_engine.dart';
@@ -54,6 +55,9 @@ class _GameDetailState extends State<GameDetail> {
     final sheikh = (game['sheikh'] ?? (game['record'] as Map?)?['sheikh']) as int?;
     return Scaffold(
       appBar: AppBar(title: Text(winText(l, game['winner']), style: head.copyWith(fontSize: 20)), actions: [
+        // [Quin Q7] only a player of this game (the admin also opens others' games from the box)
+        if (widget.local == null && widget.account.signedIn && (game['players'] as List).any((p) => (p as Map)['userId'] == widget.account.me?['id'])) IconButton(key: const Key('reportGame'), tooltip: l.fbReportGame, icon: Icon(Icons.bug_report_outlined, color: C.mute),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackScreen(account: widget.account, gameId: widget.id)))),
         if (widget.prefs case final p?) ListenableBuilder(listenable: p, builder: (context, _) {
           final hidden = p.hiddenGames.contains(widget.id);
           return IconButton(key: const Key('hideGame'), tooltip: hidden ? l.unhideGame : l.hideGame,

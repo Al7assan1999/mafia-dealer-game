@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:mafia_dealer/features/feedback/feedback_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -46,6 +47,8 @@ class _ProfileState extends State<ProfileScreen> {
   List<Map<String, Object?>>? devices;
   Object? devicesErr; // [S15] his phone showed an empty list: the reason is shown now, with Try again
   bool busy = false;
+  late Future<int> _box = _unread();
+  Future<int> _unread() async => !a.isAdmin ? 0 : ((await a.feedbackBox().catchError((_) => <String, Object?>{}))['unread'] as int? ?? 0);
 
   @override
   void initState() { super.initState(); _loadDevices(); }
@@ -150,6 +153,13 @@ class _ProfileState extends State<ProfileScreen> {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlockedScreen(account: a)))),
               if (a.isAdmin) ListTile(key: const Key('reports'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.flag_outlined, color: C.red2), title: Text(l.reportsT),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportsScreen(account: a)))),
+              // [S19-3] the suggestions box, with how many are unread
+              if (a.isAdmin) FutureBuilder(future: _box, builder: (context, snap) => ListTile(key: const Key('feedbackBox'), contentPadding: EdgeInsets.zero,
+                  leading: Badge(isLabelVisible: (snap.data ?? 0) > 0, label: Text('${snap.data ?? 0}'), child: Icon(Icons.inbox_outlined, color: C.gold)), title: Text(l.fbBoxT),
+                  onTap: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackBoxScreen(account: a)));
+                    if (mounted) setState(() => _box = _unread());
+                  })),
               ListTile(key: const Key('accountId'), contentPadding: EdgeInsets.zero, leading: Icon(Icons.badge_outlined, color: C.mute), title: Text(l.accountId),
                   subtitle: Text(a.card!.id, style: TextStyle(color: C.dim, fontSize: 11)), trailing: Icon(Icons.copy, size: 18, color: C.dim),
                   onTap: () => copyText(context, a.card!.id)),

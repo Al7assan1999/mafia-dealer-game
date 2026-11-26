@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:mafia_dealer/features/feedback/feedback_screen.dart';
 import 'package:mafia_dealer/core/prefs.dart';
 import 'package:mafia_dealer/core/push.dart';
 import 'package:mafia_dealer/core/ui.dart';
@@ -91,6 +92,12 @@ class _SettingsState extends State<SettingsSheet> {
                     options: [('lobby', l.sKickLobby, const Key('kick_lobby')), ('any', l.sKickAny, const Key('kick_any'))]),
               ])),
               Sec(title: l.sMore, icon: Icons.visibility_outlined, child: Column(children: [
+                // [S19-1] the suggestions box; signed out it opens sign-in (the limits need an account)
+                if (widget.account case final a?) ...[
+                  OptRow(l.fbT, key: const Key('feedback'), desc: a.signedIn ? l.fbTD : l.fbSignIn, trailing: Icon(Icons.chevron_right, color: C.mute),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => a.signedIn ? FeedbackScreen(account: a) : SignInScreen(account: a)))),
+                  _line,
+                ],
                 OptRow(l.sNotif, key: const Key('notifSettings'), desc: l.sNotifD, onTap: openNotificationSettings, trailing: Icon(Icons.open_in_new, color: C.mute, size: 18)),
                 _line,
                 OptRow(l.sIntro, desc: l.sIntroD, trailing: SqSwitch(key: const Key('introAtStart'), value: prefs.introAtStart, onChanged: (v) => prefs.introAtStart = v)),

@@ -29,6 +29,10 @@ extension _EndViews on _RoomScreenState {
         Btn(l.toLobby, key: const Key('toLobby'), ghost: true, onTap: _h(() => c.send({'t': 'lobby'}))),
       ] else
         Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
+      // [S19 P2] online games only (a Wi-Fi game has no id on the server)
+      if (!widget.lan && widget.account.signedIn && c.room?['gameId'] is String && view['seat'] is int) // [Quin Q7] a seated player
+        TextButton.icon(key: const Key('reportGame'), icon: Icon(Icons.bug_report_outlined, size: 18, color: C.mute), label: Text(l.fbReportGame, style: TextStyle(color: C.mute)),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackScreen(account: widget.account, gameId: c.room!['gameId'] as String)))),
     ], children: [
       // [S15-4] the old app's recap card
       RecapCard(winner: winner, days: rc['day'] as int, sheikh: rc['sheikh'] as int?, took: {for (final x in stats.guards) x.$1},

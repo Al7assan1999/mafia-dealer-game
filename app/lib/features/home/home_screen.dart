@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:mafia_dealer/features/feedback/feedback_screen.dart';
 import 'package:mafia_dealer/features/home/home_footer.dart';
 import 'package:flutter/services.dart';
 import 'package:mafia_dealer/core/audio.dart';
@@ -136,6 +137,9 @@ class _HomeBody extends StatelessWidget {
     } else if (kind == 'update') {
       await updater?.check(force: true); // the card on Home has Update
       return;
+    } else if (kind == 'feedback_done' && account.signedIn) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackScreen(account: account)));
+      return; // [Quin Q3] not the bell on top of it
     } else if (kind == 'friend_request' || kind == 'friend_accept') {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => FriendsScreen(account: account)));
       return;

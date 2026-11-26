@@ -179,6 +179,21 @@ class Account extends ChangeNotifier {
       ((await _try(() => api.get('/v1/admin/reports')))!['reports'] as List).map((x) => Map<String, Object?>.from(x as Map)).toList();
   Future<void> moderate(String reportId, String action) => _try(() => api.post('/v1/admin/reports/$reportId', {'action': action}));
 
+  // ---------------------------------------------------------------- the suggestions box (Sprint 19)
+  /// My messages and why I can't send right now ('day' | 'waiting' | 'full' | null).
+  Future<({List<Map<String, Object?>> mine, String? blocked})> feedbackMine() async {
+    final r = (await _try(() => api.get('/v1/feedback')))!;
+    return (mine: (r['mine'] as List).map((x) => Map<String, Object?>.from(x as Map)).toList(), blocked: r['blocked'] as String?);
+  }
+  Future<void> sendFeedback(Map<String, Object?> body) => _try(() => api.post('/v1/feedback', body));
+  Future<Map<String, Object?>> feedbackBox() async => (await _try(() => api.get('/v1/admin/feedback')))!;
+  Future<Map<String, Object?>> feedbackItem(String id) async => (await _try(() => api.get('/v1/admin/feedback/$id')))!;
+  Future<void> markFeedback(String id, String status) => _try(() => api.post('/v1/admin/feedback/$id', {'status': status}));
+  Future<void> deleteFeedback(String id) => _try(() => api.delete('/v1/admin/feedback/$id'));
+  Future<Uint8List> feedbackShot(String id) async => (await _try(() => api.bytes('/v1/admin/feedback/$id/image')))!;
+  /// Empties what the admin saw (newest `upto`); anything newer stays.
+  Future<void> emptyFeedback(int upto) => _try(() => api.delete('/v1/admin/feedback?upto=$upto'));
+
   // ---------------------------------------------------------------- the bell
   Future<void> loadNotes() async {
     final r = (await _try(() => api.get('/v1/notifications')))!;

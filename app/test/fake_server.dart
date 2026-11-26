@@ -22,6 +22,8 @@ class FakeServer {
   final calls = <String>[];
   final blocks = <(String, String)>{}; // (blocker, blocked)
   final reports = <Map<String, Object?>>[];
+  final feedback = <Map<String, Object?>>[]; // [S19] the suggestions box, newest last
+  String? feedbackBlocked; // what GET /v1/feedback says ('day' | 'waiting' | 'full')
   String? admin;
   final pushTokens = <String, Map<String, Object?>>{}; // user id -> {token, lang}
   final wifiAsked = <Map<String, Object?>>[]; // POST /v1/wifi-requests bodies
@@ -31,6 +33,7 @@ class FakeServer {
   String? wifiError; // the next request fails with this (e.g. slow_down)
   final openRooms = <String>{};
   List<Map<String, Object?>> games = []; // GET /v1/games
+  final gameDetails = <String, Map<String, Object?>>{}; // [S19] GET /v1/games/<id>
   // Sprint 8: what the stats and old-history endpoints answer (tests fill them in)
   Map<String, Object?> statsAnswer = {'board': [], 'me': null, 'minGames': 3, 'games': 0, 'titles': {'best': null, 'mafia': null, 'det': null, 'doc': null, 'first': null}};
   Map<String, Object?>? playerAnswer;
@@ -131,6 +134,7 @@ class FakeServer {
       return ok({'sessions': [for (final e in sessions.entries) if (e.value == me) {'id': e.key, 'device': 'Android phone', 'createdAt': 0, 'lastSeenAt': 0, 'current': e.key == tok}]});
     }
     if (path.startsWith('/v1/sessions/')) { sessions.remove(path.split('/').last); return ok({'ok': true}); }
+    if (path.startsWith('/v1/games/') && m == 'GET') { final g = gameDetails[path.split('/').last]; return g == null ? err(404, 'not_found') : ok(g); }
     if (path == '/v1/games' && m == 'GET') return ok({'games': games}); // [S13 P1] the online history
     if (path == '/v1/users' && m == 'GET') { // [S13-4] search: the start of an @handle or any part of a name
       final q = (r.url.queryParameters['q'] ?? '').toLowerCase();
@@ -182,6 +186,37 @@ class FakeServer {
     }
     if (path.startsWith('/v1/blocks/')) { blocks.remove((me, path.split('/').last)); return ok({'ok': true}); }
     if (path == '/v1/reports') { reports.add({...body, 'by': me, 'id': 'r${++_n}'}); return ok({'ok': true}); }
+    if (path == '/v1/feedback' && m == 'GET') {
+      return ok({'mine': [for (final f in feedback.reversed) if (f['by'] == me) {...f}..remove('image')], 'blocked': feedbackBlocked});
+    }
+    if (path == '/v1/feedback' && m == 'POST') {
+      if (feedbackBlocked != null) return err(429, feedbackBlocked == 'full' ? 'box_full' : 'slow_down');
+      feedback.add({'id': 'f${++_n}', 'by': me, 'kind': body['kind'], 'text': body['text'], 'info': body['info'], 'gameId': body['gameId'], 'status': 'new',
+        'at': 1795700000000 + _n, 'shot': body['image'] != null, 'image': body['image']});
+      return ok({'id': 'f$_n'});
+    }
+    if (path.startsWith('/v1/admin/feedback')) {
+      if (me != admin) return err(403, 'forbidden');
+      final id = path.length > '/v1/admin/feedback/'.length ? path.split('/').last : null, f = feedback.where((x) => x['id'] == id).firstOrNull;
+      if (id == null && m == 'GET') {
+        return ok({'items': [for (final f in feedback.reversed) {...f, 'from': card(f['by'] as String, me)}..remove('image')], 'unread': feedback.where((f) => f['status'] == 'new').length});
+      }
+      if (id == null && m == 'DELETE') {
+        final upto = int.parse(r.url.queryParameters['upto'] ?? '9007199254740991'), before = feedback.length;
+        feedback.removeWhere((f) => (f['at'] as int) <= upto);
+        return ok({'deleted': before - feedback.length});
+      }
+      if (path.endsWith('/image')) {
+        final f = feedback.where((x) => '/v1/admin/feedback/${x['id']}/image' == path).firstOrNull;
+        if (f?['image'] == null) return err(404, 'not_found');
+        return http.Response.bytes(base64Decode((f!['image'] as String).split(',').last), 200, headers: {'content-type': 'image/jpeg'});
+      }
+      if (f == null) return err(404, 'not_found');
+      if (m == 'GET') { if (f['status'] == 'new') f['status'] = 'read'; return ok({...f, 'from': card(f['by'] as String, me)}); }
+      if (m == 'POST') { f['status'] = body['status']; return ok({'ok': true}); }
+      feedback.remove(f);
+      return ok({'ok': true});
+    }
     if (path.startsWith('/v1/admin/')) {
       if (me != admin) return err(403, 'forbidden');
       if (m == 'GET') return ok({'reports': [for (final r in reports) {'id': r['id'], 'reason': r['reason'], 'note': r['note'] ?? '', 'display': users[r['userId']]?['display'], 'handle': users[r['userId']]?['handle'], 'reporter': users[r['by']]?['display'], 'message': null}]});
