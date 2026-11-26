@@ -5,7 +5,7 @@ import { createGame, DEFAULT_RULES, nightOptions, seeded, type GameState } from 
 import { must, N6 } from './util.ts';
 
 const deal = (seed: number, rules = {}, counts = { mafia: 2, doctor: 1, detective: 1 }) => {
-  const r = createGame({ names: N6, counts, rules: { ...DEFAULT_RULES, ...rules } }, seeded(seed));
+  const r = createGame({ names: N6, counts, rules: { ...DEFAULT_RULES, reveal: true, ...rules } }, seeded(seed));
   assert.ok(r.ok); return must(r.state, { t: 'begin' }).state;
 };
 const alive = (s: GameState) => s.alive.map((a, i) => (a ? i : -1)).filter(i => i >= 0);

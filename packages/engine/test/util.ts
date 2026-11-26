@@ -8,7 +8,7 @@ export const ctx = (seed = 1, now = 1_000_000) => ({ rng: seeded(seed), now });
 export function game(roles: Role[], rules: Partial<Rules> = {}, now = 1_000_000): GameState {
   const names = roles.map((_, i) => 'P' + (i + 1));
   const m = roles.filter(r => r === 'mafia').length, d = roles.filter(r => r === 'detective').length;
-  const r = createGame({ names, counts: { mafia: m, doctor: 1, detective: d }, rules: { ...DEFAULT_RULES, ...rules } }, seeded(1));
+  const r = createGame({ names, counts: { mafia: m, doctor: 1, detective: d }, rules: { ...DEFAULT_RULES, reveal: true, ...rules } }, seeded(1));
   assert.ok(r.ok, 'setup: ' + (!r.ok && r.error));
   const s = { ...r.state, roles: roles.slice() };
   return must(s, { t: 'begin' }, now).state;

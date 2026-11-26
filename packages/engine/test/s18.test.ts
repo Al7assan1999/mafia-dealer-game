@@ -15,7 +15,7 @@ const M = 'mafia', D = 'doctor', T = 'detective', C = 'citizen', S = 'sniper', B
 /** A recorded 1.1.0 game with exactly these roles (the deck the mode deals) and this Sheikh, in night 1. */
 function deal(roles: Role[], sheikh: number, mode: Mode, rules: Partial<Rules> = {}) {
   const names = roles.map((_, i) => 'P' + (i + 1));
-  const c = createGame({ names, counts: { mafia: 1, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, ...rules }, mode, bodyguard: roles.includes(B) }, seeded(1));
+  const c = createGame({ names, counts: { mafia: 1, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode, bodyguard: roles.includes(B) }, seeded(1));
   assert.ok(c.ok, !c.ok ? c.error : '');
   const deck = (x: Role[]) => [...x].sort().join();
   assert.equal(deck(c.state.roles), deck(roles), 'the scripted roles are the deck this mode deals');

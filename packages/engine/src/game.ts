@@ -9,11 +9,13 @@ const seatOk = (s: GameState, i: unknown): i is number => Number.isInteger(i) &&
 export function nightOptions(s: GameState, p: number): NightOptions {
   const r = s.roles[p], R = s.rules, rv = s.rv !== undefined;
   // the Jester, and the Sniper once his bullet is spent (1.1.0: or on night 1), pick like a Citizen
-  const k0 = r === 'jester' || (r === 'sniper' && (s.shotUsed || (rv && s.day === 1))) ? 'citizen' : r, key = k0 === 'citizen' && !R.decoy ? 'none' : k0;
+  // 1.3.0: the Hunter and the Mayor have no night power either
+  const k0 = r === 'jester' || r === 'hunter' || r === 'mayor' || (r === 'sniper' && (s.shotUsed || (rv && s.day === 1))) ? 'citizen' : r, key = k0 === 'citizen' && !R.decoy ? 'none' : k0;
   const res: NightOptions = { key, opts: [], skip: null };
+  if (r === 'mayor' && !s.mayors?.includes(p)) res.reveal = true;  // pass-and-play: reveal himself in the morning
   if (key === 'none') return res;
   const mates = (pred: (v: NightChoice) => boolean) => Object.entries(s.night.mafia).filter(([k, v]) => +k !== p && pred(v)).length;
-  const past = rv && r === 'detective' ? checkedBefore(s) : null;  // 1.1.0: never the same player twice
+  const past = rv && r === 'detective' ? readsOf(s) : null;  // 1.1.0: never the same player twice
   const sh = s.sheikh, shPick = r === 'mafia' && sh !== undefined && sh !== p && s.alive[sh] ? s.night.mafia[sh] : undefined;
   for (const j of aliveSeats(s)) {
     const o = { seat: j, disabled: false, self: j === p, teammate: false, lastTarget: false, lastNight: false, mateVotes: 0, sheikh: shPick === j };
@@ -23,21 +25,32 @@ export function nightOptions(s: GameState, p: number): NightOptions {
       if (j === p && !R.self) o.disabled = true;
       if (R.rep && s.lastProt[p] === j) { o.disabled = true; o.lastNight = true; }
     }
-    if ((key === 'detective' || key === 'sniper' || key === 'bodyguard') && j === p) o.disabled = true;
+    if (r === 'doctor' && s.mayors?.includes(j)) Object.assign(o, { disabled: true, mayor: true });  // 1.3.0: a revealed Mayor
+    if ((key === 'detective' || key === 'sniper' || key === 'bodyguard' || key === 'watcher') && j === p) o.disabled = true;
     if (key === 'bodyguard' && s.lastGuard?.[p] === j) { o.disabled = true; o.lastNight = true; }
-    if (past?.has(j)) Object.assign(o, { disabled: true, check: s.roles[j] === 'mafia' && j !== s.sheikh });
+    if (past?.has(j)) Object.assign(o, { disabled: true, check: past.get(j)! });
     if (r === 'mafia') o.mateVotes = mates(v => v === j);
     res.opts.push(o);
   }
   if (r === 'mafia' && R.skip && !s.skipUsed) res.skip = { mateVotes: mates(v => v === 'skip'), sheikh: shPick === 'skip' };
   if (key === 'sniper') res.skip = { mateVotes: 0, sheikh: false };  // keep the bullet
-  // everyone else is already checked: nothing to pick tonight
-  if (past && res.opts.every(o => o.disabled)) return { key: 'none', opts: [], skip: null };
+  if (r === 'mafia' && p === s.framer) res.frame = aliveSeats(s).filter(j => s.roles[j] !== 'mafia');  // 1.3.0: never a teammate
+  // everyone else is already checked: nothing to pick tonight. 1.3.0: the same for any power left with no target (the
+  // Doctor with "self" off and "not twice" on, next to a revealed Mayor, found by the every-combination test), so a
+  // night can never wait for a pick that can't be made
+  if ((past || rv) && res.opts.every(o => o.disabled) && !res.skip) return { key: 'none', opts: [], skip: null, ...(res.reveal ? { reveal: true } : {}) };
   return res;
 }
 
 /** 1.1.0: the players the Detectives checked on earlier nights. */
 export const checkedBefore = (s: GameState) => new Set(s.log.flatMap(e => (e.t === 'night' ? e.checked : [])));
+/** 1.3.0: what each check read (seat → Mafia?). A Framer's game keeps the reads in the log (a framed Citizen read Mafia);
+ *  older games work them out from the roles, as before. */
+export function readsOf(s: GameState) {
+  const m = new Map<number, boolean>();
+  for (const e of s.log) if (e.t === 'night') e.checked.forEach((q, k) => m.set(q, e.read ? e.read[k] : s.roles[q] === 'mafia' && q !== s.sheikh));
+  return m;
+}
 
 /** Winner when the Mafia are all gone, or as many as everyone else. */
 function winnerOf(s: GameState): Winner | null {
@@ -52,6 +65,18 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
   const phase = (p: GameState['phase']) => { s.phase = p; ev.push({ t: 'phase', phase: p, day: s.day }); };
   const log = (e: LogEvent) => { s.log.push(e); ev.push(e); };
   const pauseTimer = () => { s.timer = { running: false, left: timerLeft(s, ctx.now), at: 0 }; };
+  /** 1.3.0: a Hunter who just died takes aim before the game goes on, unless the town has already won (E-H2). */
+  const takeAim = (seats: number[], from: 'night' | 'day') => {
+    const h = seats.find(x => s.roles[x] === 'hunter');
+    if (h != null && winnerOf(s) !== 'citizens') s.hunt = { seat: h, from, endsAt: s.rules.nightT ? ctx.now + s.rules.nightT * 1000 : 0 };
+  };
+  const shoot = (target: number | null) => {
+    const h = s.hunt!;
+    s.hunt = null;
+    if (target != null) { s.alive[target] = false; (s.stats.hunts ??= []).push([h.seat, target]); }
+    log({ t: 'hunt', day: s.day, seat: h.seat, target, from: h.from });
+    checkWin(target != null ? { k: 'killed', seat: target } : { k: h.from === 'night' ? 'killed' : 'votedOut', seat: h.seat });
+  };
   const startNight = () => {
     s.night = { mafia: {}, doctor: {}, detective: {}, done: {}, endsAt: s.rules.nightT ? ctx.now + s.rules.nightT * 1000 : 0 };
     s.morning = null; s.verdict = null; s.vote = null;
@@ -59,6 +84,8 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
   };
   const checkWin = (lead: { k: 'killed' | 'votedOut'; seat: number } | null, forced: Winner | null = null) => {
     const w = forced ?? winnerOf(s); if (!w) return false;
+    if (w === 'mafia' && !forced && s.hunt) return false;  // 1.3.0: the Hunter shoots first (E-H1)
+    if (s.hunt) s.hunt = null;
     pauseTimer(); s.winner = w; log({ t: 'win', winner: w, lead }); phase('end'); return true;
   };
 
@@ -100,11 +127,30 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     if (bg) s.lastGuard = { ...(s.night.bodyguard ?? {}) };
     const saved = victim != null && prot.has(victim), dead = victim != null && !saved ? victim : null;
     const kept = saved && shot !== victim;  // a save the Sniper didn't undo
+    // 1.3.0, before anyone dies (the night is one moment): the Framer's frame (not if the host removed him), what the
+    // checks read, and who visited whom for the Watcher. One Mafia goes to the victim: the Sheikh if he voted for him,
+    // else the lowest seat that did (E-W1).
+    const framed = s.framer !== undefined && s.alive[s.framer] ? s.night.frame?.[s.framer] ?? null : null;
+    const checks = Object.values(s.night.detective).filter((q): q is number => q != null);
+    const reads = checks.map(q => (s.roles[q] === 'mafia' && q !== s.sheikh) || q === framed);
+    const voters = target == null ? [] : votes.filter(([, v]) => v === target).map(([k]) => +k);
+    const visits: [number, number][] = [
+      ...doc.map(([p, q]): [number, number] => [+p, q]),
+      ...guards.filter(([, q]) => q != null).map(([b, q]): [number, number] => [+b, q as number]),
+      ...Object.entries(s.night.detective).filter(([, q]) => q != null).map(([p, q]): [number, number] => [+p, q as number]),
+      ...(framed != null ? [[s.framer!, framed] as [number, number]] : []),
+      ...(aim != null ? [[+sn![0], aim] as [number, number]] : []),
+      ...(voters.length ? [[s.sheikh !== undefined && voters.includes(s.sheikh) ? s.sheikh : Math.min(...voters), target!] as [number, number]] : []),
+    ];
+    const watch = Object.entries(s.night.watch ?? {}).filter(live).filter(([, t]) => t != null)
+      .map(([w, t]): [number, number, number[]] => [+w, t as number, [...new Set(visits.filter(([x, y]) => y === t && x !== +w).map(([x]) => x))].sort((a, b) => a - b)]);
     if (dead != null) s.alive[dead] = false;
     if (shot != null) { s.alive[shot] = false; s.shotUsed = true; (s.stats.shots ??= []).push([+sn![0], shot]); }
     log({ t: 'night', day: s.day, mafia: skip ? { k: 'skip' } : victim == null ? { k: 'none' } : saved ? { k: 'saved', seat: victim } : { k: 'kill', seat: victim },
       prot: doc.map(([, q]) => q), checked: Object.values(s.night.detective).filter((q): q is number => q != null), ...(shot != null ? { shot } : {}),
-      ...(bg ? { guard: guards.map(([, q]) => q).filter((q): q is number => q != null) } : {}) });
+      ...(bg ? { guard: guards.map(([, q]) => q).filter((q): q is number => q != null) } : {}),
+      ...(s.framer !== undefined ? { read: reads, ...(framed != null ? { frame: { seat: framed, hit: checks.includes(framed) } } : {}) } : {}),
+      ...(s.roles.includes('watcher') ? { watch } : {}) });
     s.lastTarget = target;
     if (kept) doc.forEach(([p, q]) => { if (q === victim) s.stats.saves.push(+p); });
     if (dead != null) { if (s.stats.first == null) s.stats.first = dead; s.stats.kills.push(dead); }
@@ -117,6 +163,9 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     s.morning = { dead: deaths[0] ?? null, saved: kept && s.rules.saverev ? target : null, ...(s.sheikh !== undefined ? { dead2: deaths[1] ?? null } : {}) };
     // the death that decides the game leads its announcement: a Mafia shot by the Sniper when the town wins
     const lead = deaths.find(x => s.roles[x] === 'mafia' && !aliveSeats(s).some(i => s.roles[i] === 'mafia')) ?? dead ?? shot;
+    // 1.3.0, pass-and-play: a Mayor who chose to reveal himself on his turn, if he lived
+    for (const m of Object.keys(s.night.reveal ?? {}).map(Number)) if (s.alive[m]) { (s.mayors ??= []).push(m); log({ t: 'reveal', day: s.day, seat: m }); }
+    takeAim(deaths, 'night');
     if (checkWin(lead != null ? { k: 'killed', seat: lead } : null)) return;
     phase('morning');
   };
@@ -126,13 +175,16 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     if (out != null) { s.alive[out] = false; s.stats.outs.push(out); }
     s.verdict = { out, kind, tally };
     log({ t: 'day', day: s.day, out, kind, tally });
+    if (out != null) takeAim([out], 'day');
     // the Jester wins alone when the day vote puts him out
     if (checkWin(out != null ? { k: 'votedOut', seat: out } : null, out != null && s.roles[out] === 'jester' ? 'jester' : null)) return;
     phase('verdict');
   };
   const tally = () => {
     const c: Record<string, number> = {};
-    Object.values(s.vote!.votes).filter(v => v !== 'abstain' && v != null && (s.rules.skipVote || v !== 'none')).forEach(v => { c[String(v)] = (c[String(v)] || 0) + 1; });
+    // 1.3.0: a revealed Mayor's vote counts twice
+    Object.entries(s.vote!.votes).filter(([, v]) => v !== 'abstain' && v != null && (s.rules.skipVote || v !== 'none'))
+      .forEach(([k, v]) => { c[String(v)] = (c[String(v)] || 0) + (s.mayors?.includes(+k) ? 2 : 1); });
     if (!Object.keys(c).length) return verdict(null, 'skipped', []);
     const max = Math.max(...Object.values(c)), top = Object.keys(c).filter(k => c[k] === max);
     const lines: TallyLine[] = Object.entries(c).sort((x, y) => y[1] - x[1]).map(([k, n]) => ({ k: k === 'none' ? 'none' : +k, n }));
@@ -159,7 +211,13 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
       // [Quin Q1] 1.1.0: "nothing to pick" takes no pick (older records sent anything there)
       const ok = no.key === 'none' ? s.rv === undefined || a.choice == null : a.choice === 'skip' ? !!no.skip : no.opts.some(o => o.seat === a.choice && !o.disabled);
       if (!ok) return fail('choice');
+      // 1.3.0: the Framer's frame (null = none) and a Mayor's "reveal me in the morning" (pass-and-play)
+      if (a.frame !== undefined && !(no.frame && (a.frame === null || no.frame.includes(a.frame)))) return fail('choice');
+      if (a.reveal !== undefined && !(a.reveal === false || no.reveal)) return fail('choice');
       const r = s.roles[a.seat];
+      if (r === 'watcher') (s.night.watch ??= {})[a.seat] = a.choice as number;
+      if (a.frame != null) (s.night.frame ??= {})[a.seat] = a.frame;
+      if (a.reveal) (s.night.reveal ??= {})[a.seat] = true;
       if (r === 'mafia') s.night.mafia[a.seat] = a.choice;
       if (r === 'doctor') s.night.doctor[a.seat] = a.choice as number;
       if (r === 'detective') s.night.detective[a.seat] = a.choice as number;
@@ -170,6 +228,10 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
     }
 
     case 'skipPending': {  // "Continue anyway" for offline players, or the night timer ran out (no seats = everyone pending)
+      if (s.hunt) {  // 1.3.0: the Hunter holds fire
+        if (a.seats && !a.seats.includes(s.hunt.seat)) return fail('seat');
+        shoot(null); break;
+      }
       if (s.phase !== 'night' && s.phase !== 'vote') return fail('phase');
       const seats = a.seats ?? aliveSeats(s);
       if (!seats.every(i => seatOk(s, i))) return fail('seat');
@@ -182,7 +244,23 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
       settle(); break;
     }
 
+    case 'hunt':  // 1.3.0: the dead Hunter's shot
+      if (!s.hunt) return fail('phase');
+      if (a.seat !== s.hunt.seat) return fail('seat');
+      if (!(a.choice === null || (seatOk(s, a.choice) && s.alive[a.choice] && a.choice !== a.seat))) return fail('choice');
+      shoot(a.choice); break;
+
+    case 'reveal':  // 1.3.0: a Mayor reveals himself, before the vote
+      if (s.phase !== 'morning' && s.phase !== 'day') return fail('phase');
+      if (!seatOk(s, a.seat)) return fail('seat');
+      if (!s.alive[a.seat]) return fail('dead');
+      if (s.roles[a.seat] !== 'mayor' || s.mayors?.includes(a.seat)) return fail('choice');
+      (s.mayors ??= []).push(a.seat);
+      log({ t: 'reveal', day: s.day, seat: a.seat });
+      break;
+
     case 'startDay':
+      if (s.hunt) return fail('hunt');
       if (s.phase !== 'morning') return fail('phase');
       s.timer = { running: false, left: s.rules.timer, at: 0 };
       phase('day'); break;
@@ -221,12 +299,14 @@ export function apply(prev: GameState, a: Action, ctx: Ctx): Result<{ state: Gam
       verdict(a.choice === 'none' ? null : a.choice, a.choice === 'none' ? 'skipped' : 'out', null); break;
 
     case 'nextNight':
+      if (s.hunt) return fail('hunt');
       if (s.phase !== 'verdict') return fail('phase');
       s.day++; startNight(); break;
 
     case 'remove':  // the host removes a player mid-game: counts as an elimination
       if (s.phase === 'deal' || s.phase === 'end') return fail('phase');
       if (!seatOk(s, a.seat)) return fail('seat');
+      if (s.hunt?.seat === a.seat) { shoot(null); break; }  // 1.3.0: removing the Hunter while he aims = he holds fire (E-X5)
       if (!s.alive[a.seat]) return fail('dead');
       s.alive[a.seat] = false;
       if (s.vote) delete s.vote.votes[a.seat];

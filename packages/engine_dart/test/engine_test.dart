@@ -23,7 +23,9 @@ List<int> alive(GameState s) => aliveSeats(s);
   final rules = defaultRules.merge(over);
   final names = [for (var i = 0; i < n; i++) 'Player ${i + 1}'], mode = pick(modes.where((m) => modeMin[m]! <= n).toList());
   final bodyguard = chance(.5); // 1.1.0: the Sniper and Jester modes' optional Bodyguard
-  final c = createGame(Setup(names, Counts(mafia, 1, mafia >= 2 ? 1 : 0), rules, mode, bodyguard), r);
+  final range = mafiaRange(mode, n, rules); // 1.3.0: Avenger and Shadows pick inside their own range
+  final m0 = range != null ? range.min + (r() * (range.max - range.min + 1)).floor() : mafia;
+  final c = createGame(Setup(names, Counts(m0, 1, m0 >= 2 ? 1 : 0), rules, mode, bodyguard), r);
   expect(c.error, isNull);
   var s = c.state!, now = 1000000, steps = 0;
   final rec = startRecord(s);
@@ -36,12 +38,18 @@ List<int> alive(GameState s) => aliveSeats(s);
       expect(last is WinLog && last.lead?.k == 'votedOut' && s.roles[last.lead!.seat] == Role.jester, isTrue);
     } else if (s.phase == Phase.end) {
       expect(s.winner, m == 0 ? Winner.citizens : Winner.mafia);
+    } else if (s.hunt != null) {
+      expect(m > 0 && !s.alive[s.hunt!.seat] && s.roles[s.hunt!.seat] == Role.hunter, isTrue, reason: 'a dead Hunter aims');
     } else {
       expect(m > 0 && m < al.length - m, isTrue, reason: 'seed $seed: game should have ended');
     }
+    // 1.3.0
+    expect(s.roles.contains(Role.sniper) && s.roles.contains(Role.hunter), isFalse, reason: 'never the Sniper and the Hunter');
+    if (s.framer != null) expect(s.roles[s.framer!] == Role.mafia && s.framer != s.sheikh && mode == 'shadows', isTrue);
     for (var i = 0; i < n; i++) {
       final v = viewFor(s, i, now);
-      if (s.phase != Phase.end && !(rules.ghost && !s.alive[i])) expect(v.roles, isNull, reason: 'no roles before the end');
+      if (s.phase != Phase.end && !(rules.ghost && !s.alive[i] && s.hunt?.seat != i)) expect(v.roles, isNull, reason: 'no roles before the end');
+      expect(v.ph == 'hunt', s.hunt?.seat == i);
       if (s.roles[i] != Role.mafia) expect(v.mates, isEmpty);
       if (v.check != null) {
         expect(s.roles[i], Role.detective);
@@ -81,6 +89,19 @@ List<int> alive(GameState s) => aliveSeats(s);
   go(const Action.begin());
   while (s.phase != Phase.end) {
     expect(s.day <= 100, isTrue, reason: 'seed $seed: too many days');
+    if (s.hunt != null) { // 1.3.0: the dead Hunter: shoots, holds fire, times out, or the host removes him
+      final h = s.hunt!.seat, v = viewFor(s, h, now);
+      if (chance(.1)) {
+        go(const Action.skipPending());
+      } else if (chance(.05)) {
+        go(Action.remove(h));
+      } else {
+        go(Action.hunt(h, chance(.2) ? null : pick(v.huntOpts!)));
+      }
+      continue;
+    }
+    final mayor = alive(s).where((i) => s.roles[i] == Role.mayor && !s.mayors.contains(i)).firstOrNull;
+    if (mayor != null && (s.phase == Phase.morning || s.phase == Phase.day) && chance(.2)) { go(Action.reveal(mayor)); continue; }
     if (s.phase == Phase.night) {
       final dead = s.alive.indexOf(false);
       if (dead >= 0) expect(apply(s, Action.night(dead, 0), Ctx(r, now)).error, 'dead');
@@ -92,7 +113,11 @@ List<int> alive(GameState s) => aliveSeats(s);
       final no = v.night!, opts = <Object>[...no.opts.where((o) => !o.disabled).map((o) => o.seat)];
       if (no.canSkip) opts.add('skip');
       expect(no.key == 'none' || opts.isNotEmpty, isTrue, reason: 'seed $seed: seat $p has nothing to pick');
-      go(Action.night(p, no.key == 'none' ? null : pick(opts), day: s.day));
+      // the same draws, in the same order, as play.ts: the frame and the reveal first, then the pick
+      final fr = no.frame != null && chance(.9);
+      final frame = fr ? (chance(.2) || no.frame!.isEmpty ? null : pick(no.frame!)) : null;
+      final rev = no.reveal && chance(.1);
+      go(Action.nightWith(p, no.key == 'none' ? null : pick(opts), day: s.day, frame: frame, hasFrame: fr, reveal: rev ? true : null));
     } else if (s.phase == Phase.morning) {
       go(const Action.startDay());
     } else if (s.phase == Phase.day) {
@@ -168,6 +193,50 @@ void main() {
       expect((r as Map)['rv'], 2);
       expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
       expect(jsJson(recordFromJson(Map<String, Object?>.from(r)).toJson()), jsJson(r), reason: 'reads back byte-identical');
+    }
+  });
+
+  test('records from 1.2 (before the Hunter, the Mayor, the Framer and the Watcher) still replay', () {
+    final old = jsonDecode(File('../engine/fixtures/records-1.2.json').readAsStringSync()) as List;
+    expect(old, hasLength(60));
+    for (final (i, r) in old.indexed) {
+      expect((r as Map).containsKey('framer'), isFalse);
+      expect(replay(r).error, isNull, reason: 'game ${i + 1}');
+    }
+  });
+
+  test('the scripted 1.3.0 games (the Hunter, the Mayor, the Framer, the Watcher; s20.test.ts) replay, byte-identical', () {
+    final games = jsonDecode(File('../engine/fixtures/records-s20.json').readAsStringSync()) as List;
+    expect(games.length, greaterThanOrEqualTo(15));
+    for (final (i, r) in games.indexed) {
+      expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
+      expect(jsJson(recordFromJson(Map<String, Object?>.from(r as Map)).toJson()), jsJson(r), reason: 'reads back byte-identical');
+    }
+    final sh = Map<String, Object?>.from(games.firstWhere((r) => (r as Map)['mode'] == 'shadows') as Map);
+    expect(replay(copy(sh)..['framer'] = sh['sheikh']).error, 'roles');
+    expect(replay(copy(sh)..remove('framer')).error, 'roles');
+  });
+
+  test('1.3.0 setup: the Mafia ranges, the lean, the decks (as s20.test.ts)', () {
+    const off = {'reveal': false};
+    final r0 = defaultRules.merge(off);
+    expect(mafiaRange('avenger', 6, r0), (min: 1, max: 2, def: 2));
+    expect(mafiaRange('shadows', 9, r0), (min: 2, max: 3, def: 3));
+    expect(mafiaRange('shadows', 9, defaultRules.merge({'reveal': false, 'rep': true, 'decoy': false})), (min: 2, max: 2, def: 2));
+    expect(mafiaRange('avenger', 12, defaultRules.merge({'reveal': true})), (min: 3, max: 3, def: 3), reason: 'reveal on: leaning town');
+    expect(mafiaRange('avenger', 12, defaultRules), (min: 2, max: 3, def: 3), reason: 'the default (reveal off, his ruling): a choice');
+    expect(mafiaRange('classic', 9), isNull);
+    expect(modeCounts('shadows', 9, const Counts(3, 1, 1), false, r0), const Counts(3, 1, 1, watcher: 1, sniper: 1));
+    expect(modeCounts('shadows', 9, const Counts(2, 1, 1), false, r0), const Counts(2, 1, 1, watcher: 1, sniper: 1, jester: 1));
+    expect(modeCounts('avenger', 6, const Counts(1, 1, 1), false, r0), const Counts(1, 1, 0, hunter: 1));
+    expect(modeCounts('avenger', 7, const Counts(2, 1, 1), false, r0), const Counts(2, 1, 1, hunter: 1, mayor: 1));
+    for (final m in modes) {
+      for (var n = 4; n <= 20; n++) {
+        for (var k = 1; k <= 9; k++) {
+          final c = modeCounts(m, n, Counts(k, 1, 1), true, r0);
+          expect(c.sniper > 0 && c.hunter > 0, isFalse, reason: '$m $n');
+        }
+      }
     }
   });
 

@@ -21,16 +21,18 @@ class GameRecord {
   final List<Role> roles;
   final Mode mode;
   final int? sheikh; // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
+  final int? framer; // 1.3.0, Shadows
   final int? rv; // 1.1.0 rules (GameState.rv); older records replay by their own
   final List<RecordedAction> actions;
   Winner? winner;
   List<Object?> log; // JSON, as the recorder saw it
-  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh, this.rv});
+  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh, this.framer, this.rv});
 
   Map<String, Object?> toJson() => {
         'format': 1, 'deal': deal, 'names': names, 'rules': rules.toJson(), 'roles': roles.map((r) => r.name).toList(),
         if (sheikh != null) 'mode': mode,
         if (sheikh != null) 'sheikh': sheikh,
+        if (framer != null) 'framer': framer,
         if (rv != null) 'rv': rv,
         'actions': actions.map((x) => x.toJson()).toList(), 'winner': winner?.name, 'log': log,
       };
@@ -46,11 +48,11 @@ GameRecord recordFromJson(Map<String, Object?> j) => GameRecord(
             (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
       }).toList(),
       j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>(),
-      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?, rv: j['rv'] as int?);
+      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?, framer: j['framer'] as int?, rv: j['rv'] as int?);
 
 /// A new record for a game just dealt (phase deal).
 GameRecord startRecord(GameState s) =>
-    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh, rv: s.rv);
+    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh, framer: s.framer, rv: s.rv);
 
 /// apply(), and on success the action joins the record (with its draws) and the record's result follows the game.
 Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
@@ -91,6 +93,15 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   if (json.containsKey('rv') && (rv != 2 || old)) return no('format');
   final pre = !json.containsKey('rv');
   if (pre && (count(Role.bodyguard) > 0 || mode == 'bodyguard')) return no('roles');
+  // 1.3.0: the new roles and modes only in a 1.1.0+ game; the Framer only in Shadows, a Mafia other than the Sheikh
+  final fresh = count(Role.hunter) + count(Role.mayor) + count(Role.watcher) > 0 || mode == 'avenger' || mode == 'shadows';
+  if (fresh && pre) return no('roles');
+  final framer = json['framer'];
+  if (mode == 'shadows'
+      ? !(framer is int && framer >= 0 && framer < roles.length && roles[framer] == Role.mafia && framer != sheikh)
+      : json.containsKey('framer')) {
+    return no('roles');
+  }
   final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective), sniper: count(Role.sniper), jester: count(Role.jester),
       bodyguard: count(Role.bodyguard));
   if (names0.any((x) => x is! String)) return no('setup: badName');
@@ -105,6 +116,7 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   var s = c.state!
     ..roles = roles
     ..sheikh = old ? null : sheikh as int
+    ..framer = framer as int?
     ..rv = pre ? null : 2;
   num last = double.negativeInfinity;
   for (var i = 0; i < actions.length; i++) {

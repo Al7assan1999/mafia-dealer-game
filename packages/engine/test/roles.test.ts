@@ -14,7 +14,7 @@ const M = 'mafia', D = 'doctor', T = 'detective', C = 'citizen', S = 'sniper', J
 /** A recorded game with exactly these roles and this Sheikh, in the night of day 1. */
 function deal(roles: Role[], sheikh: number, mode: Mode = 'classic', rules: Partial<Rules> = {}) {
   const names = roles.map((_, i) => 'P' + (i + 1)), n = (r: Role) => roles.filter(x => x === r).length;
-  const c = createGame({ names, counts: { mafia: n(M), doctor: 1, detective: n(T) }, rules: { ...DEFAULT_RULES, ...rules }, mode }, seeded(1));
+  const c = createGame({ names, counts: { mafia: n(M), doctor: 1, detective: n(T) }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode }, seeded(1));
   assert.ok(c.ok, !c.ok ? c.error : '');
   let s: GameState = { ...c.state, roles: [...roles], sheikh }, now = 1_000_000;
   delete s.rv;  // these are 1.0.0 games (1.1.0's rules: s18.test.ts); their records are the 1.0.0 fixtures

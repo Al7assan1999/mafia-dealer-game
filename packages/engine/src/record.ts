@@ -10,6 +10,7 @@ export interface GameRecord {
   format: 1;
   deal: number; names: string[]; rules: Rules; roles: Role[];
   mode?: Mode; sheikh?: number;  // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
+  framer?: number;               // 1.3.0, Shadows
   rv?: 2;                        // 1.1.0 rules (GameState.rv); older records replay by their own
   actions: RecordedAction[];
   winner: Winner | null; log: LogEvent[];  // the result the recorder saw; a replay must reach the same
@@ -18,7 +19,8 @@ export interface GameRecord {
 /** A new record for a game just dealt (phase 'deal'). */
 export const startRecord = (s: GameState): GameRecord =>
   ({ format: 1, deal: s.deal, names: [...s.names], rules: { ...s.rules }, roles: [...s.roles],
-    ...(s.sheikh !== undefined ? { mode: s.mode ?? 'classic', sheikh: s.sheikh } : {}), ...(s.rv !== undefined ? { rv: s.rv } : {}),
+    ...(s.sheikh !== undefined ? { mode: s.mode ?? 'classic', sheikh: s.sheikh } : {}), ...(s.framer !== undefined ? { framer: s.framer } : {}),
+    ...(s.rv !== undefined ? { rv: s.rv } : {}),
     actions: [], winner: null, log: [] });
 
 /** apply(), and on success the action joins the record (with its draws) and the record's result follows the game. */
@@ -42,13 +44,17 @@ function check(rec: GameRecord): Result<{ state: GameState }> {
   const no = (error: string) => ({ ok: false as const, error });
   if (rec?.format !== 1) return no('format');
   if (!Array.isArray(rec.roles) || !Array.isArray(rec.names) || rec.roles.length !== rec.names.length || !Array.isArray(rec.actions)) return no('shape');
-  const count = (x: Role) => rec.roles.filter(y => y === x).length, all: Role[] = ['mafia', 'doctor', 'detective', 'citizen', 'sniper', 'jester', 'bodyguard'];
+  const count = (x: Role) => rec.roles.filter(y => y === x).length, all: Role[] = ['mafia', 'doctor', 'detective', 'citizen', 'sniper', 'jester', 'bodyguard', 'hunter', 'mayor', 'watcher'];
   if (all.reduce((n, x) => n + count(x), 0) !== rec.roles.length) return no('roles');
   const old = rec.sheikh === undefined;  // before 1.0.0: Classic, no Sheikh
   if (old ? rec.mode !== undefined : !(Number.isInteger(rec.sheikh) && rec.roles[rec.sheikh!] === 'mafia' && typeof rec.mode === 'string')) return no('roles');
   // 1.1.0: rv only with a Sheikh; the Bodyguard only in a 1.1.0 game
   if (rec.rv !== undefined && (rec.rv !== 2 || old)) return no('format');
   if (rec.rv === undefined && (count('bodyguard') || rec.mode === 'bodyguard')) return no('roles');
+  // 1.3.0: the new roles and modes only in a 1.1.0+ game; the Framer only in Shadows, a Mafia other than the Sheikh
+  const fresh = count('hunter') + count('mayor') + count('watcher') > 0 || rec.mode === 'avenger' || rec.mode === 'shadows';
+  if (fresh && rec.rv === undefined) return no('roles');
+  if (rec.mode === 'shadows' ? !(Number.isInteger(rec.framer) && rec.roles[rec.framer!] === 'mafia' && rec.framer !== rec.sheikh) : rec.framer !== undefined) return no('roles');
   const counts = { mafia: count('mafia'), doctor: count('doctor'), detective: count('detective'), sniper: count('sniper'), jester: count('jester'), bodyguard: count('bodyguard') };
   const c = createGame({ names: rec.names, counts, rules: recordRules(rec.rules), mode: rec.mode, bodyguard: count('bodyguard') > 0 }, () => 0, rec.deal);
   if (!c.ok) return no('setup: ' + c.error);
@@ -56,7 +62,7 @@ function check(rec: GameRecord): Result<{ state: GameState }> {
   // (a 1.0.0 "All roles" deck had a Citizen where 1.1.0 deals the Bodyguard)
   const pre = rec.rv === undefined, dealt = (x: Role) => c.state.roles.filter(y => y === x || (pre && x === 'citizen' && y === 'bodyguard')).length;
   if (all.some(x => (pre && x === 'bodyguard' ? 0 : dealt(x)) !== count(x))) return no('roles');
-  let s: GameState = { ...c.state, roles: [...rec.roles], sheikh: rec.sheikh }, last = -Infinity;
+  let s: GameState = { ...c.state, roles: [...rec.roles], sheikh: rec.sheikh, ...(rec.framer !== undefined ? { framer: rec.framer } : {}) }, last = -Infinity;
   if (old) { delete s.sheikh; delete s.mode; delete s.shotUsed; delete s.night.sniper; delete s.stats.shots; }
   if (rec.rv === undefined) delete s.rv;
   for (const [i, x] of rec.actions.entries()) {
