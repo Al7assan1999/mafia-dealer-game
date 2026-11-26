@@ -17,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'harness.dart';
 import 'online_test.dart' show frames, openRoom, roomMsg, view;
-import 's17_modes_test.dart' show pumpHome, tapIn;
+import 's17_modes_test.dart' show openModes, pumpHome, tapIn;
 import 's17_roles_ui_test.dart' show holding;
 
 const M = Role.mafia, D = Role.doctor, T = Role.detective, C0 = Role.citizen, S = Role.sniper, B = Role.bodyguard;
@@ -68,6 +68,7 @@ void main() {
   testWidgets('S18-4 setup: the Bodyguard mode; Sniper and Jester get an "Add a Bodyguard" switch, Classic and All roles don\'t', (t) async {
     OfflineGame? dealt;
     final prefs = await pumpHome(t, (p) => SetupScreen(prefs: p, audio: Audio(p), onDealt: (g) => dealt = g));
+    await openModes(t);
     expect(find.byKey(const Key('mode_bodyguard')), findsOneWidget);
     expect(find.byKey(const Key('withBodyguard')), findsNothing, reason: 'Classic');
     await tapIn(t, 'mode_sniper');

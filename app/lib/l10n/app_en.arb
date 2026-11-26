@@ -1683,5 +1683,13 @@
       "n": {}
     }
   },
-  "tallyMayor": "The Mayor's vote counts twice"
+  "tallyMayor": "The Mayor's vote counts twice",
+  "modesChange": "Change",
+  "modesHide": "Hide",
+  "modesAll": "{n} modes",
+  "@modesAll": {
+    "placeholders": {
+      "n": {}
+    }
+  }
 }

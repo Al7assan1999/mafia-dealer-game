@@ -32,9 +32,22 @@ Future<Prefs> pumpHome(WidgetTester t, Widget Function(Prefs) home, {Map<String,
   return prefs;
 }
 
+/// [1.3.1] The mode picker is folded to the chosen mode: open its list (a tap on the folded card).
+Future<void> openModes(WidgetTester t) async {
+  if (find.byKey(const Key('modesList')).evaluate().isNotEmpty) return;
+  final head = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('mode_')).first;
+  await t.scrollUntilVisible(head, 200, scrollable: find.byType(Scrollable).first);
+  await t.tap(head);
+  await t.pump(); // the opening animation starts on this frame…
+  await t.pump(const Duration(milliseconds: 400)); // …and has finished by this one
+}
+
 Future<void> tapIn(WidgetTester t, String key) async {
+  if (key.startsWith('mode_')) await openModes(t);
   final f = find.byKey(Key(key));
   await t.scrollUntilVisible(f, 200, scrollable: find.byType(Scrollable).first);
+  await t.ensureVisible(f); // to the top: the open list is long, and its last tiles can sit under the Deal bar
+  await t.pump();
   await t.tap(f);
   await t.pump();
 }
@@ -45,6 +58,7 @@ void main() {
   testWidgets('setup: four modes; one tap picks Sniper and fixes the deck; All roles needs 9; Sniper is Suggested at 6; the mode is kept', (t) async {
     OfflineGame? dealt;
     final prefs = await pumpHome(t, (p) => SetupScreen(prefs: p, audio: Audio(p), onDealt: (g) => dealt = g));
+    await openModes(t);
     for (final m in modes) { expect(find.byKey(Key('mode_$m')), findsOneWidget); }
     expect(find.byKey(const Key('suggested_sniper')), findsOneWidget);                 // 6 players
     expect(t.widget<Text>(find.byKey(const Key('modeFrom_all'))).data, 'From 9 players');
@@ -66,6 +80,7 @@ void main() {
 
   testWidgets('Arabic setup: the modes in Arabic, right to left, with their minimum and the suggested one', (t) async {
     await pumpHome(t, (p) => SetupScreen(prefs: p, audio: Audio(p)), lang: 'ar');
+    await openModes(t);
     expect(find.text('كل الأدوار'), findsOneWidget);
     expect(find.text('القنّاص'), findsWidgets);
     expect(t.widget<Text>(find.byKey(const Key('modeFrom_all'))).data, 'من 9 لاعبين');
@@ -93,9 +108,7 @@ void main() {
     expect(find.byKey(const Key('oldAppNote')), findsOneWidget, reason: 'his ruling: Classic waits for 1.0.0 too');
     expect(find.byKey(const Key('modeOld_3')), findsOneWidget);
     expect(t.widget<Text>(find.byKey(const Key('oldAppNote'))).data, 'Everyone must update the app to 1.1.0 to play');
-    await t.scrollUntilVisible(find.byKey(const Key('mode_jester')), 200, scrollable: find.byType(Scrollable).first);
-    await t.tap(find.byKey(const Key('mode_jester')));
-    await t.pump();
+    await tapIn(t, 'mode_jester');
     final setup = r.last.msgs.lastWhere((m) => m['t'] == 'setup');
     expect(setup['mode'], 'jester');
     r.last.push(room('jester', [modesBuild, modesBuild, modesBuild - 1, modesBuild, null, modesBuild]));

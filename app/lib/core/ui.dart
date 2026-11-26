@@ -431,6 +431,13 @@ String modeName(L l, Mode m) => switch (m) {
 String modeLine(L l, Mode m) => switch (m) {
       'sniper' => l.mSniper, 'jester' => l.mJester, 'bodyguard' => l.mBodyguard, 'all' => l.mAll,
       'avenger' => l.mAvenger, 'shadows' => l.mShadows, _ => l.mClassic };
+/// [1.3.1] each mode's picture in the mode picker (its signature role, or the table)
+IconData modeIcon(Mode m) => switch (m) {
+      'sniper' => roleIcon(Role.sniper), 'jester' => roleIcon(Role.jester), 'bodyguard' => roleIcon(Role.bodyguard), 'all' => Icons.groups_outlined,
+      'avenger' => roleIcon(Role.hunter), 'shadows' => roleIcon(Role.watcher), _ => Icons.style_outlined };
+Color modeColor(Mode m) => switch (m) {
+      'sniper' => roleColor(Role.sniper), 'jester' => roleColor(Role.jester), 'bodyguard' => roleColor(Role.bodyguard), 'all' => C.gold,
+      'avenger' => roleColor(Role.hunter), 'shadows' => roleColor(Role.watcher), _ => C.red2 };
 /// [S20] the modes only a 1.3.0 table can play (every seat on roles13Build)
 bool newMode(Mode m) => m == 'avenger' || m == 'shadows';
 /// [S18, his ruling] the modes that may add the Bodyguard (a switch under the mode picker)

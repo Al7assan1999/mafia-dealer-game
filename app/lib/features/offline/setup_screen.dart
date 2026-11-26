@@ -135,52 +135,75 @@ class _SetupState extends State<SetupScreen> {
 
 /// [S17] The modes: one tap picks a fixed set of roles (the offline setup and the lobby). A mode that needs more
 /// players is shown but can't be picked; the best one for this many players is marked Suggested. Read-only without
-/// onChanged.
-class ModePicker extends StatelessWidget {
+/// onChanged. [1.3.1, his note] Folded to the chosen mode; "Change" opens the list (animated), a pick folds it again.
+class ModePicker extends StatefulWidget {
   const ModePicker({super.key, required this.players, required this.mode, this.onChanged, this.bodyguard = false, this.onBodyguard});
   final bool bodyguard; // [S18] the Sniper and Jester modes' optional Bodyguard
   final ValueChanged<bool>? onBodyguard;
   final int players;
   final Mode mode;
   final ValueChanged<Mode>? onChanged;
+  @override
+  State<ModePicker> createState() => _ModePickerState();
+}
+
+class _ModePickerState extends State<ModePicker> {
+  bool open = false;
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), best = suggestedMode(players);
-    return Sec(title: l.mode, child: Column(children: [
-      for (final m in modes) ...[() {
-        final on = m == mode, open = players >= modeMin[m]!;
-        return Padding(padding: const EdgeInsets.only(bottom: 8), child: Semantics(selected: on, button: onChanged != null, enabled: open, child: InkWell(
-          key: Key('mode_$m'),
-          borderRadius: BorderRadius.circular(C.p.radius),
-          onTap: onChanged != null && open && !on ? () => onChanged!(m) : null,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: on ? C.red2.withValues(alpha: .10) : null, border: Border.all(color: on ? C.red2 : C.line, width: on ? 2 : 1),
-                borderRadius: BorderRadius.circular(C.p.radius)),
-            child: Row(children: [
-              Icon(on ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: on ? C.red2 : open ? C.mute : C.dim, size: 22),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(modeName(l, m), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: open ? C.text : C.dim)),
-                Text(modeLine(l, m), style: TextStyle(color: open ? C.mute : C.dim, fontSize: 13, height: 1.35)),
-              ])),
-              if (!open) Text(l.modeFrom(modeMin[m]!), key: Key('modeFrom_$m'), style: TextStyle(color: C.dim, fontSize: 12))
-              else if (m == best && players >= minPlayers) Container(key: Key('suggested_$m'), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(border: Border.all(color: C.gold), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
-                  child: Text(l.suggested, style: TextStyle(color: C.gold, fontSize: 12, fontWeight: FontWeight.w700))),
-            ]),
-          ),
-        )));
-      }(),
-        // [S18, his ruling] the Sniper and Jester modes may add the Bodyguard: the switch sits under the chosen tile
-        if (m == mode && bodyguardOptional(m))
-          Padding(padding: const EdgeInsetsDirectional.only(start: 12, bottom: 8), child: SwitchListTile(key: const Key('withBodyguard'),
-              contentPadding: EdgeInsets.zero, value: bodyguard, onChanged: onBodyguard, activeThumbColor: C.red2,
-              secondary: Icon(roleIcon(Role.bodyguard), color: roleColor(Role.bodyguard)),
-              title: Text(l.withBodyguard, style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(l.withBodyguardD, style: TextStyle(color: C.mute, fontSize: 13)))),
-      ],
+    final l = L.of(context), w = widget, best = suggestedMode(w.players);
+    Widget tile(Mode m, {bool head = false}) {
+      final on = m == w.mode, can = w.players >= modeMin[m]!, c = modeColor(m);
+      return Padding(padding: const EdgeInsets.only(bottom: 8), child: Semantics(selected: on, button: true, enabled: can, child: InkWell(
+        key: Key('mode_$m'),
+        borderRadius: BorderRadius.circular(C.p.radius),
+        // the folded card opens the list; in the list a tap picks the mode (and folds it)
+        onTap: head ? () => setState(() => open = !open)
+            : w.onChanged != null && can && !on ? () { w.onChanged!(m); setState(() => open = false); } : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(color: on ? c.withValues(alpha: .10) : null, border: Border.all(color: on ? c : C.line, width: on ? 2 : 1),
+              borderRadius: BorderRadius.circular(C.p.radius)),
+          child: Row(children: [
+            Container(width: 40, height: 40, alignment: Alignment.center,
+                decoration: BoxDecoration(color: (can ? c : C.dim).withValues(alpha: .14), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
+                child: Icon(modeIcon(m), color: can ? c : C.dim, size: 22)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(modeName(l, m), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: can ? (on ? c : C.text) : C.dim)),
+              Text(modeLine(l, m), style: TextStyle(color: can ? C.mute : C.dim, fontSize: 13, height: 1.35)),
+            ])),
+            const SizedBox(width: 8),
+            if (head) Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(open ? l.modesHide : l.modesChange, style: TextStyle(color: C.gold, fontWeight: FontWeight.w700, fontSize: 13)),
+              AnimatedRotation(turns: open ? .5 : 0, duration: const Duration(milliseconds: 220), child: Icon(Icons.expand_more, color: C.gold)),
+            ])
+            else if (!can) Text(l.modeFrom(modeMin[m]!), key: Key('modeFrom_$m'), style: TextStyle(color: C.dim, fontSize: 12))
+            else if (m == best && w.players >= minPlayers) Container(key: Key('suggested_$m'), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(border: Border.all(color: C.gold), borderRadius: BorderRadius.circular(C.neon ? 10 : 2)),
+                child: Text(l.suggested, style: TextStyle(color: C.gold, fontSize: 12, fontWeight: FontWeight.w700))),
+          ]),
+        ),
+      )));
+    }
+    return Sec(title: l.mode, action: Text(l.modesAll(modes.length), style: TextStyle(color: C.dim, fontSize: 12)), child: Column(children: [
+      // folded: the chosen mode alone; open: every mode, the chosen one marked
+      if (!open) tile(w.mode, head: true),
+      AnimatedSize(duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic, alignment: Alignment.topCenter,
+          child: open ? Column(key: const Key('modesList'), children: [
+            Align(alignment: AlignmentDirectional.centerEnd, child: TextButton.icon(key: const Key('modesToggle'), onPressed: () => setState(() => open = false),
+                icon: Icon(Icons.expand_less, color: C.gold), label: Text(l.modesHide, style: TextStyle(color: C.gold, fontWeight: FontWeight.w700)))),
+            for (final m in modes) tile(m),
+          ]) : const SizedBox(width: double.infinity)),
+      // [S18, his ruling] the Sniper and Jester modes may add the Bodyguard: the switch sits under the chosen mode
+      if (bodyguardOptional(w.mode))
+        Padding(padding: const EdgeInsetsDirectional.only(start: 12, bottom: 8), child: SwitchListTile(key: const Key('withBodyguard'),
+            contentPadding: EdgeInsets.zero, value: w.bodyguard, onChanged: w.onBodyguard, activeThumbColor: C.red2,
+            secondary: Icon(roleIcon(Role.bodyguard), color: roleColor(Role.bodyguard)),
+            title: Text(l.withBodyguard, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(l.withBodyguardD, style: TextStyle(color: C.mute, fontSize: 13)))),
     ]));
   }
 }

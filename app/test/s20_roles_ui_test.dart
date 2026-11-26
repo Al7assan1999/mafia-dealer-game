@@ -20,7 +20,7 @@ import 'driver.dart' show tapKey;
 import 'harness.dart';
 import 'lan_room_test.dart' show Phone, id, newRoom, send;
 import 'online_test.dart' show frames, openRoom, roomMsg, view;
-import 's17_modes_test.dart' show pumpHome, tapIn;
+import 's17_modes_test.dart' show openModes, pumpHome, tapIn;
 import 's17_roles_ui_test.dart' show holding;
 
 const M = Role.mafia, D = Role.doctor, T = Role.detective, C0 = Role.citizen, S = Role.sniper, H = Role.hunter, Y = Role.mayor, W = Role.watcher;
@@ -74,6 +74,7 @@ void main() {
   testWidgets('§8 setup: Avenger deals the Hunter (never the Sniper); the default rules (reveal off, his ruling) give 6 players a choice of 1 or 2 Mafia', (t) async {
     OfflineGame? dealt;
     await pumpHome(t, (p) => SetupScreen(prefs: p, audio: Audio(p), onDealt: (g) => dealt = g));
+    await openModes(t);
     expect(find.byKey(const Key('modeFrom_shadows')), findsOneWidget, reason: 'Shadows from 8 players');
     await tapIn(t, 'mode_avenger');
     expect(textOf(t, 'count_hunter'), '1');
