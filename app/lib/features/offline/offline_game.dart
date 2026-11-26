@@ -10,7 +10,9 @@ import 'package:mafia_dealer/core/prefs.dart';
 
 /// Which screen the phone shows. The engine's phase can be ahead (the night resolves on the last pick, but the phone
 /// still shows that player "locked" and then "the night is over").
-enum Screen { dealPass, dealCard, nightPass, nightPick, nightLocked, dawn, morning, day, ballotPass, ballotPick, ballotVoted, verdict, end }
+/// [S20] huntPass / huntPick: the phone goes to the dead Hunter; shot: his shot (or held fire) for the table.
+enum Screen { dealPass, dealCard, nightPass, nightPick, nightLocked, dawn, morning, day, ballotPass, ballotPick, ballotVoted, verdict, end,
+  huntPass, huntPick, shot }
 
 class OfflineGame extends ChangeNotifier {
   OfflineGame._(this.prefs, this.audio, this.rec, this.s, this.screen, this.who, this.revealed);
@@ -112,9 +114,10 @@ class OfflineGame extends ChangeNotifier {
   }
 
   void nightOpen(int seat) { if (screen == Screen.nightPass && who == seat) _go(Screen.nightPick); }
-  void nightPick(int seat, Object? choice) {
+  /// [S20] frame: the Framer's frame (hasFrame with null = none); reveal: a Mayor reveals himself in the morning.
+  void nightPick(int seat, Object? choice, {int? frame, bool hasFrame = false, bool? reveal}) {
     if (screen != Screen.nightPick || who != seat) return;
-    if (_act(Action.night(seat, choice, day: s.day))) _go(Screen.nightLocked);
+    if (_act(Action.nightWith(seat, choice, day: s.day, frame: frame, hasFrame: hasFrame, reveal: reveal))) _go(Screen.nightLocked);
   }
   void nightNext(int seat) {
     if (screen != Screen.nightLocked || who != seat) return;
@@ -154,7 +157,7 @@ class OfflineGame extends ChangeNotifier {
 
   // ---------------------------------------------------------------- day
   void startDay() {
-    if (screen != Screen.morning || !_act(const Action.startDay())) return;
+    if (!(screen == Screen.morning || screen == Screen.shot) || !_act(const Action.startDay())) return;
     _timeUpSaid = false;
     audio.day();
     _go(Screen.day);
@@ -207,8 +210,28 @@ class OfflineGame extends ChangeNotifier {
   }
 
   void nextNight() {
-    if (screen != Screen.verdict || !_act(const Action.nextNight())) return;
+    if (!(screen == Screen.verdict || screen == Screen.shot) || !_act(const Action.nextNight())) return;
     _startNight();
+  }
+
+  // ---------------------------------------------------------------- [S20] the Hunter
+  /// "The Hunter takes aim": from the morning or the verdict, the phone goes to him.
+  void huntStart() {
+    final h = s.hunt;
+    if (h == null || !(screen == Screen.morning || screen == Screen.verdict) || !revealed) return;
+    _go(Screen.huntPass, seat: h.seat);
+  }
+  void huntOpen(int seat) { if (screen == Screen.huntPass && who == seat) _go(Screen.huntPick); }
+  /// His shot (a seat) or null: hold fire.
+  void huntShoot(int seat, int? target) {
+    if (screen != Screen.huntPick || who != seat || !_act(Action.hunt(seat, target))) return;
+    _afterShot();
+  }
+  // [Quin Q2] no timer on one phone: the night timer started when he died, and the dawn, the morning and passing the
+  // phone would use it all up (E-H6: pass-and-play waits for him)
+  void _afterShot() {
+    if (s.phase == Phase.end) return _end();
+    _go(Screen.shot);
   }
 
   // ---------------------------------------------------------------- end

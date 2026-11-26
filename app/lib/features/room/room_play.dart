@@ -8,10 +8,18 @@ extension _PlayViews on _RoomScreenState {
   }
   List<Widget> _hostBar(L l, Map<String, Object?> view, List<Widget> extra) {
     if (!c.isHost) return const [];
-    final p = view['progress'] as Map?, offline = c.members.any((m) => m['seat'] != null && m['online'] == false);
+    // [Quin Q1] a seat nobody is online for: the app closed, or the player left the room (then not in members at all)
+    final here = {for (final m in c.members) if (m['online'] == true && m['seat'] != null) m['seat']};
+    final roster = (view['roster'] as List? ?? const []).cast<Map>();
+    final p = view['progress'] as Map?, offline = [for (var i = 0; i < roster.length; i++) if (roster[i]['alive'] == true && !here.contains(i)) i].isNotEmpty;
     final ph = view['phase'];
+    // [S20, Quin Q1/Q4] the Hunter is taking aim: the host may go on without his shot (asked first while he is here)
+    final hunt = view['hunt'] as Map?;
     return [
       ...extra,
+      if (hunt != null) Btn(l.huntOn, key: const Key('continue'), ghost: true, onTap: _h(() async {
+        if (!here.contains(hunt['seat']) || await ask(context, l.huntSkipQ, l.huntSkipD(_name(hunt['seat'] as int)), l.huntOn)) c.send({'t': 'continue'});
+      })),
       if ((ph == 'night' || ph == 'vote') && offline && p != null && (p['done'] as int) < (p['total'] as int)) ...[
         // [Quin Q6] who, by the button (the count's line isn't on his own pick screens)
         if ((view['ph'] == 'night' || view['ph'] == 'vote') && _away().isNotEmpty) Text(l.awayNow(_away().join(', ')), key: const Key('awayHost'), textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 13)),
@@ -45,9 +53,10 @@ extension _PlayViews on _RoomScreenState {
         Big(l.readyN(ms.where((m) => m['ready'] == true).length, ms.where((m) => m['seat'] != null).length)),
       ]);
     }
-    final me = view['seat'] as int, sh = view['sheikh'] as int?;
+    final me = view['seat'] as int, sh = view['sheikh'] as int?, fr = view['framer'] as int?;
     return RoleCard(name: _name(me), role: role, mates: [for (final j in (view['mates'] as List)) _name(j as int)],
         isSheikh: sh == me, sheikh: sh != null && sh != me ? _name(sh) : null,
+        isFramer: fr == me, framer: fr != null && fr != me ? _name(fr) : null,
         done: l.readyBtn, onDone: () => c.send({'t': 'ready', 'deal': c.room!['deal']}));
   }
 
@@ -65,12 +74,14 @@ extension _PlayViews on _RoomScreenState {
     final sh = view['sheikh'] as int?;
     final none = key == 'none', skip = no['skip'] as Map?, secs = _secondsLeft();
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
-      Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () => _send({'t': 'night', 'choice': none ? null : _pick, 'day': view['day']}) : null),
+      // [Quin Q5] the Framer chooses a frame or "No frame" too before he can confirm
+      Btn(l.confirm, key: const Key('confirm'), onTap: (none || _pick != null) && (no['frame'] == null || _frame != null) ? () => _send({'t': 'night', 'choice': none ? null : _pick, 'day': view['day'],
+        if (no['frame'] != null) 'frame': _frame is int ? _frame : null}) : null),
       ..._hostBar(l, view, const []),
     ], children: [
       Row(children: [
         Icon(roleIcon(role), color: roleColor(role)), const SizedBox(width: 8),
-        Expanded(child: Text(seatRole(l, role, sh == view['seat']), overflow: TextOverflow.ellipsis, style: head.copyWith(color: roleColor(role), fontSize: 18))),
+        Expanded(child: Text(seatRole(l, role, sh == view['seat'], framer: view['framer'] == view['seat']), overflow: TextOverflow.ellipsis, style: head.copyWith(color: roleColor(role), fontSize: 18))),
         const SizedBox(width: 8), Text(l.night(view['day'] as int), style: TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
@@ -95,11 +106,80 @@ extension _PlayViews on _RoomScreenState {
             if (o['sheikh'] == true) l.sheikhPick,
             if (o['lastTarget'] == true) l.lastTgt,
             if (o['lastNight'] == true) key == 'bodyguard' ? l.guardedLast : l.lastNight,
+            if (o['mayor'] == true) l.mayorNoDoc, // [S20] a revealed Mayor
           ]),
       if (skip != null && key == 'sniper') _option(l.keepBullet, 'skip', tags: [l.keepBulletD])
       else if (skip != null) _option(l.skipKill, 'skip', tags: [l.skipLeft, if ((skip['mateVotes'] as int? ?? 0) > 0) '${l.mateVote} ×${skip['mateVotes']}',
         if (skip['sheikh'] == true) l.sheikhPick]),
+      _framed(l, view),
+      // [S20] the Framer: who to frame tonight, besides the kill
+      if (no['frame'] case final List fr) ...[
+        const SizedBox(height: 14),
+        Text(l.frameTitle, style: head.copyWith(fontSize: 20)),
+        Text(l.frameD, style: TextStyle(color: C.mute)),
+        const SizedBox(height: 8),
+        for (final j in fr.cast<int>()) PickRow(key: Key('frame_$j'), label: _name(j), seat: j, on: _frame == j, onTap: () => _setFrame(j)),
+        PickRow(key: const Key('frame_none'), label: l.noFrame, on: _frame == 'none', onTap: () => _setFrame('none')),
+      ],
       if (none) _checks(view),
+      _watch(view),
+    ]);
+  }
+
+  /// [S20] the Watcher's results so far (his own phone)
+  Widget _watch(Map<String, Object?> view) => WatchList(name: _name,
+      watch: [for (final w in (view['watch'] as List? ?? const []).cast<Map>()) (seat: w['seat'] as int, visitors: (w['visitors'] as List).cast<int>())]);
+
+  /// [S20, Quin Q3] the Framer's news from last night, on his own night screen (never on the table's morning)
+  Widget _framed(L l, Map<String, Object?> view) => switch (view['framed']) {
+        final Map f => Padding(padding: const EdgeInsets.only(top: 10), child: Text(
+            f['hit'] == true ? l.framedHit(_name(f['seat'] as int)) : l.framedMiss(_name(f['seat'] as int)), key: const Key('framedNews'),
+            style: TextStyle(color: f['hit'] == true ? C.red2 : C.mute))),
+        _ => const SizedBox.shrink(),
+      };
+
+  /// [S20] the Mayor's Reveal (morning and day, before the vote), and the Mayors already revealed
+  List<Widget> _mayor(L l, Map<String, Object?> view) {
+    final ms = (view['mayors'] as List? ?? const []).cast<int>(), me = view['seat'];
+    return [
+      for (final m in ms) Padding(padding: const EdgeInsets.only(top: 10), child: Text(l.mayorIs(_name(m)), key: Key('mayorIs_$m'), textAlign: TextAlign.center,
+          style: head.copyWith(fontSize: 18, color: roleColor(Role.mayor)))),
+      if (roleOf(view['role']) == Role.mayor && view['alive'] == true && me is int && !ms.contains(me))
+        Padding(padding: const EdgeInsets.only(top: 12), child: Btn(l.mayorReveal, key: const Key('mayorReveal'), ghost: true, icon: roleIcon(Role.mayor),
+            onTap: _h(() async { if (await ask(context, l.mayorRevealQ, l.mayorRevealD, l.mayorReveal)) c.send({'t': 'reveal'}); }))),
+    ];
+  }
+
+  /// [S20] the Hunter taking aim (everyone), then his shot
+  List<Widget> _huntNews(L l, Map<String, Object?> view) {
+    final h = view['hunt'] as Map?, shot = view['hunted'] as Map?;
+    return [
+      if (h != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(l.huntAim(_name(h['seat'] as int)), key: const Key('huntAim'), textAlign: TextAlign.center,
+          style: head.copyWith(fontSize: 18, color: roleColor(Role.hunter)))),
+      if (shot != null) ...[
+        const SizedBox(height: 14),
+        Text(shot['seat'] is int ? l.huntShot(_name(shot['by'] as int), _name(shot['seat'] as int)) : l.huntHeld(_name(shot['by'] as int)), key: const Key('hunted'),
+            textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: shot['seat'] is int ? C.red2 : C.text)),
+        if (roleOf(shot['role']) case final r?) Text(l.wasRole(roleName(l, r)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+      ],
+    ];
+  }
+
+  /// [S20] this dead Hunter's shot, or hold fire
+  Widget _hunt(L l, Map<String, Object?> view) {
+    final secs = _secondsLeft();
+    return Stage(card: true, foot: _foot(L.of(context)), color: C.blood, center: false, bottom: [
+      Btn(l.confirm, key: const Key('confirm'), onTap: _pick == null ? null : () => _send({'t': 'hunt', 'choice': _pick is int ? _pick : null})),
+    ], children: [
+      Row(children: [Icon(roleIcon(Role.hunter), color: roleColor(Role.hunter)), const SizedBox(width: 8),
+        Expanded(child: Text(roleName(l, Role.hunter), style: head.copyWith(color: roleColor(Role.hunter), fontSize: 18)))]),
+      const SizedBox(height: 14),
+      Text(l.huntTitle, style: head.copyWith(fontSize: 26)),
+      Text(l.huntD, style: TextStyle(color: C.mute)),
+      if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), key: const Key('nightClock'), style: TextStyle(color: C.red2))),
+      const SizedBox(height: 16),
+      for (final j in (view['huntOpts'] as List? ?? const []).cast<int>()) _option(_name(j), j),
+      _option(l.huntHold, 'hold'),
     ]);
   }
 
@@ -116,7 +196,12 @@ extension _PlayViews on _RoomScreenState {
       if (secs != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.nightTimeLeft(secs), textAlign: TextAlign.center, style: TextStyle(color: C.red2))),
       if (check != null) Padding(padding: const EdgeInsets.only(top: 22), child: Sec(color: C.card2,
           child: Text(l.checkResult(_name(check['seat'] as int), check['mafia'] == true ? l.mafia : l.notMafia), key: const Key('checkResult'),
-              textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: check['mafia'] == true ? C.red2 : C.green)))),
+              textAlign: TextAlign.center, style: head.copyWith(fontSize: 22, color: check['mafia'] == true ? C.red2 : C.green))))
+      // [S20] with a Framer (Shadows) the Detective's result waits for the morning; the Watcher's too
+      else if (view['phase'] == 'night' && view['alive'] == true && roleOf(view['role']) == Role.detective && c.room?['mode'] == 'shadows')
+        Padding(padding: const EdgeInsets.only(top: 22), child: Text(l.checkLater, key: const Key('checkLater'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)))
+      else if (view['phase'] == 'night' && view['alive'] == true && roleOf(view['role']) == Role.watcher)
+        Padding(padding: const EdgeInsets.only(top: 22), child: Text(l.watchNext, key: const Key('watchNext'), textAlign: TextAlign.center, style: TextStyle(color: C.mute))),
       if (view['board'] != null) _board(l, view),
     ]);
   }
@@ -126,7 +211,8 @@ extension _PlayViews on _RoomScreenState {
         child: Sec(key: const Key('voteBoard'), title: title ?? l.tableVote, child: Column(children: [
           for (final b in (view['board'] as List).cast<Map>())
             Row(children: [
-              Expanded(child: Text(_name(b['seat'] as int))),
+              // [S20] a revealed Mayor's vote counts twice
+              Expanded(child: Text([_name(b['seat'] as int), if ((view['mayors'] as List? ?? const []).contains(b['seat'])) l.mayorTag].join(' · '))),
               Text(b['v'] == null ? '…' : b['v'] == 'none' ? l.noOne : b['v'] == 'abstain' ? '—' : _name(b['v'] as int), style: TextStyle(color: C.mute)),
             ]),
         ])),
@@ -150,14 +236,14 @@ extension _PlayViews on _RoomScreenState {
 
   /// The host's buttons for the phase the table is in (also shown when the host is out).
   List<Widget> _phaseButtons(L l, Map<String, Object?> view) => switch (view['phase']) {
-        'morning' => [if (revealed) Btn(l.startDay(view['day'] as int), key: const Key('startDay'), onTap: _h(() => c.send({'t': 'startDay'})))],
+        'morning' => [if (revealed && view['hunt'] == null) Btn(l.startDay(view['day'] as int), key: const Key('startDay'), onTap: _h(() => c.send({'t': 'startDay'})))],
         'day' => [
             Btn(l.secretVoteOnline, key: const Key('secretVote'), onTap: _h(() => c.send({'t': 'startVote', 'open': false}))),
             Text(l.secretVoteOnlineD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
             Btn(l.tableVoteOnline, key: const Key('tableVote'), ghost: true, onTap: _h(() => c.send({'t': 'startVote', 'open': true}))),
             Text(l.tableVoteOnlineD, textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 12)),
           ],
-        'verdict' => [if (revealed) Btn(l.nextNight((view['day'] as int) + 1), key: const Key('nextNight'), onTap: _h(() => c.send({'t': 'nextNight'})))],
+        'verdict' => [if (revealed && view['hunt'] == null) Btn(l.nextNight((view['day'] as int) + 1), key: const Key('nextNight'), onTap: _h(() => c.send({'t': 'nextNight'})))],
         _ => const [],
       };
 
@@ -180,13 +266,15 @@ extension _PlayViews on _RoomScreenState {
             textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         for (final x in [r, if (r['also'] case final Map a) a]) ...[
           Big(_name(x['seat'] as int), size: 42, color: C.red2),
-          if (roleOf(x['role']) case final xr?) Text(l.wasRole(seatRole(l, xr, x['sheikh'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+          if (roleOf(x['role']) case final xr?) Text(l.wasRole(seatRole(l, xr, x['sheikh'] == true, framer: x['framer'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
         ],
       ] else if (r['k'] == 'saved') ...[
         Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.green),
       ] else
         Big(l.nobody, color: C.green),
+      ..._huntNews(l, view),
+      ..._mayor(l, view),
       if (!c.isHost) Padding(padding: const EdgeInsets.only(top: 20), child: Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
     ]);
   }
@@ -208,6 +296,7 @@ extension _PlayViews on _RoomScreenState {
       ])),
       _roster(l, view),
       _checks(view),
+      ..._mayor(l, view),
       if (!c.isHost) Text(l.waitHost, textAlign: TextAlign.center, style: TextStyle(color: C.dim)),
     ]);
   }
@@ -217,7 +306,7 @@ extension _PlayViews on _RoomScreenState {
         for (final (i, r) in (view['roster'] as List).cast<Map>().indexed)
           Chip(
             avatar: r['alive'] == true && c.members.any((m) => m['seat'] == i && m['online'] == false) ? Icon(Icons.cloud_off, size: 14, color: C.dim) : null,
-            label: Text(r['alive'] == true ? r['name'] as String : '${r['name']} · ${l.outTag}',
+            label: Text(r['alive'] == true ? [r['name'] as String, if ((view['mayors'] as List? ?? const []).contains(i)) l.mayorTag].join(' · ') : '${r['name']} · ${l.outTag}',
                 style: TextStyle(color: r['alive'] == true ? C.text : C.dim, decoration: r['alive'] == true ? null : TextDecoration.lineThrough)),
             backgroundColor: r['alive'] == true ? C.card2 : C.bg, side: BorderSide(color: C.line),
           ),
@@ -244,14 +333,18 @@ extension _PlayViews on _RoomScreenState {
       if (r['k'] == 'out') ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(r['seat'] as int), size: 42, color: C.red2),
-        if (role != null) Text(l.wasRole(seatRole(l, role, r['sheikh'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        if (role != null) Text(l.wasRole(seatRole(l, role, r['sheikh'] == true, framer: r['framer'] == true)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
       ] else
         Big(r['k'] == 'tie' ? l.tie : l.skipped),
+      ..._huntNews(l, view),
       if (tally != null && tally.isNotEmpty) ...[
         const SizedBox(height: 22),
         Sec(child: Column(children: [
           for (final t in tally.cast<Map>())
             Row(children: [Expanded(child: Text(t['k'] == 'none' ? l.noOne : _name(t['k'] as int))), Text(l.votesN(t['n'] as int), style: TextStyle(color: C.mute))]),
+          // [S20, Ben] more votes than players: say why
+          if ((view['mayors'] as List? ?? const []).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6),
+              child: Text(l.tallyMayor, key: const Key('tallyMayor'), style: TextStyle(color: roleColor(Role.mayor), fontSize: 13))),
         ])),
       ],
     ]);

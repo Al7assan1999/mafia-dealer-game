@@ -29,7 +29,7 @@ const SB = [M, M, D, T, S, B, C0, C0];
 /// A saved 1.1.0 game with exactly these roles (the mode's deck), after `actions`, open on `screen` for seat `who`.
 Future<OfflineGame> resumed(WidgetTester t, List<Role> roles, String mode, List<Action> actions, String screen, int who, {String lang = 'en'}) async {
   final names = [for (var i = 0; i < roles.length; i++) 'P${i + 1}'];
-  final c = createGame(Setup(names, const Counts(1, 1, 0), defaultRules, mode, roles.contains(B)), seeded(1));
+  final c = createGame(Setup(names, const Counts(1, 1, 0), defaultRules.merge({'reveal': true}), mode, roles.contains(B)), seeded(1));
   expect(c.error, isNull);
   var s = c.state!
     ..roles = [...roles]
@@ -171,7 +171,7 @@ void main() {
   });
 
   test('Wi-Fi: the host phone sends the Detective\'s results and the Bodyguard\'s hits like the server', () {
-    final c = createGame(Setup([for (var i = 0; i < 8; i++) 'P${i + 1}'], const Counts(1, 1, 0), defaultRules, 'bodyguard'), seeded(1));
+    final c = createGame(Setup([for (var i = 0; i < 8; i++) 'P${i + 1}'], const Counts(1, 1, 0), defaultRules.merge({'reveal': true}), 'bodyguard'), seeded(1));
     var s = c.state!..roles = [...BG]..sheikh = 1;
     for (final a in [const Action.begin(), ...night({0: 5, 1: 5, 2: 6, 3: 0, 4: 5, 5: 0, 6: 0, 7: 0}), ...nextDay]) { s = apply(s, a, Ctx(seeded(1), 1)).state!; }
     final v = viewJson(viewFor(s, 3, 1));

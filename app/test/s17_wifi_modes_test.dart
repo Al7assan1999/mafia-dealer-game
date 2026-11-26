@@ -14,7 +14,7 @@ void main() {
   test('a guest below 1.0.0 (or with no build) keeps any deal from happening, Classic too (his ruling); once they leave, it deals', () {
     final r = newRoom(), ps = [for (var i = 0; i < 6; i++) Phone('p$i')];
     for (var i = 0; i < 6; i++) { expect(r.join(ps[i], id(i), build: i == 3 ? modesBuild - 1 : i == 4 ? null : modesBuild), isNull); }
-    void setup(String? mode) => send(r, ps[0], {'t': 'setup', 'rules': defaultRules.toJson(), 'counts': {'mafia': 1, 'detective': 0}, 'buzzMax': 3,
+    void setup(String? mode) => send(r, ps[0], {'t': 'setup', 'rules': defaultRules.merge({'reveal': true}).toJson(), 'counts': {'mafia': 1, 'detective': 0}, 'buzzMax': 3,
         'mode': ?mode});
     setup('sniper');
     expect(ps[0].room['mode'], 'sniper');
@@ -36,7 +36,7 @@ void main() {
   test('every phone on 1.0.0: the mode deals its deck; the guest sees the Godfather; Resume hosting keeps the mode and the Godfather', () {
     final r = newRoom(), ps = [for (var i = 0; i < 9; i++) Phone('p$i')];
     for (var i = 0; i < 9; i++) { expect(r.join(ps[i], id(i), build: modesBuild), isNull); }
-    send(r, ps[0], {'t': 'setup', 'rules': defaultRules.toJson(), 'counts': {'mafia': 1, 'detective': 0}, 'buzzMax': 3, 'mode': 'all'});
+    send(r, ps[0], {'t': 'setup', 'rules': defaultRules.merge({'reveal': true}).toJson(), 'counts': {'mafia': 1, 'detective': 0}, 'buzzMax': 3, 'mode': 'all'});
     send(r, ps[0], {'t': 'deal'});
     final g = r.game!;
     expect([Role.sniper, Role.jester].every(g.roles.contains), isTrue);

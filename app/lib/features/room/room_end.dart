@@ -13,7 +13,8 @@ extension _EndViews on _RoomScreenState {
     final st = rc['stats'] as Map;
     final stats = Stats(first: st['first'] as int?, kills: (st['kills'] as List).cast<int>(), outs: (st['outs'] as List).cast<int>(),
         saves: (st['saves'] as List).cast<int>(), caught: [for (final p in (st['caught'] as List)) ((p as List)[0] as int, p[1] as int)],
-        guards: [for (final p in (st['guards'] as List? ?? const [])) ((p as List)[0] as int, p[1] as int)]);
+        guards: [for (final p in (st['guards'] as List? ?? const [])) ((p as List)[0] as int, p[1] as int)],
+        hunts: [for (final p in (st['hunts'] as List? ?? const [])) ((p as List)[0] as int, p[1] as int)]);
     final best = mvp(winner, roles, alive, stats), valid = c.room?['valid'];
     return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
       if (c.isHost) ...[
@@ -35,7 +36,7 @@ extension _EndViews on _RoomScreenState {
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackScreen(account: widget.account, gameId: c.room!['gameId'] as String)))),
     ], children: [
       // [S15-4] the old app's recap card
-      RecapCard(winner: winner, days: rc['day'] as int, sheikh: rc['sheikh'] as int?, took: {for (final x in stats.guards) x.$1},
+      RecapCard(winner: winner, days: rc['day'] as int, sheikh: rc['sheikh'] as int?, framer: rc['framer'] as int?, took: {for (final x in stats.guards) x.$1},
           players: [for (var i = 0; i < roles.length; i++) (name: _name(i), role: roles[i], alive: alive[i])],
           best: best == null ? null : (name: _name(best.seat), role: roles[best.seat], why: mvpWhy(l, best.why, best.n))),
     ]);

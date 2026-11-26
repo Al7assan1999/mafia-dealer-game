@@ -22,7 +22,7 @@ Future<OfflineGame> resumed(WidgetTester t, List<Role> roles, int sheikh, String
     {String lang = 'en'}) async {
   final names = [for (var i = 0; i < roles.length; i++) 'P${i + 1}'];
   int n(Role r) => roles.where((x) => x == r).length;
-  final c = createGame(Setup(names, Counts(n(M), 1, n(T)), defaultRules, mode), seeded(1));
+  final c = createGame(Setup(names, Counts(n(M), 1, n(T)), defaultRules.merge({'reveal': true}), mode), seeded(1));
   expect(c.error, isNull);
   var s = c.state!
     ..roles = [...roles]

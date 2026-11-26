@@ -25,8 +25,9 @@ class _GameDetailState extends State<GameDetail> {
     if (st == null || game['winner'] == null) return null;
     final stats = Stats(first: st['first'] as int?, kills: ((st['kills'] as List?) ?? []).cast<int>(), outs: ((st['outs'] as List?) ?? []).cast<int>(),
         saves: ((st['saves'] as List?) ?? []).cast<int>(), caught: [for (final p in ((st['caught'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
-        guards: [for (final p in ((st['guards'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
-    return mvp(Winner.values.byName(game['winner'] as String), [for (final p in ps) Role.values.byName(p['role'] as String)], [for (final p in ps) p['alive'] == true], stats);
+        guards: [for (final p in ((st['guards'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
+        hunts: [for (final p in ((st['hunts'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
+    return mvp(Winner.values.asNameMap()[game['winner']] ?? Winner.citizens, [for (final p in ps) roleIn(p)], [for (final p in ps) p['alive'] == true], stats);
   }
 
   Map<String, Object?>? g;
@@ -50,9 +51,13 @@ class _GameDetailState extends State<GameDetail> {
               [for (final q in (e['guard'] as List? ?? const [])) l.hGuard(name[q] ?? '?')].join(),
           'day' => l.hDay(e['day'] as int) + (e['out'] != null ? l.hOut(name[e['out']] ?? '?') : l.hNone),
           'removed' => l.hRemoved(name[e['seat']] ?? '?'),
+          // [S20] the Hunter's shot, a Mayor's reveal
+          'hunt' => e['target'] is int ? l.huntShot(name[e['seat']] ?? '?', name[e['target']] ?? '?') : l.huntHeld(name[e['seat']] ?? '?'),
+          'reveal' => l.mayorIs(name[e['seat']] ?? '?'),
           _ => '',
         };
     final sheikh = (game['sheikh'] ?? (game['record'] as Map?)?['sheikh']) as int?;
+    final framer = (game['framer'] ?? (game['record'] as Map?)?['framer']) as int?;
     return Scaffold(
       appBar: AppBar(title: Text(winText(l, game['winner']), style: head.copyWith(fontSize: 20)), actions: [
         // [Quin Q7] only a player of this game (the admin also opens others' games from the box)
@@ -74,7 +79,7 @@ class _GameDetailState extends State<GameDetail> {
       ], children: [
         if (_mvp(game) case final best?)
           Sec(title: l.mvpT, child: Row(children: [
-            Icon(roleIcon(Role.values.byName(ps[best.seat]['role'] as String)), color: roleColor(Role.values.byName(ps[best.seat]['role'] as String))), const SizedBox(width: 10),
+            Icon(roleIcon(roleIn(ps[best.seat])), color: roleColor(roleIn(ps[best.seat]))), const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(ps[best.seat]['name'] as String, key: const Key('detailMvp'), style: head.copyWith(fontSize: 20)),
               Text(mvpWhy(l, best.why, best.n), style: TextStyle(color: C.mute)),
@@ -88,9 +93,9 @@ class _GameDetailState extends State<GameDetail> {
               onTap: widget.account.signedIn ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: widget.account,
                   playerKey: p['userId'] != null ? 'u:${p['userId']}' : 'n:${p['name']}'))) : null,
               child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
-                Icon(roleIcon(Role.values.byName(p['role'] as String)), size: 18, color: roleColor(Role.values.byName(p['role'] as String))), const SizedBox(width: 8),
+                Icon(roleIcon(roleIn(p)), size: 18, color: roleColor(roleIn(p))), const SizedBox(width: 8),
                 Expanded(child: Text(p['name'] as String, style: TextStyle(decoration: p['alive'] == true ? null : TextDecoration.lineThrough))),
-                Text(seatRole(l, Role.values.byName(p['role'] as String), p['seat'] == sheikh)),
+                Text(seatRole(l, roleIn(p), p['seat'] == sheikh, framer: p['seat'] == framer)),
               ])),
             ),
         ])),

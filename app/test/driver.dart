@@ -62,7 +62,7 @@ Future<int> playToEnd(WidgetTester t) async {
     if (seen.isEmpty || seen.last != (g.screen, g.who)) seen.add((g.screen, g.who));
     int? mafiaAlive() { for (final i in aliveSeats(s)) { if (s.roles[i] == Role.mafia) return i; } return null; }
     switch (g.screen) {
-      case Screen.dealPass || Screen.nightPass || Screen.ballotPass:
+      case Screen.dealPass || Screen.nightPass || Screen.ballotPass || Screen.huntPass:
         await tapKey(t, 'open');
       case Screen.dealCard:
         final card = find.byKey(const Key('roleCard'));
@@ -85,9 +85,15 @@ Future<int> playToEnd(WidgetTester t) async {
       case Screen.dawn:
         await tapKey(t, 'dawn');
       case Screen.morning:
-        if (!g.revealed) { await tapKey(t, 'revealNow'); } else { await tapKey(t, 'startDay'); }
+        if (!g.revealed) { await tapKey(t, 'revealNow'); } else { await tapKey(t, s.hunt != null ? 'huntTake' : 'startDay'); }
       case Screen.verdict:
-        if (!g.revealed) { await tapKey(t, 'revealNow'); } else { await tapKey(t, 'nextNight'); }
+        if (!g.revealed) { await tapKey(t, 'revealNow'); } else { await tapKey(t, s.hunt != null ? 'huntTake' : 'nextNight'); }
+      case Screen.huntPick: // [S20] the Hunter shoots a Mafia when one is left
+        final m = mafiaAlive();
+        await tapKey(t, m != null ? 'opt_$m' : 'opt_hold');
+        await tapKey(t, 'confirm');
+      case Screen.shot:
+        await tapKey(t, s.log.whereType<HuntLog>().last.from == 'night' ? 'startDay' : 'nextNight');
       case Screen.day:
         final m = mafiaAlive();
         if (s.day.isOdd) {

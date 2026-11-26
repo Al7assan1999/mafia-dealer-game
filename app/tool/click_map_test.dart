@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mafia_engine/mafia_engine.dart' show HuntLog;
 import 'package:mafia_dealer/core/auth.dart';
 import 'package:mafia_dealer/features/offline/offline_game.dart';
 import 'package:mafia_dealer/state/active_room.dart';
@@ -58,7 +59,7 @@ Future<void> go(WidgetTester t, String key) async { await tapKey(t, key); await 
 Future<void> step(WidgetTester t) async {
   final g = gameOf(t);
   switch (g.screen) {
-    case Screen.dealPass || Screen.nightPass || Screen.ballotPass: await tapKey(t, 'open');
+    case Screen.dealPass || Screen.nightPass || Screen.ballotPass || Screen.huntPass: await tapKey(t, 'open');
     case Screen.dealCard: await tapKey(t, 'memorized');
     case Screen.nightPick:
       final no = g.view(g.who).night!;
@@ -67,8 +68,10 @@ Future<void> step(WidgetTester t) async {
     case Screen.nightLocked: await tapKey(t, 'nightNext');
     case Screen.ballotVoted: await tapKey(t, 'ballotNext');
     case Screen.dawn: await tapKey(t, 'dawn');
-    case Screen.morning: await tapKey(t, g.revealed ? 'startDay' : 'revealNow');
-    case Screen.verdict: await tapKey(t, g.revealed ? 'nextNight' : 'revealNow');
+    case Screen.morning: await tapKey(t, !g.revealed ? 'revealNow' : g.s.hunt != null ? 'huntTake' : 'startDay');
+    case Screen.verdict: await tapKey(t, !g.revealed ? 'revealNow' : g.s.hunt != null ? 'huntTake' : 'nextNight');
+    case Screen.huntPick: await tapKey(t, 'opt_hold'); await tapKey(t, 'confirm');
+    case Screen.shot: await tapKey(t, g.s.log.whereType<HuntLog>().last.from == 'night' ? 'startDay' : 'nextNight');
     case Screen.day: await tapKey(t, 'ballot');
     case Screen.ballotPick: await tapKey(t, 'opt_none'); await tapKey(t, 'castVote');
     case Screen.end: await tapKey(t, 'revealNow');

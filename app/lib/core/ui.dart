@@ -29,7 +29,8 @@ const noirPalette = Palette(name: 'noir',
     gold: Color(0xFFD4B483), green: Color(0xFF7FB08B), blue: Color(0xFF86A6C9), priText: Color(0xFFF6EFE2), alt: Color(0xFFE9E1D1),
     altText: Color(0xFF1C1915), night: Color(0xFF08090C), day: Color(0xFF120F0B), blood: Color(0xFF0C0606), glory: Color(0xFF0E0C06),
     roles: {Role.mafia: Color(0xFFE0574D), Role.doctor: Color(0xFF7FB08B), Role.detective: Color(0xFF86A6C9), Role.citizen: Color(0xFFD4B483),
-      Role.sniper: Color(0xFFB79AD6), Role.jester: Color(0xFFE39A5B), Role.bodyguard: Color(0xFF8FB8B0)},
+      Role.sniper: Color(0xFFB79AD6), Role.jester: Color(0xFFE39A5B), Role.bodyguard: Color(0xFF8FB8B0),
+      Role.hunter: Color(0xFFC98F5F), Role.mayor: Color(0xFFD9C27A), Role.watcher: Color(0xFF9FB4D8)},
     body: 'Plex', head: 'Elite', headFallback: ['Messiri'], headLs: .4, headWeight: FontWeight.w400, radius: 4, neon: false);
 
 /// The old app's Neon: violet-black with pink and blue glows, glassy cards, a pink-orange gradient, Readex Pro.
@@ -39,7 +40,8 @@ const neonPalette = Palette(name: 'neon',
     gold: Color(0xFFFFB547), green: Color(0xFF3CE0A0), blue: Color(0xFF5AA2FF), priText: Color(0xFFFFFFFF), alt: Color(0xFF2B2440),
     altText: Color(0xFFF4F2F8), night: Color(0xFF0F1433), day: Color(0xFF2A1A12), blood: Color(0xFF2A0B16), glory: Color(0xFF2A2010),
     roles: {Role.mafia: Color(0xFFFF4D7D), Role.doctor: Color(0xFF3CE0A0), Role.detective: Color(0xFF5AA2FF), Role.citizen: Color(0xFFFFC65A),
-      Role.sniper: Color(0xFFB98CFF), Role.jester: Color(0xFFFF8A3D), Role.bodyguard: Color(0xFF4FD6C8)},
+      Role.sniper: Color(0xFFB98CFF), Role.jester: Color(0xFFFF8A3D), Role.bodyguard: Color(0xFF4FD6C8),
+      Role.hunter: Color(0xFFFF9F5A), Role.mayor: Color(0xFFFFD86B), Role.watcher: Color(0xFF8FB6FF)},
     body: 'Readex', head: 'Readex', headFallback: [], headLs: 0, headWeight: FontWeight.w700, radius: 22, neon: true);
 
 /// The current look's colours. Set from Prefs.theme by the app before it builds.
@@ -345,12 +347,15 @@ TextDirection dirOf(String s) {
 String roleName(L l, Role r) => switch (r) {
       Role.mafia => l.mafia, Role.doctor => l.doctor, Role.detective => l.detective, Role.citizen => l.citizen,
       Role.sniper => l.sniper, Role.jester => l.jester, Role.bodyguard => l.bodyguard,
+      Role.hunter => l.hunter, Role.mayor => l.mayor, Role.watcher => l.watcher,
     };
-/// A seat's role as the table sees it: the Sheikh (1.0.0) is a Mafia with his own name.
-String seatRole(L l, Role r, bool sheikh) => sheikh && r == Role.mafia ? l.sheikh : roleName(l, r);
+/// A seat's role as the table sees it: the Sheikh (1.0.0) and the Framer (1.3.0) are Mafia with their own name.
+String seatRole(L l, Role r, bool sheikh, {bool framer = false}) =>
+    sheikh && r == Role.mafia ? l.sheikh : framer && r == Role.mafia ? l.framer : roleName(l, r);
 String roleDesc(L l, Role r) => switch (r) {
       Role.mafia => l.dMafia, Role.doctor => l.dDoctor, Role.detective => l.dDetective, Role.citizen => l.dCitizen,
       Role.sniper => l.dSniper, Role.jester => l.dJester, Role.bodyguard => l.dBodyguard,
+      Role.hunter => l.dHunter, Role.mayor => l.dMayor, Role.watcher => l.dWatcher,
     };
 /// [S17 P2] the role's side and how it wins, in one line
 String sideLine(L l, Role r) => switch (r) { Role.mafia => l.sideMafia, Role.jester => l.sideJester, _ => l.sideTown };
@@ -358,6 +363,7 @@ Color roleColor(Role r) => C.p.roles[r]!;
 IconData roleIcon(Role r) => switch (r) {
       Role.mafia => Icons.dangerous_outlined, Role.doctor => Icons.healing_outlined, Role.detective => Icons.search, Role.citizen => Icons.person_outline,
       Role.sniper => Icons.gps_fixed, Role.jester => Icons.theater_comedy_outlined, Role.bodyguard => Icons.shield_outlined,
+      Role.hunter => Icons.my_location, Role.mayor => Icons.account_balance_outlined, Role.watcher => Icons.visibility_outlined,
     };
 /// [S18 P1] the Detective's results so far (engine view `checks`): name and Mafia / not Mafia, in the order checked.
 class ChecksList extends StatelessWidget {
@@ -379,11 +385,33 @@ class ChecksList extends StatelessWidget {
 
 /// A role the engine names that this app doesn't know (a later version): null (the screens say "Update the app").
 Role? roleOf(Object? r) => r is String ? Role.values.asNameMap()[r] : null;
+/// 1.3.0: a seat from History, a game page or a Wi-Fi note: `role2` is the real role (`role` is one a 1.2 app knows).
+/// Citizen if neither is known.
+Role roleIn(Map p) => roleOf(p['role2']) ?? roleOf(p['role']) ?? Role.citizen;
+
+/// [S20] The Watcher's results (engine view `watch`): who visited his target, each night, the last one last.
+class WatchList extends StatelessWidget {
+  const WatchList({super.key, required this.watch, required this.name});
+  final List<({int seat, List<int> visitors})> watch;
+  final String Function(int) name;
+  @override
+  Widget build(BuildContext context) {
+    final l = L.of(context);
+    if (watch.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(top: 14), child: Sec(key: const Key('myWatch'), title: l.myWatch, child: Column(children: [
+      for (final w in watch)
+        Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(
+            w.visitors.isEmpty ? l.watchNobody(name(w.seat)) : l.watchResult(name(w.seat), w.visitors.map(name).join(', ')),
+            style: TextStyle(color: w.visitors.isEmpty ? C.mute : C.text))),
+    ])));
+  }
+}
 
 /// The night screen's title and line for a night key (engine nightOptions().key).
 (String, String) nightText(L l, String key) => switch (key) {
       'mafia' => (l.aMafia, l.aMafiaD), 'doctor' => (l.aDoctor, l.aDoctorD), 'detective' => (l.aDetective, l.aDetectiveD),
       'citizen' => (l.aCitizen, l.aCitizenD), 'sniper' => (l.aSniper, l.aSniperD), 'bodyguard' => (l.aBodyguard, l.aBodyguardD),
+      'watcher' => (l.aWatcher, l.aWatcherD),
       _ => (l.aNone, l.aNoneD),
     };
 
@@ -395,12 +423,16 @@ Color winColor(Object? w) => switch (w is Winner ? w.name : w) { 'mafia' => C.re
 
 /// Why the player of the game (engine mvp()) earned it.
 String mvpWhy(L l, String why, int? n) => switch (why) {
-      'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(n ?? 1), 'doc' => l.mvpDoc(n ?? 1), 'guard' => l.mvpGuard(n ?? 1), 'jester' => l.mvpJester, _ => l.mvpSurv };
+      'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(n ?? 1), 'doc' => l.mvpDoc(n ?? 1), 'guard' => l.mvpGuard(n ?? 1), 'hunter' => l.mvpHunter, 'jester' => l.mvpJester, _ => l.mvpSurv };
 
 String modeName(L l, Mode m) => switch (m) {
-      'sniper' => l.modeSniper, 'jester' => l.modeJester, 'bodyguard' => l.modeBodyguard, 'all' => l.modeAll, _ => l.modeClassic };
+      'sniper' => l.modeSniper, 'jester' => l.modeJester, 'bodyguard' => l.modeBodyguard, 'all' => l.modeAll,
+      'avenger' => l.modeAvenger, 'shadows' => l.modeShadows, _ => l.modeClassic };
 String modeLine(L l, Mode m) => switch (m) {
-      'sniper' => l.mSniper, 'jester' => l.mJester, 'bodyguard' => l.mBodyguard, 'all' => l.mAll, _ => l.mClassic };
+      'sniper' => l.mSniper, 'jester' => l.mJester, 'bodyguard' => l.mBodyguard, 'all' => l.mAll,
+      'avenger' => l.mAvenger, 'shadows' => l.mShadows, _ => l.mClassic };
+/// [S20] the modes only a 1.3.0 table can play (every seat on roles13Build)
+bool newMode(Mode m) => m == 'avenger' || m == 'shadows';
 /// [S18, his ruling] the modes that may add the Bodyguard (a switch under the mode picker)
 bool bodyguardOptional(Mode m) => m == 'sniper' || m == 'jester';
 /// [S17 P1] the mode the setup marks as Suggested for this many players

@@ -5,10 +5,13 @@ const appBuild = int.fromEnvironment('BUILD');
 
 /// The first build (1.0.0): an older phone can't be dealt into any game (packages/protocol MODES_BUILD).
 const modesBuild = 100019; // 1.1.0 (S18): every table needs it
+/// 1.3.0 (S20): Avenger and Shadows (the Hunter, the Mayor, the Framer, the Watcher) need it on every seat
+/// (packages/protocol ROLES13_BUILD).
+const roles13Build = 100023;
 
 /// The build a phone tells its room. Released builds are 100000 + the release run; anything lower is a local, test or
-/// CI build of this code, so it reports the 1.0.0 build rather than look like an old app.
-const roomBuild = appBuild >= 100000 ? appBuild : modesBuild;
+/// CI build of this code, so it reports the newest gate it knows (1.3.0) rather than look like an old app.
+const roomBuild = appBuild >= 100000 ? appBuild : roles13Build;
 
 /// Updates itself from GitHub Releases (S8-4). The Play build turns it off (--dart-define=SELF_UPDATE=false): Google Play
 /// doesn't allow an app to update itself.

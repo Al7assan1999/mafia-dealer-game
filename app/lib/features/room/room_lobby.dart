@@ -8,23 +8,27 @@ extension _LobbyViews on _RoomScreenState {
     final counts = Counts((room['counts'] as Map)['mafia'] as int, 1, (room['counts'] as Map)['detective'] as int);
     final mode = modes.contains(room['mode']) ? room['mode'] as String : 'classic'; // a server before 1.0.0 sends none
     final bg = room['bodyguard'] == true; // [S18] the Sniper and Jester modes' optional Bodyguard
-    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts, mode, bg);
+    final v = validateSetup([for (var i = 0; i < ms.length; i++) 'p$i'], counts, mode, bg, rules);
     // [S17-4, his ruling] a phone older than 1.0.0 can't be dealt in, Classic too (the server refuses the deal as well);
     // every phone counts, mine included, as on the server
     final old = ms.where((m) => !(m['v'] is int && (m['v'] as int) >= modesBuild)).toList();
+    // [S20] Avenger and Shadows: every phone on 1.3.0 (the server refuses the deal too)
+    final old13 = newMode(mode) ? ms.where((m) => !(m['v'] is int && (m['v'] as int) >= roles13Build)).toList() : const [];
     void setup(Counts cc, Rules rr, [Mode? mm, bool? bb]) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
       if (room['kick'] != null) 'kick': room['kick'], 'mode': mm ?? mode, 'bodyguard': bb ?? bg});
     return Stage(center: false, bottom: [
       if (host) ...[
         Text([l.playersCount(ms.length), modeName(l, mode), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
-              if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester, if (v.counts.bodyguard > 0) l.bodyguard].join(' · '),
+              if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester, if (v.counts.bodyguard > 0) l.bodyguard,
+              if (v.counts.hunter > 0) l.hunter, if (v.counts.mayor > 0) l.mayor, if (v.counts.watcher > 0) l.watcher].join(' · '),
             key: const Key('dealSummary'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
-        if (old.isNotEmpty) Text(l.eOldApp, key: const Key('oldAppNote'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
+        if (old.isNotEmpty) Text(l.eOldApp, key: const Key('oldAppNote'), textAlign: TextAlign.center, style: TextStyle(color: C.red2))
+        else if (old13.isNotEmpty) Text('${l.eOldApp13}: ${old13.map((m) => m['display']).join(', ')}', key: const Key('oldApp13'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         if (v.error == 'modeFew') Text(l.eModeFew(modeMin[mode]!), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
         for (final m in ms.where((m) => m['online'] == false))
           Text(l.offlineDealt(m['display'] as String), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFD9A441))),
         if (ms.length < minPlayers) Text(l.eNoMembers, textAlign: TextAlign.center, style: TextStyle(color: C.red2)),
-        Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null && old.isEmpty ? _h(() => c.send({'t': 'deal'})) : null),
+        Btn(l.deal, key: const Key('deal'), icon: Icons.style_outlined, onTap: v.error == null && old.isEmpty && old13.isEmpty ? _h(() => c.send({'t': 'deal'})) : null),
         Row(children: [
           if (!widget.lan) ...[
             Expanded(child: Btn(l.inviteFriends, key: const Key('inviteFriends'), ghost: true, onTap: () => _inviteSheet(l))),
@@ -63,9 +67,10 @@ extension _LobbyViews on _RoomScreenState {
             icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
             onPressed: _h(() { c.send({'t': 'ping'}); _flash(l.pingSent); })) : null,
           child: Column(children: [for (final m in ms) _member(l, m, host)])),
-      ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(counts, rules, mm) : null,
+      // [S20] a mode with a Mafia range starts at its default
+      ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(Counts(mafiaRange(mm, ms.length, rules)?.def ?? counts.mafia, 1, counts.detective), rules, mm) : null,
           bodyguard: bg, onBodyguard: host ? (bb) => setup(counts, rules, null, bb) : null),
-      DeckEditor(players: ms.length, counts: v.counts, mode: mode, onChanged: host ? (cc) => setup(cc, rules) : null),
+      DeckEditor(players: ms.length, counts: v.counts, mode: mode, rules: rules, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
     ]);
   }

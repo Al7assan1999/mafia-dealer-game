@@ -8,13 +8,14 @@ import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 class RecapCard extends StatelessWidget {
-  const RecapCard({super.key, required this.winner, required this.days, required this.players, this.best, this.lines = const [], this.sheikh,
+  const RecapCard({super.key, required this.winner, required this.days, required this.players, this.best, this.lines = const [], this.sheikh, this.framer,
       this.took = const {}});
   final Set<int> took; // [S18-5] seats of a Bodyguard who took a kill or a shot (a shield on his line)
   final Winner winner;
   final int days;
   final List<({String name, Role role, bool alive})> players;
   final int? sheikh; // [S17] the Godfather's seat (named on his line)
+  final int? framer; // [S20] the Framer's seat (named on his line)
   final ({String name, String why, Role role})? best;
   final List<({bool night, String text})> lines;
 
@@ -78,7 +79,7 @@ class RecapCard extends StatelessWidget {
                   color: p.alive ? ink : ink.withValues(alpha: .6), decoration: p.alive ? null : TextDecoration.lineThrough))),
               if (took.contains(i)) Padding(padding: const EdgeInsetsDirectional.only(end: 4),
                   child: Icon(Icons.shield, key: Key('took_$i'), size: 14, color: _rc(p.role), semanticLabel: l.psGuards)),
-              Text(seatRole(l, p.role, i == sheikh), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
+              Text(seatRole(l, p.role, i == sheikh, framer: i == framer), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
             ]),
           ),
         ])),
@@ -100,7 +101,8 @@ class RecapCard extends StatelessWidget {
   // 1.9-2.9:1. These inks read at 4.8:1 or more on the paper and on the player-of-the-game box.
   static Color _rc(Role r) => C.neon ? roleColor(r) : paperInk[r]!;
   static const paperInk = {Role.mafia: Color(0xFF9E2C25), Role.doctor: Color(0xFF28613A), Role.detective: Color(0xFF315A84), Role.citizen: Color(0xFF6F5015),
-    Role.sniper: Color(0xFF5E3D82), Role.jester: Color(0xFF8A3F0E), Role.bodyguard: Color(0xFF1F5E57)};
+    Role.sniper: Color(0xFF5E3D82), Role.jester: Color(0xFF8A3F0E), Role.bodyguard: Color(0xFF1F5E57),
+    Role.hunter: Color(0xFF7A3E12), Role.mayor: Color(0xFF6A5410), Role.watcher: Color(0xFF2F4F7A)};
 }
 
 /// [S15] "24 Nov 2026"; the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)

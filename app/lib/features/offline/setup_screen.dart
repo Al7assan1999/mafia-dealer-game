@@ -62,7 +62,8 @@ class _SetupState extends State<SetupScreen> {
     p.players = [for (final c in names) c.text.trim()];
     final roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ..._roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))].take(30).toList();
     // Classic keeps the table's counts; another mode's deck comes from the player count
-    final keep = mode == 'classic' ? counts : Counts(mafia, 1, detective);
+    // [S20] Avenger and Shadows keep the Mafia count the table chose inside their range
+    final keep = mode == 'classic' ? counts : newMode(mode) ? Counts(counts.mafia, 1, detective) : Counts(mafia, 1, detective);
     final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode, 'bodyguard': bodyguard};
     if (_acc != null) {
       _acc!.saveNames(roster).catchError((_) {}); // offline: the next deal saves them
@@ -78,7 +79,7 @@ class _SetupState extends State<SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective), mode, bodyguard), err = _error(l, v);
+    final l = L.of(context), ns = _names(l), v = validateSetup(ns, Counts(mafia, 1, detective), mode, bodyguard, rules), err = _error(l, v);
     final inList = ns.map(nameKey).toSet(), chips = _roster.where((r) => !inList.contains(nameKey(r))).toList();
     return Scaffold(
       appBar: AppBar(title: Text(l.newGame, style: head.copyWith(fontSize: 20))),
@@ -122,9 +123,10 @@ class _SetupState extends State<SetupScreen> {
             ],
           ]),
         ),
-        ModePicker(players: ns.length, mode: mode, onChanged: (m) => setState(() => mode = m),
+        // [S20] a mode with a Mafia range starts at its default (not the Classic stepper's count)
+        ModePicker(players: ns.length, mode: mode, onChanged: (m) => setState(() { mode = m; mafia = mafiaRange(m, ns.length, rules)?.def ?? mafia; }),
             bodyguard: bodyguard, onBodyguard: (b) => setState(() => bodyguard = b)),
-        DeckEditor(players: ns.length, counts: v.counts, mode: mode, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
+        DeckEditor(players: ns.length, counts: v.counts, mode: mode, rules: rules, onChanged: (c) => setState(() { mafia = c.mafia; detective = c.detective; })),
         RulesEditor(rules: rules, onChanged: (r) => setState(() => rules = r)),
       ]),
     );
@@ -184,30 +186,45 @@ class ModePicker extends StatelessWidget {
 }
 
 /// The roles: Mafia and Detective +/- inside the engine's limits for this many players (the offline setup and the
-/// online lobby). Read-only without onChanged, and for any mode but Classic (its deck is fixed by the player count).
+/// online lobby). Read-only without onChanged, and for the fixed modes (their deck comes from the player count).
+/// [S20, §8] Avenger and Shadows: the Mafia count inside the mode's range (the rules' lean can narrow it), said in words.
 class DeckEditor extends StatelessWidget {
-  const DeckEditor({super.key, required this.players, required this.counts, this.onChanged, this.mode = 'classic'});
+  const DeckEditor({super.key, required this.players, required this.counts, this.onChanged, this.mode = 'classic', this.rules});
   final int players;
   final Counts counts;
   final Mode mode;
+  final Rules? rules;
   final ValueChanged<Counts>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), n = players, m = counts.mafia, d = counts.detective, classic = mode == 'classic', on = classic ? onChanged : null;
+    final range = mafiaRange(mode, n, rules), base = mafiaRange(mode, n), pickM = range != null && range.min < range.max ? onChanged : null;
+    final lean0 = lean(rules);
     void set(int mm, int dd) => on?.call(Counts(mm, 1, dd));
+    final note = range != null && base != null && base.min < base.max && range.min == range.max
+        ? (lean0 >= 2 ? l.leanMafia(base.max) : l.leanTown(base.min))
+        : range != null && range.min < range.max ? l.mafiaChoice(range.min, range.max)
+        : lean0 >= 2 ? l.leanFavMafia : lean0 <= -2 ? l.leanFavTown : null;
     return Sec(
       title: l.deck,
       child: Column(children: [
-        _count(l.mafia, '${l.dMafia} · ${m > 1 ? l.oneSheikh : l.sheikh}', Role.mafia, m, on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : null,
-            on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : null, steppers: classic),
+        _count(l.mafia, [l.dMafia, m > 1 ? l.oneSheikh : l.sheikh, if (mode == 'shadows') l.oneFramer].join(' · '), Role.mafia, m,
+            on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : pickM != null && m > range!.min ? () => pickM(Counts(m - 1, 1, d)) : null,
+            on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : pickM != null && m < range!.max ? () => pickM(Counts(m + 1, 1, d)) : null,
+            steppers: classic || pickM != null),
         _count(l.doctor, '${l.dDoctor} · ${l.docOne}', Role.doctor, 1, null, null),
         _count(l.detective, m < 2 ? '${l.dDetective} · ${l.detNeed2}' : l.dDetective, Role.detective, d,
             on != null && d > 0 ? () => set(m, 0) : null, on != null && d == 0 && m >= 2 && deckOk(n, m, 1) ? () => set(m, 1) : null, steppers: classic),
         if (counts.sniper > 0) _count(l.sniper, l.dSniper, Role.sniper, counts.sniper, null, null),
         if (counts.jester > 0) _count(l.jester, l.dJester, Role.jester, counts.jester, null, null),
         if (counts.bodyguard > 0) _count(l.bodyguard, l.dBodyguard, Role.bodyguard, counts.bodyguard, null, null),
-        _count(l.citizen, l.dCitizen, Role.citizen, (n - m - 1 - d - counts.sniper - counts.jester - counts.bodyguard).clamp(0, 99), null, null),
+        if (counts.hunter > 0) _count(l.hunter, l.dHunter, Role.hunter, counts.hunter, null, null),
+        if (counts.mayor > 0) _count(l.mayor, l.dMayor, Role.mayor, counts.mayor, null, null),
+        if (counts.watcher > 0) _count(l.watcher, l.dWatcher, Role.watcher, counts.watcher, null, null),
+        _count(l.citizen, l.dCitizen, Role.citizen,
+            (n - m - 1 - d - counts.sniper - counts.jester - counts.bodyguard - counts.hunter - counts.mayor - counts.watcher).clamp(0, 99), null, null),
+        if (note != null) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(note, key: const Key('mafiaNote'), style: TextStyle(color: C.gold, fontSize: 13))),
         if (!classic) Text(l.modeFixed, key: const Key('modeFixed'), style: TextStyle(color: C.dim, fontSize: 12))
         else if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),
       ]),

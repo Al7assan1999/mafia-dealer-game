@@ -26,7 +26,7 @@ class GuideScreen extends StatelessWidget {
         Sec(title: l.gRolesT, child: Column(children: [
           // [S17] every role with its power and its side; the Godfather right after the Mafia
           for (final (r, name, d) in [
-            (Role.mafia, l.mafia, l.dMafia), (Role.mafia, l.sheikh, l.dSheikh),
+            (Role.mafia, l.mafia, l.dMafia), (Role.mafia, l.sheikh, l.dSheikh), (Role.mafia, l.framer, l.dFramer), // [S20, Quin Q6] the Framer
             for (final r in Role.values) if (r != Role.mafia) (r, roleName(l, r), roleDesc(l, r)),
           ])
             Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(children: [
@@ -47,7 +47,7 @@ class GuideScreen extends StatelessWidget {
             Text(modeLine(l, m), style: TextStyle(color: C.mute)),
           ])),
         ])),
-        part(l.gNightT, l.gNight),
+        part(l.gNightT, '${l.gNight}\n\n${l.gNightOrder}'), // [S20] the fixed night order
         part(l.gDayT, l.gDay),
         part(l.gTableT, l.gTable), // [S15] the old guide's table rules and suggested setup
         part(l.gSetupT, l.gSetup),

@@ -1562,5 +1562,126 @@
   },
   "fbTooLong": "1000 characters at most",
   "fbGameGone": "That game can't be attached. Send it without the game.",
-  "oldGamesFailed": "Your old app games didn't load."
+  "oldGamesFailed": "Your old app games didn't load.",
+  "hunter": "Hunter",
+  "mayor": "Mayor",
+  "watcher": "Watcher",
+  "framer": "Framer",
+  "dHunter": "No night power. When you die, by night or by the vote, you take one player with you",
+  "dMayor": "Once per game, by day, you may reveal yourself (only the real Mayor has the button, so it is proof): from then on your vote counts twice, and the Doctor can no longer protect you",
+  "dWatcher": "Watches one player each night and learns who visited them",
+  "dFramer": "A Mafia who also frames one player each night: if the Detective checks them that night, they read Mafia",
+  "oneFramer": "one of them is the Framer",
+  "framerIs": "The Framer: {n}",
+  "@framerIs": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "aWatcher": "Whom do you watch tonight?",
+  "aWatcherD": "In the morning you learn who visited them. Not their roles, only their names.",
+  "frameTitle": "Frame someone",
+  "frameD": "If the Detective checks them tonight, they read Mafia",
+  "noFrame": "No frame tonight",
+  "framedHit": "Your frame on {n} worked: the Detective checked them",
+  "@framedHit": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "framedMiss": "Nobody checked {n}, your frame did nothing",
+  "@framedMiss": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "watchResult": "{n}: visited by {v}",
+  "@watchResult": {
+    "placeholders": {
+      "n": {},
+      "v": {}
+    }
+  },
+  "watchNobody": "{n}: nobody visited",
+  "@watchNobody": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "myWatch": "What you saw",
+  "checkLater": "Your result comes with the day, in your list",
+  "checkNext": "Your result will be on your next turn",
+  "watchNext": "You'll see who visited at your next turn",
+  "revealTomorrow": "Reveal me as the Mayor in the morning",
+  "huntAim": "{n}, the Hunter, is taking aim…",
+  "@huntAim": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "huntTake": "The Hunter takes aim",
+  "huntTitle": "You're out. Take someone with you?",
+  "huntD": "Your shot can't be stopped. Choose, or hold fire.",
+  "huntHold": "Hold fire",
+  "huntShot": "{h} shot {t}",
+  "@huntShot": {
+    "placeholders": {
+      "h": {},
+      "t": {}
+    }
+  },
+  "huntHeld": "{h} held fire",
+  "@huntHeld": {
+    "placeholders": {
+      "h": {}
+    }
+  },
+  "huntOn": "Go on without his shot",
+  "mayorReveal": "Reveal: I'm the Mayor",
+  "mayorRevealQ": "Reveal yourself as the Mayor?",
+  "mayorRevealD": "Everyone will know. Your vote counts twice from the next vote, and the Doctor can't protect you any more.",
+  "mayorIs": "{n} is the Mayor",
+  "@mayorIs": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "mayorTag": "Mayor ×2",
+  "mayorNoDoc": "Mayor: can't be protected",
+  "mvpHunter": "Shot a Mafia",
+  "modeAvenger": "Avenger",
+  "mAvenger": "For beginners: the Hunter takes someone with him; the Mayor from 7 players",
+  "modeShadows": "Shadows",
+  "mShadows": "Clues against lies: the Watcher and the Sniper against the Framer; the Mayor from 11",
+  "mafiaChoice": "You can play {a} or {b} Mafia",
+  "@mafiaChoice": {
+    "placeholders": {
+      "a": {},
+      "b": {}
+    }
+  },
+  "leanMafia": "With these rules, {n} Mafia is too hard for the town",
+  "@leanMafia": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "leanTown": "With these rules, {n} Mafia is too easy for the town",
+  "@leanTown": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "leanFavMafia": "These rules favour the Mafia",
+  "leanFavTown": "These rules favour the town",
+  "eOldApp13": "Someone needs the latest app for this mode",
+  "gNightOrder": "Night order (always the same): protections (Doctor, Bodyguard), then the kills (Mafia, Sniper), then the Framer's frame, then what the Detective and the Watcher learn, then the deaths. A Hunter who died shoots after the morning.",
+  "huntSkipQ": "Go on without the Hunter's shot?",
+  "huntSkipD": "{n} hasn't chosen yet. If you go on, he holds fire.",
+  "@huntSkipD": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "tallyMayor": "The Mayor's vote counts twice"
 }

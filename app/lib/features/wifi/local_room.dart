@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:mafia_engine/mafia_engine.dart';
 import 'package:mafia_dealer/core/version.dart';
+import 'package:mafia_dealer/features/wifi/view_json.dart';
+
+export 'package:mafia_dealer/features/wifi/view_json.dart';
 
 // The Wi-Fi room, run by the host phone: a Dart port of the Cloudflare Room (server/src/room.ts) and its chat rules
 // (server/src/chat.ts), sending exactly the same messages, so every phone uses the online screens unchanged.
@@ -201,6 +204,8 @@ class LocalRoom {
     var changed = false;
     final t = now();
     if (game?.phase == Phase.night && game!.night.endsAt != 0 && t >= game!.night.endsAt) changed = _play(const Action.skipPending()) == null;
+    // [S20] the Hunter's aim uses the night timer: when it runs out, he holds fire
+    if (game?.hunt case final h? when h.endsAt != 0 && t >= h.endsAt) changed = _play(const Action.skipPending()) == null;
     for (final c in List.of(conns)) {
       if (t - (_seen[c] ?? 0) < staleMs) continue;
       conns.remove(c);
@@ -220,7 +225,7 @@ class LocalRoom {
     if (m == null) return _out(c, {'t': 'err', 'error': 'not_member'});
     void err(String e) => _out(c, {'t': 'err', 'error': e, 'ref': t});
     if (t == 'chat' || t == 'react' || t == 'edit') return _chat(c, m.cn, inp);
-    final key = t == 'night' || t == 'vote' || t == 'ready' ? jsonEncode(inp) : null;
+    final key = t == 'night' || t == 'vote' || t == 'ready' || t == 'hunt' ? jsonEncode(inp) : null;
     if (key != null && lastIn[uid] == key) return; // a repeat after a drop: already applied
     const hostOnly = {'setup', 'deal', 'start', 'startDay', 'timer', 'startVote', 'nextNight', 'continue', 'kick', 'unmute', 'ping', 'mark', 'lobby', 'close'};
     if (hostOnly.contains(t) && hostOf() != uid) return err('forbidden');
@@ -246,6 +251,8 @@ class LocalRoom {
         final players = _here;
         // his rulings (S17 Q4, S18): every seat must be on 1.1.0, Classic too (an older phone doesn't know the new rules)
         if (players.any((p) => (p.build ?? 0) < modesBuild)) return err('old_app');
+        // [S20] Avenger and Shadows: every phone on 1.3.0 (an older one can't show a Hunter or a Mayor)
+        if ((mode == 'avenger' || mode == 'shadows') && players.any((p) => (p.build ?? 0) < roles13Build)) return err('old_app');
         final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules, mode, bodyguard), _rng, deal + 1);
         if (r.error != null) return err(r.error!);
         deal++;
@@ -264,7 +271,17 @@ class LocalRoom {
         if (seats.every(ready.contains)) e = _play(const Action.begin());
       case 'night':
         if (g == null || seat < 0) return err('phase');
-        e = _play(Action.night(seat, inp['choice'], day: inp['day'] as int?));
+        final fr = inp['frame'], rv = inp['reveal']; // [S20] the Framer's frame; a Mayor's reveal
+        if ((fr != null && fr is! int) || (rv != null && rv is! bool)) return err('bad_request');
+        e = _play(Action.nightWith(seat, inp['choice'], day: inp['day'] as int?, frame: fr as int?, hasFrame: inp.containsKey('frame'), reveal: rv as bool?));
+      case 'hunt': // [S20] the dead Hunter's shot, or hold fire (null)
+        final ch = inp['choice'];
+        if (g == null || seat < 0) return err('phase');
+        if (ch != null && ch is! int) return err('bad_request');
+        e = _play(Action.hunt(seat, ch as int?));
+      case 'reveal': // [S20] a Mayor reveals himself
+        if (g == null || seat < 0) return err('phase');
+        e = _play(Action.reveal(seat));
       case 'vote':
         if (g == null || seat < 0) return err('phase');
         e = _play(Action.vote(seat, inp['choice'] ?? 'none', id: inp['id'] as int?));
@@ -275,6 +292,10 @@ class LocalRoom {
       case 'startVote': if (g == null) return err('phase'); e = _play(Action.startVote(inp['open'] == true));
       case 'nextNight': if (g == null) return err('phase'); e = _play(const Action.nextNight());
       case 'continue':
+        if (g?.hunt case final h?) { // [S20] the host goes on without the Hunter's shot: he holds fire ([Quin Q4] online or not)
+          e = _play(Action.skipPending([h.seat]));
+          break;
+        }
         if (g == null || (g.phase != Phase.night && g.phase != Phase.vote)) return err('phase');
         final pending = [for (var i = 0; i < g.alive.length; i++) if (g.alive[i] && (g.phase == Phase.night ? !g.night.done.contains(i) : !g.vote!.votes.containsKey(i))) i];
         final off = pending.where((i) => !online(seats[i])).toList();
@@ -285,7 +306,8 @@ class LocalRoom {
         if (who == uid || !members.any((x) => x.uid == who)) return err('not_member');
         if (running && kick == 'lobby') return err('lobby_only'); // the host's Settings: kicks in the lobby only
         final s = seats.indexOf(who!);
-        if (running && s >= 0 && g!.alive[s] && g.phase != Phase.deal) e = _play(Action.remove(s));
+        // [S20] kicking the aiming (dead) Hunter: he holds fire
+        if (running && s >= 0 && (g!.alive[s] || g.hunt?.seat == s) && g.phase != Phase.deal) e = _play(Action.remove(s));
         if (e != null) return err(e);
         kicked.add(who);
         _drop(who, 'kicked');
@@ -327,6 +349,8 @@ class LocalRoom {
     final m = members.where((x) => x.uid == uid).firstOrNull;
     if (m == null) return;
     if (why == 'left' && running && seats.contains(uid)) { m.left = true; } else { members.remove(m); }
+    // [S20, Quin Q1] the aiming Hunter left: he holds fire
+    if (game?.hunt case final h? when seats.indexOf(uid) == h.seat) _play(Action.skipPending([h.seat]));
     ready.remove(uid);
     for (final x in conns.where((x) => x.uid == uid).toList()) { _out(x, {'t': 'bye', 'why': why}); x.close(4000); conns.remove(x); }
     if (uid == hostUid) hostUid = members.where((x) => !x.left).firstOrNull?.uid ?? hostUid;
@@ -437,43 +461,4 @@ class LocalRoom {
     }
   }
 
-}
-
-/// A view as JSON, exactly as the TypeScript engine's viewFor() serializes (the phones read the same shape online).
-Map<String, Object?> viewJson(View v) {
-  Map<String, Object?>? result() {
-    final r = v.result;
-    if (r == null) return null;
-    return {'k': r.k, if (r.seat != null) 'seat': r.seat, if (r.k == 'killed' || r.k == 'out') 'role': r.role?.name, if (r.sheikh) 'sheikh': true,
-      if (r.also != null) 'also': {'seat': r.also!.seat, 'role': r.also!.role?.name, if (r.also!.sheikh) 'sheikh': true},
-      if (r.k == 'out' || r.k == 'tie' || r.k == 'skipped') 'tally': r.tally?.map((x) => x.toJson()).toList()};
-  }
-  final rc = v.recap;
-  return {
-    'deal': v.deal, 'phase': v.phase.name, 'day': v.day,
-    'roster': [for (final r in v.roster) {'name': r.name, 'alive': r.alive}],
-    'timer': v.timerEnd != null ? {'end': v.timerEnd} : v.timerLeft != null ? {'left': v.timerLeft} : null,
-    'progress': v.progress == null ? null : {'done': v.progress!.done, 'total': v.progress!.total},
-    'board': v.board?.map((b) => {'seat': b.seat, 'v': b.v}).toList(),
-    'voteId': v.voteId, 'result': result(), 'winner': v.winner?.name, 'roles': v.roles?.map((r) => r.name).toList(),
-    'recap': rc == null ? null : {
-      'winner': rc.winner.name, 'names': rc.names, 'roles': rc.roles.map((r) => r.name).toList(), 'alive': rc.alive, 'day': rc.day,
-      'stats': {'first': rc.stats.first, 'kills': rc.stats.kills, 'outs': rc.stats.outs, 'saves': rc.stats.saves, 'caught': [for (final c in rc.stats.caught) [c.$1, c.$2]],
-        'shots': [for (final c in rc.stats.shots) [c.$1, c.$2]], 'guards': [for (final c in rc.stats.guards) [c.$1, c.$2]]},
-      if (rc.sheikh != null) 'mode': rc.mode,
-      if (rc.sheikh != null) 'sheikh': rc.sheikh,
-    },
-    if (v.seat != null) ...{
-      'seat': v.seat, 'role': v.role?.name, 'alive': v.alive, 'mates': v.mates, 'sheikh': v.sheikh,
-      'check': v.check == null ? null : {'seat': v.check!.seat, 'mafia': v.check!.mafia},
-      'checks': v.checks?.map((c) => {'seat': c.seat, 'mafia': c.mafia}).toList(),
-      'ph': v.ph,
-      'night': v.night == null ? null : {
-        'key': v.night!.key,
-        'opts': [for (final o in v.night!.opts) {'seat': o.seat, 'disabled': o.disabled, 'self': o.self, 'teammate': o.teammate, 'lastTarget': o.lastTarget, 'lastNight': o.lastNight, 'mateVotes': o.mateVotes, 'sheikh': o.sheikh, if (o.check != null) 'check': o.check}],
-        'skip': v.night!.canSkip ? {'mateVotes': v.night!.skipMateVotes, 'sheikh': v.night!.skipSheikh} : null,
-      },
-      'voteOpts': v.voteOpts?.map((o) => {'seat': o.seat, 'disabled': o.disabled}).toList(),
-    },
-  };
 }

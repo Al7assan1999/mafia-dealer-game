@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mafia_engine/mafia_engine.dart' show Role;
 import 'package:mafia_dealer/core/feedback.dart';
 import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/features/account/avatar.dart';
@@ -113,7 +112,7 @@ class _WifiNoteState extends State<_WifiNote> {
     final l = L.of(context), n = widget.note, w = n.wifi!, a = widget.account;
     // [QA] U1: day and year in Western digits, like every other number in the app (Arabic's date format uses ٢٣)
     final d = DateTime.fromMillisecondsSinceEpoch(w['playedAt'] as int), date = '${d.day} ${DateFormat.MMMM(Localizations.localeOf(context).languageCode).format(d)} ${d.year}';
-    final winner = winText(l, w['winner']), role = w['role'] as String?;
+    final winner = winText(l, w['winner']), role = w['role2'] ?? w['role']; // [S20] role2: the real role (role: one a 1.2 app knows)
     if (n.kind == 'wifi_result') {
       final ok = w['status'] == 'approved';
       return ListTile(key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,
@@ -132,7 +131,7 @@ class _WifiNoteState extends State<_WifiNote> {
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(n.from.display, style: TextStyle(fontWeight: n.read ? FontWeight.w400 : FontWeight.w700)),
-        Text(l.nWifiAsk(date, w['players'] as int, winner) + (role == null ? '' : ' ${l.nWifiYou(roleName(l, Role.values.byName(role)))}'), style: TextStyle(color: C.mute)),
+        Text(l.nWifiAsk(date, w['players'] as int, winner) + (roleOf(role) == null ? '' : ' ${l.nWifiYou(roleName(l, roleOf(role)!))}'), style: TextStyle(color: C.mute)),
         const SizedBox(height: 6),
         Row(children: [
           FilledButton(key: Key('wifiYes_${w['request']}'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: busy ? null : () => answer(true), child: Text(l.wConfirm)),
