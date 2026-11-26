@@ -19,7 +19,7 @@ export interface PublicView {
   roster: { name: string; alive: boolean }[];
   timer: { end: number } | { left: number } | null;   // night timer end, or the discussion timer
   progress: { done: number; total: number } | null;  // night turns / votes in so far
-  board: { seat: number; v: number | 'none' | 'abstain' | null }[] | null;  // open (table) vote only
+  board: { seat: number; v: number | 'none' | 'abstain' | null }[] | null;  // open (table) vote only; every vote for an out seat (1.1.1)
   voteId: number | null;
   result: Result | null;
   winner: Winner | null;
@@ -82,7 +82,11 @@ export function viewFor(s: GameState, who: number | 'table', now: number): Publi
     ph: 'table', night: null, voteOpts: null,
   };
   if (s.phase === 'end') v.ph = 'end';
-  else if (!s.alive[i]) { v.ph = 'dead'; if (s.rules.ghost) v.roles = s.roles.slice(); }
+  else if (!s.alive[i]) {
+    v.ph = 'dead'; if (s.rules.ghost) v.roles = s.roles.slice();
+    // [1.1.1 hotfix] an out player (the host too) follows the vote live, open or secret: they can't vote any more
+    if (s.phase === 'vote') v.board = aliveSeats(s).map(k => ({ seat: k, v: s.vote!.votes[k] ?? null }));
+  }
   else if (s.phase === 'night') { if (s.night.done[i]) v.ph = 'nightDone'; else { v.ph = 'night'; v.night = nightOptions(s, i); } }
   else if (s.phase === 'vote') {
     if (s.vote!.votes[i] !== undefined) v.ph = 'voted';

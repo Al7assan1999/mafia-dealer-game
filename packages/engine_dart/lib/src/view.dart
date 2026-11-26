@@ -33,7 +33,7 @@ class View {
   final List<({String name, bool alive})> roster;
   final int? timerEnd, timerLeft; // night timer end / running discussion timer end (ms), or the paused seconds
   final ({int done, int total})? progress;
-  final List<({int seat, Object? v})>? board; // open vote only
+  List<({int seat, Object? v})>? board; // open vote only (and for out players: every vote, 1.1.1)
   final int? voteId;
   final ShownResult? result;
   final Winner? winner;
@@ -118,6 +118,8 @@ View viewFor(GameState s, int? who, int now) {
   } else if (!s.alive[i]) {
     v.ph = 'dead';
     if (s.rules.ghost) v.roles = [...s.roles];
+    // [1.1.1 hotfix] an out player (the host too) follows the vote live, open or secret: they can't vote any more
+    if (s.phase == Phase.vote) v.board = [for (final k in aliveSeats(s)) (seat: k, v: s.vote!.votes[k])];
   } else if (s.phase == Phase.night) {
     if (s.night.done.contains(i)) {
       v.ph = 'nightDone';
