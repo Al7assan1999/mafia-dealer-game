@@ -124,7 +124,12 @@ class _PlayerState extends State<PlayerScreen> {
     final statusColor = !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green;
     final fav = f.fav.isEmpty ? null : Role.values.byName(f.fav);
     return [
-      Center(child: AvatarView.of(a.api, f, size: 96, online: friend ? f.online : null)),
+      Center(child: GestureDetector(key: const Key('profilePhoto'),
+          // a real photo opens full size (pinch to zoom); a preset picture has nothing more to show
+          onTap: f.photo == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(), backgroundColor: Colors.black,
+              body: InteractiveViewer(child: Center(child: Image.network(a.api.avatarUrl(f.id, f.photo!), key: const Key('profilePhotoFull'),
+                  errorBuilder: (_, _, _) => Icon(Icons.broken_image_outlined, color: C.mute, size: 64))))))),
+          child: AvatarView.of(a.api, f, size: 96, online: friend ? f.online : null))),
       const SizedBox(height: 12),
       Text(f.display, key: const Key('profileName'), textAlign: TextAlign.center, style: head.copyWith(fontSize: 26)),
       if (f.handle != null) Text(atHandle(f.handle), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
