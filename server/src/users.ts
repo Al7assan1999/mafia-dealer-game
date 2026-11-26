@@ -111,7 +111,8 @@ me.delete('/', async c => {
 
 export const users = new Hono<AppEnv>();
 /** [S13-4] Find people to add: 2+ letters match the start of an @handle or any part of a display name (any case).
- *  Up to 20, never me, never banned, never someone blocked either way. GET /v1/users?q=dar */
+ *  Up to 20, never me, never banned, never someone blocked either way; an exact @handle first (1.1.1: the box no longer
+ *  adds by @handle, so that friend must never fall past the 20). GET /v1/users?q=dar */
 users.get('/', async c => {
   const q = (c.req.query('q') ?? '').trim().replace(/^@/, '');
   if (q.length < 2 || q.length > 30) throw new ApiErr(400, 'bad_request');
@@ -120,7 +121,7 @@ users.get('/', async c => {
     `SELECT * FROM users u WHERE u.id <> ?1 AND u.banned_at IS NULL AND u.handle IS NOT NULL
        AND (u.handle LIKE ?2 ESCAPE '\\' OR u.display LIKE ?3 ESCAPE '\\')
        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ?1 AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?1))
-     ORDER BY (u.handle LIKE ?2 ESCAPE '\\') DESC, u.display LIMIT 20`).bind(me, like + '%', '%' + like + '%').all<UserRow>();
+     ORDER BY (u.handle = ?4 COLLATE NOCASE) DESC, (u.handle LIKE ?2 ESCAPE '\\') DESC, u.display LIMIT 20`).bind(me, like + '%', '%' + like + '%', q).all<UserRow>();
   const fs = results.length ? (await c.env.DB.prepare(`SELECT a, b, requested_by, status FROM friendships WHERE (a = ?1 AND b IN (${results.map(() => '?').join(',')})) OR (b = ?1 AND a IN (${results.map(() => '?').join(',')}))`)
     .bind(me, ...results.map(u => u.id), ...results.map(u => u.id)).all<FriendRow>()).results : [];
   return c.json({ users: results.map(u => card(u, relOf(me, fs.find(f => f.a === u.id || f.b === u.id) ?? null))) });
