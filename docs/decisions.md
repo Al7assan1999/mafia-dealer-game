@@ -87,3 +87,48 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   board's filter without saying so).
 - **2026-11-26 · No Old tab (his note).** Every old player is linked: Stats → Online includes the old app's games
   (`source=old` still answers 1.2.0 phones), and History lists my old games in Online, marked "Old app".
+
+### Sprint 20 (1.3.0): new roles
+- **2026-11-26 · Sprint 20 PRD signed off "as suggested"** (Q1–Q9 in `docs/sprint-20-prd.md`):
+  - Wave 1 only: Hunter, Mayor, Framer, Watcher, with the modes Avenger (6+) and Shadows (8+).
+  - The Framer is a Mafia with a power, like the Sheikh.
+  - The Hunter may hold fire.
+  - A revealed Mayor can't be protected by the Doctor.
+  - Every Mafia who voted for the target counts as visiting it (Q5, reopened by Ben in `sprint-20-roles.md`, E-W1).
+  - No repeat limit for the Watcher.
+  - New roles join All from 1.4.0.
+  - The Transporter, the Witch and the Baker are dropped.
+  - Brad's Arabic names.
+- **2026-11-26 · Each role and mode is discussed with him in detail before any role is built (his note).** Ben checks the
+  edge cases (`docs/sprint-20-roles.md`).
+- **2026-11-26 · R1–R6 "as suggested"** (`docs/sprint-20-roles.md`):
+  - with the reveal rule off, the Hunter's aim still shows his role;
+  - the Bodyguard may guard a revealed Mayor;
+  - in pass-and-play the Mayor reveals from his night turn, and "the table decides" has no double vote;
+  - only the Framer learns whether his frame hit;
+  - one Mafia (the Sheikh, else the lowest seat) visits the victim;
+  - Shadows keeps both Mafia powers at 8.
+- **2026-11-26 · Never the Sniper and the Hunter in the same game (his rule).** The engine refuses the deck.
+  - Avenger: the Hunter, the Mayor from 7, and no Sniper.
+  - Shadows: the Sniper from 8, the Mayor from 11, and no Hunter.
+  - Why: groups of 7–8 never got the Mayor or the Sniper.
+- **2026-11-26 · The Hunter is الصياد in Arabic (his choice).**
+- **2026-11-26 · The 25% / 65% / 10% ratio is a guide, not a rule (his note).** Brad may suggest other mixes when they
+  play better (his example: 9 players with 3 Mafia and a combo of other roles). Each is still a proposal for his sign-off.
+- **2026-11-26 · §8 signed off** (`docs/sprint-20-roles.md`):
+  - Classic and the old modes stay as they are.
+  - Avenger and Shadows offer a choice of two Mafia counts where §8 B says so (Shadows at 9: 3 by default, no Jester; 2 brings the Jester in).
+  - The rules count as a "lean": two or more points to one side removes the count that makes it worse.
+  - The Hunter's shot uses the night timer.
+  - One test plays every mode × size × Mafia count × the 64 combinations of the rules that count.
+  - The win rates per mode are rechecked every release.
+- **2026-11-26 · After Quin's review (Q1-Q5)** [David · Dev]:
+  - A Hunter who leaves the room while aiming holds fire.
+  - The host may go on without the Hunter's shot (asked first if he is still in the room).
+  - On one phone his shot has no clock.
+  - The Framer's news and the Watcher's list are shown only on their own next night screen, never on the table's morning or day. The Detective's result stays in his day list, as in every mode.
+  - The Framer must choose a frame or "No frame" before he confirms.
+- **2026-11-26 · "Reveal roles" is off by default (his ruling, Quin Q9).**
+  - New setups and the Classic preset start with it off, the way the group plays (59 of 60 games). Beginner keeps it on.
+  - Saved setups keep their own rules.
+  - With it off, the new modes offer their Mafia choice by default. Choosing a mode starts at its default count.
