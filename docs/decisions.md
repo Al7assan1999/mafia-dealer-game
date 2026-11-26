@@ -61,3 +61,11 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   every role by name; the API doesn't know the caller's version). Release notes ask players to update every phone.
 - **2026-11-25 · Test migration 0011 on a copy of production.** His OK ("Yes"). Done: applied cleanly with every row
   kept; the rollback removed only the test game with a Bodyguard seat; the export and the copy were deleted.
+- **2026-11-26 · 1.1.1 hotfix (his list of 11).** `docs/hotfix-1.1.1-report.md`. Item 5 (Sami's blocks): his ruling, not a
+  bug (Sami reported to test; "Also block" stays ticked by default). Items 7, 11: data only (one Sami account; his old
+  games wait for the Old players link Sami → @sami).
+- **2026-11-26 · Out players see every vote (item 3).** As he asked: open or secret, live, for out seats (the host
+  too), not only with Ghost view (Quin Q8). The living still see a secret vote's count only.
+- **2026-11-26 · Side tabs float again (his note).** Reverses S16-1: the lobby cards use the full width and the tabs
+  float over the content and drag up and down (the chat tab too, in a game); a tab over a menu is dragged away.
+- **2026-11-26 · A taken username is an alert (his note).** On first sign-in and on the profile.
