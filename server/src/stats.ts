@@ -24,7 +24,7 @@ export const userKey = (id: string) => 'u:' + id;
 export const nameKeyOf = (n: string) => 'n:' + nameKey(n);
 
 /** The old app's stats(): totals per player, the board (ranked by win rate with a minimum, then wins, then games), titles. */
-export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) => boolean = () => true) {
+export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) => boolean = () => true, holders: Partial<Record<TitleKey, string | null>> = {}) {
   const P = new Map<string, PlayerStat>();
   for (const g of games) g.seats.forEach((s, i) => {
     let p = P.get(s.key);
@@ -39,10 +39,17 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
   const all = [...P.values()].filter(keep);
   for (const p of all) { p.q = p.g >= minGames; p.r = p.w / p.g; }
   const ranked = all.slice().sort((a, b) => (+b.q - +a.q) || (b.r - a.r) || (b.w - a.w) || (b.g - a.g));
-  const top = (f: (p: PlayerStat) => number) => all.filter(p => f(p) > 0).sort((a, b) => f(b) - f(a))[0] ?? null;
-  const bestMafia = all.filter(p => p.mg >= 2 && p.mw > 0).sort((a, b) => (b.mw / b.mg - a.mw / a.mg) || (b.mw - a.mw))[0] ?? null;
+  // [1.2.1 hotfix] a tie leaves a title with whoever holds it: only passing them takes it (it went to the first in the game list)
+  const pick = (k: TitleKey, list: PlayerStat[], cmp: (a: PlayerStat, b: PlayerStat) => number) => {
+    const t = list.slice().sort(cmp)[0] ?? null, h = holders[k] ? list.find(p => p.userId === holders[k]) : undefined;
+    return t && h && cmp(h, t) === 0 ? h : t;
+  };
+  const by = (f: (p: PlayerStat) => number) => (a: PlayerStat, b: PlayerStat) => f(b) - f(a);
+  const top = (k: TitleKey, f: (p: PlayerStat) => number) => pick(k, all.filter(p => f(p) > 0), by(f));
   const titles: Record<TitleKey, PlayerStat | null> = {
-    best: ranked.find(p => p.q) ?? null, mafia: bestMafia, det: top(p => p.ct), doc: top(p => p.sv), first: top(p => p.fk),
+    best: pick('best', ranked.filter(p => p.q), (a, b) => (b.r - a.r) || (b.w - a.w) || (b.g - a.g)),
+    mafia: pick('mafia', all.filter(p => p.mg >= 2 && p.mw > 0), (a, b) => (b.mw / b.mg - a.mw / a.mg) || (b.mw - a.mw)),
+    det: top('det', p => p.ct), doc: top('doc', p => p.sv), first: top('first', p => p.fk),
   };
   return { ranked, titles };
 }
@@ -153,8 +160,9 @@ export const BOARD_MIN = 3, BOARD_TOP = 100;
 /** The games the board is built from: online, approved Wi-Fi and counted old games, for everyone. */
 async function boardGames(env: Env, source: string, days: number, now: number) {
   const since = days > 0 ? now - days * DAY : 0;
-  const games = [...await onlineGames(env.DB, null, since), ...(source === 'all' || source === 'old' ? await oldGames(env.DB, since) : [])];
-  return source === 'all' ? games : games.filter(g => g.source === source);
+  const games = [...await onlineGames(env.DB, null, since), ...(source === 'wifi' ? [] : await oldGames(env.DB, since))];
+  // [1.2.1 hotfix] his note: every old player is linked, so the old app's games are part of Online ('old' alone: 1.2.0 phones)
+  return source === 'all' ? games : games.filter(g => source === 'online' ? g.source !== 'wifi' : g.source === source);
 }
 
 /** On the board: an old player without an account (by name), or an account that shows itself and isn't banned. */
@@ -185,7 +193,7 @@ statsRoutes.get('/', async c => {
   const ids = [...new Set(games.flatMap(g => g.seats.map(s => s.userId)).filter((x): x is string => !!x))];
   const users = await people(c.env.DB, ids);
   // accounts that hide themselves or are banned stay off the board (titles go to the best of the rest)
-  const { ranked, titles } = board(games, min, p => shownOnBoard(users, p.userId));
+  const { ranked, titles } = board(games, min, p => shownOnBoard(users, p.userId), await holders(c.env.DB));
   const out = (p: PlayerStat, rank: number | null) => {
     const u = p.userId ? users.get(p.userId) : undefined;
     return { ...p, rank, name: u?.display ?? p.name, handle: u?.handle ?? null, avatar: u ? avatarOf(u) : null, me: p.userId === me.id };
@@ -223,18 +231,24 @@ statsRoutes.get('/player', async c => {
 const TITLE_NAMES: Record<TitleKey, string> = { best: 'Best player', mafia: 'Best Mafia', det: 'Best Detective', doc: 'Best Doctor', first: 'Most killed first' };
 export const TITLE_NOTE_TTL = 30 * DAY;  // N8
 
-/** After a game counts (or stops counting): works out the Everyone titles and tells anyone who lost one. */
-export async function refreshTitles(env: Env, deps: Pick<Deps, 'push' | 'now'>) {
+/** Who holds each Everyone title now (settings.titles, account ids). */
+async function holders(db: D1Database) {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'titles'").first<{ value: string }>();
+  return (row ? JSON.parse(row.value) : {}) as Partial<Record<TitleKey, string | null>>;
+}
+
+/** After a game counts (or stops counting): works out the Everyone titles and tells anyone who lost one.
+ *  quiet: the admin's own bookkeeping (Old players) moves titles without notes (Quin Q3: a misclick or a double tap pushed players). */
+export async function refreshTitles(env: Env, deps: Pick<Deps, 'push' | 'now'>, quiet = false) {
   try {
     const games = await boardGames(env, 'all', 0, deps.now());
     const users = await people(env.DB, [...new Set(games.flatMap(g => g.seats.map(s => s.userId)).filter((x): x is string => !!x))]);
-    const { titles } = board(games, BOARD_MIN, p => shownOnBoard(users, p.userId));
+    const before = await holders(env.DB);
+    const { titles } = board(games, BOARD_MIN, p => shownOnBoard(users, p.userId), before);
     const now = Object.fromEntries((Object.keys(titles) as TitleKey[]).map(k => [k, titles[k]?.userId ?? null])) as Record<TitleKey, string | null>;
-    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'titles'").first<{ value: string }>();
-    const before = (row ? JSON.parse(row.value) : {}) as Record<string, string | null>;
     await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('titles', ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
       .bind(JSON.stringify(now), deps.now()).run();
-    for (const k of Object.keys(now) as TitleKey[]) {
+    for (const k of quiet ? [] : Object.keys(now) as TitleKey[]) {
       const lost = before[k], won = now[k];
       if (!lost || !won || lost === won) continue;
       const by = (await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(won).first<UserRow>())!;

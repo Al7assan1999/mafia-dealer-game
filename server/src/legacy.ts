@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { nameKey, type Role } from '@mafia/engine';
 import { allow, ApiErr, body, HOUR, sha256, type AppEnv, type Env } from './lib.ts';
 import { isAdmin } from './safety.ts';
-import { oldNameOwners, oldPlayers, oldStatus } from './stats.ts';
+import { oldNameOwners, oldPlayers, oldStatus, refreshTitles } from './stats.ts';
 
 export const OLD_RELAY = 'https://mafia-relay.mafiadealer.workers.dev';
 /** Reads an old group: { exists, games }. Tests pass a fake. */
@@ -118,5 +118,6 @@ legacyRoutes.put('/players', async c => {
   if (mark === 'real') next.names[name] = to;
   if (mark === 'test') next.tests.push(name);
   await db.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = 'old_players'").bind(JSON.stringify(next), c.var.deps.now()).run();
+  await refreshTitles(c.env, c.var.deps, true);  // [1.2.1 hotfix] the titles change now, not at the next game; no notes (Q3)
   return c.json({ ok: true, name, mark, link: to });
 });
