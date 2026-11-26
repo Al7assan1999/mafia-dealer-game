@@ -37,10 +37,11 @@ class FakeServer {
   // Sprint 8: what the stats and old-history endpoints answer (tests fill them in)
   Map<String, Object?> statsAnswer = {'board': [], 'me': null, 'minGames': 3, 'games': 0, 'titles': {'best': null, 'mafia': null, 'det': null, 'doc': null, 'first': null}};
   Map<String, Object?>? playerAnswer;
-  final statsAsked = <String>[]; // the query strings
+  final statsAsked = <String>[], playerAsked = <String>[]; // the query strings
   Object importAnswer = {'found': 0, 'imported': 0, 'duplicates': 0, 'broken': 0, 'waiting': 0}; // or an error code string
   List<Map<String, Object?>> oldPlayers = []; // [S12-1] GET /v1/legacy/players (the admin's Old players)
   List<Map<String, Object?>> oldGamesAnswer = [];
+  bool oldGamesDown = false; // [1.2.1] GET /v1/legacy/games fails
   var _n = 0;
 
   Api api() => Api(base: 'https://fake', client: MockClient(_handle));
@@ -239,6 +240,7 @@ class FakeServer {
       return ok({'status': 'pending'});
     }
     if (path == '/v1/stats') { statsAsked.add(r.url.query); return ok(statsAnswer); }
+    if (path == '/v1/stats/player') playerAsked.add(r.url.query);
     if (path == '/v1/stats/player') return playerAnswer == null ? err(404, 'not_found') : ok(playerAnswer!);
     if (path == '/v1/legacy/players' && m == 'GET') return admin == me ? ok({'players': oldPlayers}) : err(403, 'forbidden');
     if (path == '/v1/legacy/players' && m == 'PUT') {
@@ -250,7 +252,7 @@ class FakeServer {
       return ok({'ok': true, 'name': p['name'], 'mark': p['mark'], 'link': p['link']});
     }
     if (path == '/v1/legacy/import') { final a = importAnswer; return a is String ? err(a == 'busy' ? 502 : 404, a) : ok(a); }
-    if (path == '/v1/legacy/games') return ok({'games': oldGamesAnswer});
+    if (path == '/v1/legacy/games') return oldGamesDown ? err(500, 'server') : ok({'games': oldGamesAnswer});
     if (path.startsWith('/v1/rooms/') && m == 'GET') return openRooms.contains(path.split('/').last) ? ok({'open': true, 'status': 'lobby', 'host': 'x'}) : err(404, 'no_room');
     if (path == '/v1/notifications' && m == 'GET') {
       final l = notes.where((n) => n['to'] == me).toList();

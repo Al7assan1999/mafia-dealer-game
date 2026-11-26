@@ -85,19 +85,19 @@ void main() {
       expect(find.byKey(const Key('boardMine')), findsNothing);
     });
 
-    testWidgets('[S13-1] one board: the Old app filter, my rank shown even below the top, the 30-day filter', (t) async {
+    testWidgets('[S13-1] one board: the Online filter (1.2.1: with the old games), my rank shown even below the top, the 30-day filter', (t) async {
       final s = FakeServer()..statsAnswer = statsOf([row('u:1', 'Dareer', w: 9, g: 12, rank: 1)], me: row('u:9', 'Sami', w: 3, g: 11, rank: 140, me: true));
       await signedIn(t, s);
       await tapKey(t, 'stats');
       await frames(t);
       expect(find.text('You: #140'), findsOneWidget);
       expect(find.byKey(const Key('row_u:9')), findsOneWidget, reason: 'my own row under the top');
-      await tapKey(t, 'src_old');
+      await tapKey(t, 'src_online');
       await frames(t);
-      expect(s.statsAsked.last, 'source=old&days=0');
+      expect(s.statsAsked.last, 'source=online&days=0');
       await tapKey(t, 'days_30');
       await frames(t);
-      expect(s.statsAsked.last, 'source=old&days=30');
+      expect(s.statsAsked.last, 'source=online&days=30');
     });
 
     testWidgets('no games yet: a plain message, not an empty board', (t) async {
@@ -170,22 +170,20 @@ void main() {
       expect(find.byKey(const Key('importOldHistory'), skipOffstage: false), findsNothing);
     });
 
-    testWidgets('History → Old app: my imported games, invalid marked, and the old lines on the detail page', (t) async {
+    testWidgets('History → Online: my old app games (1.2.1: no Old tab), invalid marked, and the old lines on the detail page', (t) async {
       final s = FakeServer()..oldGamesAnswer = [
         {'id': 'o1', 'playedAt': 1, 'valid': true, 'winner': 'mafia', 'days': 1, 'names': ['Alhassan', 'Dareer', 'Halawy', 'Sami'], 'roles': ['mafia', 'doctor', 'citizen', 'citizen'],
           'alive': [true, true, false, true], 'hist': ['Night 1: Halawy was killed'], 'seat': 0},
         {'id': 'o2', 'playedAt': 0, 'valid': false, 'winner': 'citizens', 'days': 3, 'names': ['Alhassan', 'Dareer', 'Halawy', 'Sami'], 'roles': ['citizen', 'mafia', 'doctor', 'citizen'],
-          'alive': [true, false, true, true], 'hist': [], 'seat': null},
+          'alive': [true, false, true, true], 'hist': [], 'seat': 0},
       ];
       await signedIn(t, s);
       await t.scrollUntilVisible(find.byKey(const Key('history')), 200, scrollable: find.byType(Scrollable).first);
       await tapKey(t, 'history');
       await frames(t);
-      await tapKey(t, 'tabOld');
-      await frames(t);
-      expect(find.text('You played Mafia · 4 players · 1 round'), findsOneWidget, reason: 'and the plural is right');
-      expect(find.textContaining('Invalid'), findsOneWidget);
-      await tapKey(t, 'old_o1');
+      expect(find.text('You played Mafia · 4 players · 1 round · Old app'), findsOneWidget, reason: 'and the plural is right');
+      expect(find.text('You played Citizen · 4 players · 3 rounds · Invalid game · Old app'), findsOneWidget);
+      await tapKey(t, 'game_o1');
       await frames(t);
       expect(find.text('Night 1: Halawy was killed'), findsOneWidget);
     });

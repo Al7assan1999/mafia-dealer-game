@@ -1,7 +1,7 @@
 name: mafia_dealer
 description: "Mafia Dealer: Party Game. The Mafia party game on one phone, over Wi-Fi or online."
 publish_to: 'none'
-version: 1.2.0+5
+version: 1.2.1+6
 
 environment:
   sdk: ^3.13.7

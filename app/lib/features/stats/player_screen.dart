@@ -16,11 +16,10 @@ import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 /// A player's profile (S8-2): the old app's, plus the best partner and a card to share.
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.account, required this.playerKey, this.filter = const StatsFilter(), this.person});
+  const PlayerScreen({super.key, required this.account, required this.playerKey, this.person});
   final Account account;
   final String playerKey;
   final Person? person; // [N2] a friend or a player: their card shows even with no games yet
-  final StatsFilter filter;
   @override
   State<PlayerScreen> createState() => _PlayerState();
 }
@@ -34,8 +33,8 @@ class _PlayerState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    final f = widget.filter;
-    widget.account.player(widget.playerKey, source: f.source, days: f.days)
+    // [1.2.1 hotfix] every game, all time, wherever it's opened from (it followed the board's filter from Stats)
+    widget.account.player(widget.playerKey)
         .then((x) { if (mounted) setState(() => p = x); })
         .catchError((Object e) {
           if (!mounted) return;

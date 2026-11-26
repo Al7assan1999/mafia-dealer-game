@@ -889,7 +889,6 @@
   "historySignIn": "Sign in to see your online games here too.",
   "statsT": "Player Stats",
   "fAll": "All",
-  "fOld": "Old app",
   "fAllTime": "All time",
   "f30": "Last 30 days",
   "tBest": "Best player",
@@ -1045,7 +1044,6 @@
   "importNotFound": "No group with this code",
   "importDown": "The old server didn't answer, try again",
   "tabOld": "Old app",
-  "noOldGames": "No old games yet. Import them from your Profile.",
   "onBoardT": "Show me on the Everyone leaderboard",
   "onBoardD": "Your own stats stay the same either way.",
   "nTitleLost": "took {title} from you",
@@ -1563,5 +1561,6 @@
     }
   },
   "fbTooLong": "1000 characters at most",
-  "fbGameGone": "That game can't be attached. Send it without the game."
+  "fbGameGone": "That game can't be attached. Send it without the game.",
+  "oldGamesFailed": "Your old app games didn't load."
 }

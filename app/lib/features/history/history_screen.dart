@@ -22,6 +22,8 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryState extends State<HistoryScreen> {
   List<Map<String, Object?>>? games;
+  List<Map<String, Object?>> old = []; // [1.2.1] the old app's games I played, listed with Online
+  bool oldFailed = false;
   String? error;
   Map<String, Map<String, Object?>> server = {}; // the server's Wi-Fi requests and approved games, by the game's key
   String show = 'all'; // [S13 P1] all | valid | invalid | hidden
@@ -32,7 +34,19 @@ class _HistoryState extends State<HistoryScreen> {
   Future<void> _load() async {
     if (!widget.account.signedIn) return;
     widget.account.wifiRequests().then((w) { if (mounted) setState(() => server = {for (final x in w) x['key'] as String: x}); }).catchError((_) {});
+    // [1.2.1 hotfix] his note: every old player is linked, so the old app's games I played are listed with Online.
+    // [Quin Q4] they come in after the online games, and a failure says so (with a retry) instead of hiding them
+    _loadOld();
     try { final g = await widget.account.games(); if (mounted) setState(() => games = g); } catch (e) { if (mounted) setState(() => error = errText(L.of(context), e)); }
+  }
+  void _loadOld() {
+    widget.account.oldGames().then((o) {
+      final mine = [for (final x in o) if (x['seat'] is int) {
+        'id': x['id'], 'winner': x['winner'], 'days': x['days'], 'valid': x['valid'], 'playedAt': x['playedAt'], 'names': x['names'],
+        'role': (x['roles'] as List)[x['seat'] as int], 'players': (x['names'] as List).length, 'old': x}];
+      if (mounted) setState(() { oldFailed = false; old = mine; });
+    })
+      .catchError((_) { if (mounted) setState(() => oldFailed = true); });
   }
 
   @override
@@ -50,14 +64,14 @@ class _HistoryState extends State<HistoryScreen> {
         Padding(padding: const EdgeInsets.all(16), child: Text(l.historySignIn, key: const Key('historySignIn'), textAlign: TextAlign.center, style: TextStyle(color: C.dim))),
       ]));
     }
-    return DefaultTabController(length: 3, child: Scaffold(
+    return DefaultTabController(length: 2, child: Scaffold(
       appBar: AppBar(title: title, actions: [
             IconButton(key: const Key('openStats'), tooltip: l.statsT, icon: Icon(Icons.leaderboard_outlined, color: C.mute),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatsScreen(account: widget.account)))),
           ],
           bottom: TabBar(indicatorColor: C.red, labelColor: C.text, unselectedLabelColor: C.mute,
-              tabs: [Tab(key: const Key('tabOnline'), text: l.tabOnline), Tab(key: const Key('tabWifi'), text: l.tabWifi), Tab(key: const Key('tabOld'), text: l.tabOld)])),
-      body: TabBarView(children: [_online(l), _wifi(l, wifi), OldGamesTab(account: widget.account)]),
+              tabs: [Tab(key: const Key('tabOnline'), text: l.tabOnline), Tab(key: const Key('tabWifi'), text: l.tabWifi)])),
+      body: TabBarView(children: [_online(l), _wifi(l, wifi)]),
     ));
   });
 
@@ -98,7 +112,8 @@ class _HistoryState extends State<HistoryScreen> {
     final hidden = widget.prefs.hiddenGames;
     // [S13 P1] the old app's filter, and the games I hid (shown again under "Hidden")
     final needle = q.trim().toLowerCase();
-    final shown = (games ?? const <Map<String, Object?>>[]).where((g) => switch (show) {
+    final all = games == null ? null : ([...games!, ...old]..sort((a, b) => ((b['playedAt'] as int?) ?? 0).compareTo((a['playedAt'] as int?) ?? 0)));
+    final shown = (all ?? const <Map<String, Object?>>[]).where((g) => switch (show) {
           'hidden' => hidden.contains(g['id']),
           'valid' => g['valid'] == true && !hidden.contains(g['id']),
           'invalid' => g['valid'] != true && !hidden.contains(g['id']),
@@ -111,8 +126,12 @@ class _HistoryState extends State<HistoryScreen> {
     Widget cap(String t) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 8), child: Text(t.toUpperCase(), style: capStyle));
     return error != null ? Center(child: Text(error!, style: TextStyle(color: C.red2)))
           : games == null ? Center(child: CircularProgressIndicator(color: C.red2))
-          : games!.isEmpty ? Center(child: Text(l.noHistory, style: TextStyle(color: C.mute)))
+          : all!.isEmpty && !oldFailed ? Center(child: Text(l.noHistory, style: TextStyle(color: C.mute)))
           : ListView(padding: const EdgeInsets.all(16), children: [
+              if (oldFailed) Row(key: const Key('oldFailed'), children: [
+                Expanded(child: Text(l.oldGamesFailed, style: TextStyle(color: C.gold))),
+                TextButton(key: const Key('oldRetry'), onPressed: _loadOld, child: Text(l.retry, style: TextStyle(color: C.text))),
+              ]),
               // [S15-5] as the old app: search by a player's name, Winner, Record, then how many games
               TextField(key: const Key('histSearch'), onChanged: (v) => setState(() => q = v), decoration: InputDecoration(hintText: l.searchName, prefixIcon: Icon(Icons.search, color: C.dim))),
               cap(l.fWinner),
@@ -127,8 +146,9 @@ class _HistoryState extends State<HistoryScreen> {
                   leading: Icon(winIcon(g['winner']), color: winColor(g['winner'])),
                   title: Text(winText(l, g['winner'])),
                   subtitle: Text('${l.youPlayed(roleName(l, Role.values.byName(g['role'] as String)))} · ${l.rcSub(g['players'] as int, g['days'] as int)}'
-                      '${g['valid'] == true ? '' : ' · ${l.invalid}'}', style: TextStyle(color: C.mute)),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GameDetail(account: widget.account, id: g['id'] as String, prefs: widget.prefs))),
+                      '${g['valid'] == true ? '' : ' · ${l.invalid}'}${g['old'] is Map ? ' · ${l.tabOld}${switch ((g['old'] as Map)['status']) { 'waiting' => ' · ${l.oldWaiting}', 'test' => ' · ${l.oldTestGame}', _ => '' }}' : ''}', style: TextStyle(color: C.mute)),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => g['old'] is Map ? OldDetail(g: Map<String, Object?>.from(g['old'] as Map))
+                      : GameDetail(account: widget.account, id: g['id'] as String, prefs: widget.prefs))),
                 )),
             ]);
   }

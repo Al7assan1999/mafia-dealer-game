@@ -39,7 +39,7 @@ class _StatsState extends State<StatsScreen> {
         // [QA] S8 #4: the period chips sat off-screen in one scrolling row; two rows that wrap
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final (k, t) in [('all', l.fAll), ('online', l.tabOnline), ('wifi', l.tabWifi), ('old', l.fOld)])
+            for (final (k, t) in [('all', l.fAll), ('online', l.tabOnline), ('wifi', l.tabWifi)] /* [1.2.1] the old app's games are in Online */)
               ChoiceChip(key: Key('src_$k'), label: Text(t), selected: f.source == k, onSelected: (_) => _set(f.copy(source: k))),
           ]),
           const SizedBox(height: 6),
@@ -126,7 +126,7 @@ class _StatsState extends State<StatsScreen> {
     );
   }
 
-  void _open(Map p) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: widget.account, playerKey: p['key'] as String, filter: f)));
+  void _open(Map p) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(account: widget.account, playerKey: p['key'] as String)));  // [1.2.1] the same profile from everywhere
 }
 
 /// A player's profile (S8-2): the old app's, plus the best partner and a card to share.
