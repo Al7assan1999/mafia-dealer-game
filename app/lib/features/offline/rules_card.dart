@@ -24,7 +24,7 @@ class _RulesState extends State<RulesEditor> {
     final chips = [
       if (rules.skip) l.cSkip, if (rules.norep) l.cNorep, if (rules.decoy) l.cDecoy, if (rules.self) l.cSelf, if (rules.rep) l.cRep,
       if (rules.saverev) l.cSaverev, if (rules.reveal) l.cReveal, if (rules.skipVote) l.cSkipVote,
-      l.cTimer(l.minutes(rules.timer ~/ 60)), if (rules.nightT > 0) l.cNightT(rules.nightT),
+      l.cTimer(l.minutes(rules.timer ~/ 60)), if (rules.nightT > 0) l.cNightT(rules.nightT), if (rules.ghost) l.cGhost,
     ];
     return Padding(padding: const EdgeInsets.only(bottom: 14), child: Material(
       key: const Key('rulesCard'), color: C.card,
@@ -67,6 +67,8 @@ class _RulesState extends State<RulesEditor> {
           _pickRow(l.rTimer, null, [60, 120, 180, 240, 300, 420, 600], rules.timer, (s) => l.minutes(s ~/ 60), on == null ? null : (x) => rule('timer', x)),
           _group(l.gOnlineT, Icons.public),
           _pickRow(l.rNightT, l.rNightTD, nightTimes, rules.nightT, (s) => s == 0 ? l.off : l.seconds(s), on == null ? null : (x) => rule('nightT', x)),
+          // [1.1.1 hotfix] the old app's Ghost view: out players see every role on their phone (online and Wi-Fi)
+          _sw(l.rGhost, l.rGhostD, rules.ghost, on == null ? null : (x) => rule('ghost', x)),
         ])),
       ]),
     ));

@@ -84,20 +84,16 @@ class _FriendsState extends State<FriendsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Row(children: [
-                  // [S13-4] a search: part of a name or of an @username; the exact @username still adds directly
+                  // [S13-4] a search: part of a name or of an @username. [1.1.1 hotfix] the button searches (it used to send a
+                  // request for whatever was typed); adding is done from a result
                   Expanded(child: TextField(key: const Key('addHandle'), controller: add, onChanged: (_) => setState(() {}),
+                      textInputAction: TextInputAction.search, onSubmitted: (_) => FocusScope.of(context).unfocus(),
                       decoration: InputDecoration(hintText: l.searchHint, prefixIcon: Icon(Icons.search, color: C.mute)))),
                   const SizedBox(width: 8),
-                  FilledButton(key: const Key('addFriend'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: busy ? null : () {
-                    final h = add.text.trim();
-                    if (!handleRx.hasMatch(h)) return toast(context, l.eHandle);
-                    _do(() async {
-                      final rel = await a.request(h);
-                      add.clear();
-                      if (mounted) setState(() {});
-                      if (context.mounted) toast(context, rel == 'friends' ? l.fNowFriends('@${h.replaceFirst('@', '')}') : l.fReqSent('@${h.replaceFirst('@', '')}'));
-                    });
-                  }, child: Text(l.fAddBtn)),
+                  FilledButton(key: const Key('searchFriend'), style: FilledButton.styleFrom(backgroundColor: C.red), onPressed: () {
+                    FocusScope.of(context).unfocus();
+                    if (add.text.trim().replaceFirst('@', '').length < 2) toast(context, l.searchMin);
+                  }, child: Text(l.search)),
                 ]),
               ),
               if (a.offline) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.eOffline, style: TextStyle(color: C.red2))),

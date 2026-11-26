@@ -63,7 +63,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   late final RoomConn c = widget.existing ?? RoomConn(widget.api ?? widget.account.api, widget.code, connect: widget.connect ?? ioConnect, relocate: widget.relocate);
   bool _minimized = false, _invited = false;
   StreamSubscription<dynamic>? _n, _s;
-  Timer? _tick, _arm;
+  Timer? _tick, _arm, _noteT;
+  String? _note; // [1.1.1 hotfix] a buzz, ping or mention: a quiet line under the title for a moment, not a toast over the buttons
   bool revealed = true; // the morning / verdict / end result is held until my narrator says the name
   bool _timeUpSaid = false;
   String? _myAddress; // Wi-Fi host: where players join (shown under the code)
@@ -91,7 +92,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _n?.cancel(); _s?.cancel(); _tick?.cancel(); _arm?.cancel();
+    _n?.cancel(); _s?.cancel(); _tick?.cancel(); _arm?.cancel(); _noteT?.cancel();
     c.removeListener(_changed);
     if (identical(openRoomConn, c)) openRoomConn = null;
     if (!_minimized) c.dispose(); // minimized: ActiveRoom keeps the connection
@@ -121,6 +122,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   bool _defaults = false;
   void _changed() {
+    final rr = _roleRoute;
+    if (rr != null && (c.bye != null || _roleAt != _stepOf(v))) { _roleRoute = null; if (rr.isActive) Navigator.of(context).removeRoute(rr); }
     final err = c.error;
     if (err != null && mounted && c.room != null) { toastErr(context, roomErr(L.of(context), err)); c.error = null; }
     final room = c.room;
@@ -145,7 +148,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final l = L.of(context);
     if (m['t'] == 'buzz') {
       final who = c.members.where((x) => x['uid'] == m['from']).firstOrNull;
-      toast(context, l.buzzed((who?['display'] as String?) ?? '?'));
+      _flash(l.buzzed((who?['display'] as String?) ?? '?'));
       buzzFx(audio); // R7
     } else if (m['t'] == 'record' && widget.lan) {
       // a Wi-Fi game ended: this phone keeps it (History → Wi-Fi)
@@ -155,12 +158,25 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         'accounts': m['accounts'], 'host': m['host'] != null && m['host'] == c.myUid});
       setState(() => _wifiKey = key);
     } else if (m['t'] == 'mention') {
-      toast(context, l.mentionedYou(c.members.where((x) => x['cn'] == m['from']).firstOrNull?['display'] as String? ?? '?'));
+      _flash(l.mentionedYou(c.members.where((x) => x['cn'] == m['from']).firstOrNull?['display'] as String? ?? '?'));
       HapticFeedback.mediumImpact();
     } else if (m['t'] == 'ping') {
-      toast(context, l.pingedYou);
+      _flash(l.pingedYou);
       buzzFx(audio); // R7
     }
+  }
+
+  /// Shows a room notice in the strip under the title for 2.5 s; a new one replaces it (ten buzzes are one line, not ten toasts).
+  void _flash(String text) {
+    _noteT?.cancel();
+    setState(() => _note = text);
+    _noteT = Timer(const Duration(milliseconds: 2500), () { if (mounted) setState(() => _note = null); });
+  }
+
+  /// [1.1.1 hotfix] seated players whose app is closed, while they're still in the game (no red bar: a quiet line)
+  List<String> _away() {
+    final roster = (v?['roster'] as List?)?.cast<Map>();
+    return [for (final m in c.members) if (m['seat'] is int && m['online'] == false && (roster == null || roster[m['seat'] as int]['alive'] == true)) m['display'] as String];
   }
 
   // ---------------------------------------------------------------- narration and the suspense reveal
@@ -262,8 +278,11 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                   if (!widget.lan) widget.prefs.narrate = !audio.muted; // online: remembered; Wi-Fi: this room only
                   if (audio.muted) audio.stop();
                 })),
-            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'buzz'}); toast(context, l.buzzSent); })),
-            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })),
+            // [1.1.1 hotfix] as the old app: the role card again mid-game (hold to see, then Got it)
+            if (v case final view? when roleOf(view['role']) != null && view['phase'] != 'deal' && view['phase'] != 'end')
+              IconButton(key: const Key('myRole'), tooltip: l.yourRole, icon: Icon(Icons.badge_outlined, color: C.mute), onPressed: () => _myRole(view)),
+            if (c.view != null && !c.isHost) IconButton(key: const Key('buzz'), tooltip: l.buzz, icon: Icon(Icons.campaign_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'buzz'}); _flash(l.buzzSent); })),
+            if (c.view != null && c.isHost) IconButton(key: const Key('ping'), tooltip: l.ping, icon: Icon(Icons.notifications_active_outlined, color: C.mute), onPressed: _h(() { c.send({'t': 'ping'}); _flash(l.pingSent); })),
             if (c.room != null && c.view == null && c.bye == null)
               IconButton(key: const Key('minimize'), tooltip: l.minimize, icon: Icon(Icons.home_outlined, color: C.mute), onPressed: _minimize),
             if (c.bye == null) IconButton(key: const Key('leave'), tooltip: l.leaveRoom, icon: Icon(Icons.logout, color: C.mute), onPressed: _leave),
@@ -273,10 +292,16 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           _bar(l),
           Expanded(child: Stack(children: [
             Positioned.fill(child: KeyedSubtree(key: ValueKey('${v?['phase']}/${v?['ph']}/${v?['day']}/$revealed'), child: _screen(l))),
+            // [1.1.1 hotfix, Quin Q3] the room notice floats over the top edge: the options under it never move
+            if (_note != null) Positioned(top: 0, left: 0, right: 0, child: IgnorePointer(child: Material(key: const Key('roomNote'), color: C.card2, elevation: 4,
+                child: Padding(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.campaign_outlined, size: 16, color: C.gold), const SizedBox(width: 6),
+                  Flexible(child: Text(_note!, overflow: TextOverflow.ellipsis, style: TextStyle(color: C.text))),
+                ]))))),
             // S9-2: the friends tab in an online lobby (never in a game, never in a Wi-Fi room)
             // [S12-6] never over the room-code card (it starts below it); gone once the room is closed
             // [S14-1 / his #1] the chat is a side tab under the friends tab, in the lobby and the game (online and Wi-Fi)
-            if (c.room != null && c.bye == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c, above: v == null ? 200 : 160, // in a game: under the screen's header
+            if (c.room != null && c.bye == null) Positioned.fill(child: FriendsTab(account: widget.account, prefs: widget.prefs, audio: audio, room: c, above: 8, // [1.1.1 hotfix] over the content, anywhere from the top (was kept under the code card / the header)
                 friends: !widget.lan && v == null,
                 extra: ChatTab(key: const Key('chat'), conn: c, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conn: c, account: widget.account,
                     out: c.room?['status'] == 'game' && v?['alive'] == false, safety: !widget.lan)))))),
@@ -286,7 +311,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// The connection bar (only when something is wrong, and green for 2 s when it's fixed).
+  /// The connection bar (only when this phone's connection is wrong, and green for 2 s when it's fixed).
+  /// [1.1.1 hotfix] another player's closed app is no longer a bar here (see _away).
   Widget _bar(L l) {
     String? text;
     Color color = C.red;
@@ -296,9 +322,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       text = l.connWeak; color = const Color(0xFFB07A1F);
     } else if (c.link == Link.back) {
       text = l.connBack; color = const Color(0xFF3F7A4B);
-    } else if (c.room?['status'] == 'game') {
-      final gone = c.members.where((m) => m['seat'] != null && m['online'] == false).firstOrNull;
-      if (gone != null) { text = l.connOther(gone['display'] as String); color = const Color(0xFFB07A1F); }
     }
     if (text == null) return const SizedBox.shrink();
     return Container(key: const Key('connBar'), width: double.infinity, color: color, padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
@@ -338,6 +361,19 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       'verdict' => _verdict(l, view),
       _ => Stage(children: [Big(l.waitHost)]),
     };
+  }
+
+  /// My role card on its own page; "Got it" (after one look) closes it. The game goes on underneath.
+  Route<void>? _roleRoute;
+  String? _roleAt;
+  static String _stepOf(Map<String, Object?>? x) => '${x?['deal']}/${x?['phase']}/${x?['day']}/${x?['ph']}';
+  void _myRole(Map<String, Object?> view) {
+    final me = view['seat'] as int, sh = view['sheikh'] as int?, l = L.of(context);
+    // [Quin Q4] closes by itself when the game moves on (a night pick, a new deal, the room closed)
+    _roleAt = _stepOf(view);
+    Navigator.of(context).push(_roleRoute = MaterialPageRoute(builder: (ctx) => Scaffold(appBar: AppBar(), body: RoleCard(name: _name(me), role: roleOf(view['role'])!,
+        mates: [for (final j in (view['mates'] as List? ?? const [])) _name(j as int)], isSheikh: sh == me, sheikh: sh != null && sh != me ? _name(sh) : null,
+        done: l.gotIt, onDone: () { _roleRoute = null; Navigator.of(ctx).pop(); }))));
   }
 
   /// the option picked on a night or vote screen (the views live in the part files)

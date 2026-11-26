@@ -44,7 +44,11 @@ class _FriendsTabState extends State<FriendsTab> {
           final above = widget.above;
           final top = above + (box.maxHeight - above - 160) * y.clamp(0, 1);
           return Stack(children: [
-            PositionedDirectional(end: 0, top: top, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            // [1.1.1 hotfix] the whole stack drags up and down (the chat tab alone too: in a game it had no handle)
+            PositionedDirectional(end: 0, top: top, child: GestureDetector(
+              onVerticalDragUpdate: (d) => setState(() => y = (y + d.delta.dy / (box.maxHeight - above - 160)).clamp(0, 1)),
+              onVerticalDragEnd: (_) => widget.prefs.drawerY = y,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
               if (tab) GestureDetector(
                 key: const Key('friendsTab'),
                 onTap: () => openFriendsDrawer(context, account: a, prefs: widget.prefs, audio: widget.audio, room: widget.room),
@@ -52,8 +56,6 @@ class _FriendsTabState extends State<FriendsTab> {
                   final towardCenter = Directionality.of(context) == TextDirection.ltr ? (d.primaryVelocity ?? 0) < -100 : (d.primaryVelocity ?? 0) > 100;
                   if (towardCenter) openFriendsDrawer(context, account: a, prefs: widget.prefs, audio: widget.audio, room: widget.room);
                 },
-                onVerticalDragUpdate: (d) => setState(() => y = (y + d.delta.dy / (box.maxHeight - above - 160)).clamp(0, 1)),
-                onVerticalDragEnd: (_) => widget.prefs.drawerY = y,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                   decoration: BoxDecoration(color: C.card2, border: Border.all(color: C.line2),
@@ -67,7 +69,7 @@ class _FriendsTabState extends State<FriendsTab> {
                 ),
               ),
               if (widget.extra != null) Padding(padding: EdgeInsets.only(top: tab ? 8 : 0), child: widget.extra!),
-            ])),
+            ]))),
           ]);
         });
       });

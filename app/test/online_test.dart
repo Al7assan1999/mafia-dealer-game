@@ -186,7 +186,7 @@ void main() {
     expect(find.text('P2'), findsOneWidget);
   });
 
-  testWidgets('the connection bar: red after 3 s down, green when back, amber when weak or a player is gone', (t) async {
+  testWidgets('the connection bar: red after 3 s down, green when back, amber when weak; nothing when another player is gone', (t) async {
     final r = (await openRoom(t)).room;
     r.last.push(roomMsg(1, status: 'game', members: [member(0, host: true, seat: 0), member(1, seat: 1), member(2, seat: 2), member(3, seat: 3)]));
     r.last.push(view(1, 'day'));
@@ -207,7 +207,8 @@ void main() {
     r.last.pong = true;
     r.last.push(roomMsg(2, status: 'game', members: [member(0, host: true, seat: 0), member(1, seat: 1, online: false), member(2, seat: 2), member(3, seat: 3)]));
     await t.pump(const Duration(seconds: 10));
-    expect(find.text("P2's connection is lost"), findsOneWidget);
+    // [1.1.1 hotfix] another player's closed app is no bar any more (hotfix111_test #6: a quiet line by the count)
+    expect(find.byKey(const Key('connBar')), findsNothing);
   });
 
   testWidgets('host controls: day timer and votes for the host only; "Continue" only when someone is offline', (t) async {

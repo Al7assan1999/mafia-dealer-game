@@ -56,6 +56,9 @@ void main() {
     await tapKey(t, 'saveHandle');
     await settleUi(t);
     expect(errorShown(t), 'That username is taken');
+    expect(find.byKey(const Key('handleTaken')), findsOneWidget, reason: '[1.1.1 hotfix] and an alert');
+    await t.tap(find.text('OK'));
+    await settleUi(t);
     await type(t, 'handle', 'newbie_1');
     await tapKey(t, 'saveHandle');
     await settleUi(t);
@@ -206,20 +209,27 @@ void main() {
     await t.tapAt(const Offset(200, 40)); // close the sheet
     await settleUi(t);
     await openFriends(t);
+    // [1.1.1 hotfix] the button next to the box searches; a request goes from a result's Add
     await type(t, 'addHandle', '@hokan');
-    await tapKey(t, 'addFriend');
+    await tapKey(t, 'searchFriend');
+    await t.pump(const Duration(milliseconds: 400));
     await settleUi(t);
-    expect(find.text('Friend request sent to @hokan'), findsOneWidget);
+    expect(app.account.outgoing, isEmpty, reason: 'Search never sends a request for the typed text');
+    await tapKey(t, 'foundAdd_Hokan');
+    await settleUi(t);
     expect(app.account.outgoing.map((p) => p.handle), ['Hokan']);
     await type(t, 'addHandle', 'nobody_here');
-    await tapKey(t, 'addFriend');
+    await t.pump(const Duration(milliseconds: 400));
     await settleUi(t);
-    expect(find.text('No account with that username'), findsOneWidget);
-    // asking someone who already asked me makes us friends at once
+    expect(find.byKey(const Key('searchNone')), findsOneWidget);
+    // someone who already asked me: Accept, right in the results
     await type(t, 'addHandle', 'Dareer');
-    await tapKey(t, 'addFriend');
+    await t.pump(const Duration(milliseconds: 400));
     await settleUi(t);
-    expect(find.text('You and @Dareer are now friends'), findsOneWidget);
+    await tapKey(t, 'foundAccept_Dareer');
+    await settleUi(t);
+    await type(t, 'addHandle', '');
+    await settleUi(t);
     expect(app.account.friends.map((p) => p.handle), ['Dareer']);
     await tapKey(t, 'safety_Dareer'); // the ⋮ menu: Remove friend, Block, Report
     await t.pump(const Duration(milliseconds: 300));

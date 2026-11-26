@@ -66,6 +66,10 @@ class _PlayerState extends State<PlayerScreen> {
           : x == null ? Center(child: CircularProgressIndicator(color: C.red2))
           : ListView(padding: const EdgeInsets.all(16), children: [
               RepaintBoundary(key: _card, child: Container(color: C.bg, child: _card_(l, x))),
+              // [1.1.1 hotfix] from a game in History too: add them, accept them, invite them (it was only on an empty profile)
+              if (!widget.account.signedIn) const SizedBox.shrink()
+              else if (_who ?? (x['card'] is Map ? Person(Map<String, Object?>.from(x['card'] as Map)) : null) case final f?)
+                Padding(padding: const EdgeInsets.only(top: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _actions(l, f))),
               ..._rest(l, x),
             ]),
     );
@@ -116,7 +120,7 @@ class _PlayerState extends State<PlayerScreen> {
   }
 
   List<Widget> _header(L l, Person f) {
-    final a = widget.account, rel = _rel(f), friend = rel == 'friends', lobby = onlineLobby();
+    final a = widget.account, friend = _rel(f) == 'friends';
     final status = !friend ? null : friendStatus(l, f);
     final statusColor = !f.online ? C.dim : f.status == 'game' ? C.red2 : f.status == 'lobby' ? C.gold : C.green;
     final fav = f.fav.isEmpty ? null : Role.values.byName(f.fav);
@@ -132,6 +136,14 @@ class _PlayerState extends State<PlayerScreen> {
         if (fav != null) Chip(avatar: Icon(roleIcon(fav), size: 16, color: roleColor(fav)), label: Text(roleName(l, fav)), visualDensity: VisualDensity.compact),
       ]),
       const SizedBox(height: 12),
+      ..._actions(l, f),
+    ];
+  }
+
+  /// What I can do with this player: add, accept, invite to my lobby, ask to join theirs.
+  List<Widget> _actions(L l, Person f) {
+    final a = widget.account, rel = _rel(f), friend = rel == 'friends', lobby = onlineLobby();
+    return [
       if (rel == 'none' && f.handle != null)
         Btn(l.pAddFriend, key: const Key('profileAdd'), icon: Icons.person_add_alt, onTap: () => _act(() async { await a.request(f.handle!); }, l.fReqSent(atHandle(f.handle)))),
       if (rel == 'requested') Text(l.pRequested, key: const Key('profileRequested'), textAlign: TextAlign.center, style: TextStyle(color: C.gold)),

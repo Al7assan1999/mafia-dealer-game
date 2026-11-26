@@ -123,8 +123,10 @@ class _GameScreenState extends State<GameScreen> {
     final seat = g.who, v = g.view(seat), no = v.night!, role = g.s.roles[seat];
     final none = no.key == 'none', sniper = no.key == 'sniper';
     // [S18] a Detective who has checked everyone; a Sniper on night 1 (his bullet is ready from night 2)
-    final (title, desc) = none && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, no.key);
     final night1 = role == Role.sniper && (no.key == 'citizen' || none) && g.s.day == 1 && g.s.rv != null; // [Quin Q4] decoy off: 'none'
+    // [1.1.1 hotfix] the Sniper's night 1 says "No shot tonight" first, not "Who do you suspect?"
+    final (title, desc) = night1 ? (l.sniperN1T, none ? l.sniperN1None : l.sniperN1D)
+        : none && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, no.key);
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       Btn(l.confirm, key: const Key('confirm'), onTap: none || _pick != null ? () { final c = none ? null : _pick; if (none || c != null) _do(() => g.nightPick(seat, c)); } : null),
     ], children: [
@@ -136,9 +138,8 @@ class _GameScreenState extends State<GameScreen> {
         Flexible(child: Text('${_name(seat)} · ${l.night(g.s.day)}', overflow: TextOverflow.ellipsis, textAlign: TextAlign.end, style: TextStyle(color: C.mute))),
       ]),
       const SizedBox(height: 14),
-      Text(title, style: head.copyWith(fontSize: 26)),
+      Text(title, key: night1 ? const Key('sniperNight1') : null, style: head.copyWith(fontSize: 26, color: night1 ? roleColor(Role.sniper) : null)),
       Text(desc, style: TextStyle(color: C.mute)),
-      if (night1) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sniperNight1, key: const Key('sniperNight1'), style: TextStyle(color: roleColor(Role.sniper)))),
       if (v.mates.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.mates(v.mates.map(_name).join(', ')), style: TextStyle(color: C.red2))),
       // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
       if (no.key == 'mafia' && v.sheikh != null && v.mates.isNotEmpty)

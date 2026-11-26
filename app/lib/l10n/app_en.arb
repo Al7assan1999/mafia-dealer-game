@@ -570,14 +570,6 @@
   "continueAnyway": "Continue without offline players",
   "connLost": "Connection lost · reconnecting…",
   "connWeak": "Weak connection",
-  "connOther": "{n}'s connection is lost",
-  "@connOther": {
-    "placeholders": {
-      "n": {
-        "type": "String"
-      }
-    }
-  },
   "connBack": "Connected again",
   "waitHost": "Waiting for the host",
   "youAreOut": "You are out",
@@ -1479,7 +1471,6 @@
   "guardedLast": "guarded last night",
   "allChecked": "You've checked everyone",
   "allCheckedD": "Nothing left to check tonight. Tap Confirm.",
-  "sniperNight1": "Your bullet is ready from night 2",
   "myChecks": "Your checks",
   "mvpGuard": "Took the hit ({n}x)",
   "@mvpGuard": {
@@ -1495,5 +1486,29 @@
       "n": {}
     }
   },
-  "psGuards": "Took the hit"
+  "psGuards": "Took the hit",
+  "sniperN1T": "No shot tonight",
+  "sniperN1D": "Your bullet is ready from night 2. Tonight, tap anyone: nothing happens to them, it only makes your turn look like everyone else's.",
+  "sniperN1None": "Your bullet is ready from night 2. Tap Confirm.",
+  "rGhost": "Ghost view",
+  "rGhostD": "Players who are out see everyone's role on their phone",
+  "cGhost": "Ghost view",
+  "liveVotes": "Votes so far",
+  "awayNow": "App closed: {n}",
+  "@awayNow": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "search": "Search",
+  "eTakenD": "@{h} belongs to another player. Pick a different username.",
+  "@eTakenD": {
+    "placeholders": {
+      "h": {
+        "type": "String"
+      }
+    }
+  }
 }

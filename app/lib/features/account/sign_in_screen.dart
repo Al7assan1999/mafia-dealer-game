@@ -116,6 +116,7 @@ class _HandleState extends State<HandleScreen> {
             if (context.mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ProfileScreen(account: a, welcome: true)));
           } catch (e) {
             if (mounted) setState(() => error = errText(l, e));
+            if (context.mounted) takenAlert(context, e, handle.text.trim());
           }
           if (mounted) setState(() => busy = false);
         }),

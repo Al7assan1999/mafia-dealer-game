@@ -161,14 +161,16 @@ void main() {
     expect(find.byKey(const Key('noteBanner')), findsNothing);
   });
 
-  testWidgets('S12-6: a closed room shows its message and Home only; the friends tab starts below the code card', (t) async {
+  testWidgets('S12-6: a closed room shows its message and Home only; the friends tab is there (it may float over the code card, 1.1.1)', (t) async {
     final r = (await openRoom(t)).room;
     r.last.push(roomMsg(1));
     r.last.push({'t': 'view', 'rev': 1, 'view': null});
     await frames(t);
     final code = t.getRect(find.byKey(const Key('code'))).bottom;
     final tab = find.byKey(const Key('friendsTab'));
-    if (tab.evaluate().isNotEmpty) expect(t.getRect(tab).top, greaterThan(code), reason: 'never over the room code');
+    // [1.1.1 hotfix, his note] the side tabs float over the content now (the room code too) and drag out of the way
+    expect(code, greaterThan(0));
+    expect(tab, findsOneWidget);
     r.last.push({'t': 'bye', 'why': 'closed'});
     await frames(t);
     for (final k in ['chat', 'narrate', 'leave', 'friendsTab']) { expect(find.byKey(Key(k)), findsNothing, reason: k); }

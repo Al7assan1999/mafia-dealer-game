@@ -41,7 +41,7 @@ extension _LobbyViews on _RoomScreenState {
         if (c.members.any((m) => m['uid'] == c.myUid && m['muted'] == true))
           Text(l.buzzMutedMe, key: const Key('buzzMuted'), textAlign: TextAlign.center, style: TextStyle(color: C.dim))
         else
-          Btn(l.buzz, key: const Key('buzzHost'), icon: Icons.campaign_outlined, onTap: _h(() { c.send({'t': 'buzz'}); toast(context, l.buzzSent); })),
+          Btn(l.buzz, key: const Key('buzzHost'), icon: Icons.campaign_outlined, onTap: _h(() { c.send({'t': 'buzz'}); _flash(l.buzzSent); })),
       ],
     ], children: [
       Sec(child: Column(children: [
@@ -56,19 +56,17 @@ extension _LobbyViews on _RoomScreenState {
           }),
         ]),
       ])),
-      // [BA P1, S15] the side tabs (36 dp) can be dragged anywhere below the code card: the cards under them keep clear,
-      // so a tab never covers a player's ⋮ menu or the role steppers
-      for (final w in <Widget>[
+      // [1.1.1 hotfix, his note] the cards use the whole width again (S15 kept 24 dp clear for the side tabs): the tabs
+      // float over them and drag up and down out of the way
       // [R7] the old app's "Ping everyone" on the player list's title row
       Sec(title: l.membersN(ms.length), action: host && ms.length > 1 ? TextButton.icon(key: const Key('pingAll'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
             icon: Icon(Icons.notifications_active_outlined, size: 18, color: C.red2), label: Text(l.ping, style: TextStyle(color: C.red2)),
-            onPressed: _h(() { c.send({'t': 'ping'}); toast(context, l.pingSent); })) : null,
+            onPressed: _h(() { c.send({'t': 'ping'}); _flash(l.pingSent); })) : null,
           child: Column(children: [for (final m in ms) _member(l, m, host)])),
       ModePicker(players: ms.length, mode: mode, onChanged: host ? (mm) => setup(counts, rules, mm) : null,
           bodyguard: bg, onBodyguard: host ? (bb) => setup(counts, rules, null, bb) : null),
       DeckEditor(players: ms.length, counts: v.counts, mode: mode, onChanged: host ? (cc) => setup(cc, rules) : null),
       RulesEditor(rules: rules, onChanged: host ? (rr) => setup(counts, rr) : null),
-      ]) Padding(padding: const EdgeInsetsDirectional.only(end: 24), child: w),
     ]);
   }
 

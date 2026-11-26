@@ -12,15 +12,22 @@ extension _PlayViews on _RoomScreenState {
     final ph = view['phase'];
     return [
       ...extra,
-      if ((ph == 'night' || ph == 'vote') && offline && p != null && (p['done'] as int) < (p['total'] as int))
+      if ((ph == 'night' || ph == 'vote') && offline && p != null && (p['done'] as int) < (p['total'] as int)) ...[
+        // [Quin Q6] who, by the button (the count's line isn't on his own pick screens)
+        if ((view['ph'] == 'night' || view['ph'] == 'vote') && _away().isNotEmpty) Text(l.awayNow(_away().join(', ')), key: const Key('awayHost'), textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 13)),
         Btn(l.continueAnyway, key: const Key('continue'), ghost: true, onTap: _h(() => c.send({'t': 'continue'}))),
+      ],
     ];
   }
 
   Widget _progress(L l, Map<String, Object?> view) {
-    final p = view['progress'] as Map?;
-    return p == null ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12),
-        child: Text(l.progressN(p['done'] as int, p['total'] as int), key: const Key('progress'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)));
+    final p = view['progress'] as Map?, away = _away();
+    return p == null ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: Column(children: [
+      Text(l.progressN(p['done'] as int, p['total'] as int), key: const Key('progress'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
+      // [1.1.1 hotfix] who has the app closed, said quietly where the count is (was a bar across every screen)
+      if (away.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(l.awayNow(away.join(', ')), key: const Key('away'),
+          textAlign: TextAlign.center, style: TextStyle(color: C.dim, fontSize: 13))),
+    ]));
   }
 
   Widget _deal(L l, Map<String, Object?> view) {
@@ -51,8 +58,10 @@ extension _PlayViews on _RoomScreenState {
   Widget _night(L l, Map<String, Object?> view) {
     final no = Map<String, Object?>.from(view['night'] as Map), key = no['key'] as String, role = roleOf(view['role'])!;
     // [S18] a Detective who has checked everyone; a Sniper on night 1 (his bullet is ready from night 2)
-    final (title, desc) = key == 'none' && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, key);
     final night1 = role == Role.sniper && (key == 'citizen' || key == 'none') && view['day'] == 1; // [Quin Q4] decoy off: 'none'
+    // [1.1.1 hotfix] the Sniper's night 1 says "No shot tonight" first, not "Who do you suspect?"
+    final (title, desc) = night1 ? (l.sniperN1T, key == 'none' ? l.sniperN1None : l.sniperN1D)
+        : key == 'none' && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, key);
     final sh = view['sheikh'] as int?;
     final none = key == 'none', skip = no['skip'] as Map?, secs = _secondsLeft();
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
@@ -65,9 +74,8 @@ extension _PlayViews on _RoomScreenState {
         const SizedBox(width: 8), Text(l.night(view['day'] as int), style: TextStyle(color: C.mute)),
       ]),
       const SizedBox(height: 14),
-      Text(title, style: head.copyWith(fontSize: 26)),
+      Text(title, key: night1 ? const Key('sniperNight1') : null, style: head.copyWith(fontSize: 26, color: night1 ? roleColor(Role.sniper) : null)),
       Text(desc, style: TextStyle(color: C.mute)),
-      if (night1) Padding(padding: const EdgeInsets.only(top: 6), child: Text(l.sniperNight1, key: const Key('sniperNight1'), style: TextStyle(color: roleColor(Role.sniper)))),
       if ((view['mates'] as List).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6),
           child: Text(l.mates([for (final j in view['mates'] as List) _name(j as int)].join(', ')), style: TextStyle(color: C.red2))),
       // [Ben, S17 review] once the Godfather is out the note says who settles a tie now
@@ -113,9 +121,9 @@ extension _PlayViews on _RoomScreenState {
     ]);
   }
 
-  Widget _board(L l, Map<String, Object?> view) => Padding(
+  Widget _board(L l, Map<String, Object?> view, {String? title}) => Padding(
         padding: const EdgeInsets.only(top: 18),
-        child: Sec(title: l.tableVote, child: Column(children: [
+        child: Sec(key: const Key('voteBoard'), title: title ?? l.tableVote, child: Column(children: [
           for (final b in (view['board'] as List).cast<Map>())
             Row(children: [
               Expanded(child: Text(_name(b['seat'] as int))),
@@ -130,6 +138,8 @@ extension _PlayViews on _RoomScreenState {
       Icon(Icons.visibility_outlined, color: C.mute, size: 48), const SizedBox(height: 12),
       Big(l.youAreOut, sub: l.youAreOutD),
       _progress(l, view),
+      // [1.1.1 hotfix] out (the host too): the vote as it comes in, open or secret
+      if (view['board'] != null) _board(l, view, title: l.liveVotes),
       if (roles != null) Padding(padding: const EdgeInsets.only(top: 18), child: Sec(title: l.roles, child: Column(children: [
         for (var i = 0; i < roles.length; i++)
           if (roleOf(roles[i]) case final r?)
@@ -204,8 +214,9 @@ extension _PlayViews on _RoomScreenState {
 
   /// Who is still in, in seat order (the day is about who's left).
   Widget _roster(L l, Map<String, Object?> view) => Sec(title: l.alivePlayers, child: Wrap(spacing: 8, runSpacing: 6, children: [
-        for (final r in (view['roster'] as List).cast<Map>())
+        for (final (i, r) in (view['roster'] as List).cast<Map>().indexed)
           Chip(
+            avatar: r['alive'] == true && c.members.any((m) => m['seat'] == i && m['online'] == false) ? Icon(Icons.cloud_off, size: 14, color: C.dim) : null,
             label: Text(r['alive'] == true ? r['name'] as String : '${r['name']} · ${l.outTag}',
                 style: TextStyle(color: r['alive'] == true ? C.text : C.dim, decoration: r['alive'] == true ? null : TextDecoration.lineThrough)),
             backgroundColor: r['alive'] == true ? C.card2 : C.bg, side: BorderSide(color: C.line),

@@ -9,16 +9,18 @@ import 'online_test.dart' show frames, openRoom, roomMsg;
 void main() {
   setUpAll(setUpHarness);
 
-  testWidgets('lobby: no ⋮ menu or role stepper sits under the side tabs, wherever the tab is dragged', (t) async {
+  // [1.1.1 hotfix, his note] reverted: the cards use the whole width again and the tabs float over them; a tab over a
+  // ⋮ menu is dragged out of the way
+  testWidgets('lobby: the cards use the whole width; the side tab drags off whatever it covers', (t) async {
     final r = (await openRoom(t)).room;
     r.last.push(roomMsg(1));
     r.last.push({'t': 'view', 'rev': 1, 'view': null});
     await frames(t);
-    final tab = t.getRect(find.byKey(const Key('chat')));
-    final under = [...find.byType(PopupMenuButton<String>).evaluate(), ...find.byKey(const Key('plus_mafia')).evaluate()];
-    expect(under, isNotEmpty);
-    for (final e in under) {
-      expect(t.getRect(find.byWidget(e.widget)).right, lessThanOrEqualTo(tab.left), reason: 'clear of the tab at any height');
-    }
+    final chat = find.byKey(const Key('chat')), menus = find.byType(PopupMenuButton<String>);
+    expect(t.getRect(menus.first).right, greaterThan(t.getRect(chat).left), reason: 'no gutter kept for the tabs');
+    final y0 = t.getTopLeft(chat).dy;
+    await t.drag(chat, const Offset(0, 300));
+    await frames(t);
+    expect(t.getTopLeft(chat).dy, greaterThan(y0 + 200));
   });
 }

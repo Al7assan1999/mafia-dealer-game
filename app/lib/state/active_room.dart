@@ -33,7 +33,9 @@ class ActiveRoom extends ChangeNotifier {
       if (ctx == null || !ctx.mounted) return;
       final l = L.of(ctx), who = c.members.where((x) => x['uid'] == m['from']).firstOrNull?['display'] as String?;
       alert?.call(m);
-      messengerKey.currentState?.showSnackBar(SnackBar(content: Text(m['t'] == 'buzz' ? l.buzzed(who ?? '?') : l.pingedYou)));
+      // [1.1.1 hotfix] a new buzz replaces the last one (they used to queue, 4 s each), and goes in 2.5 s
+      messengerKey.currentState?..hideCurrentSnackBar()..showSnackBar(SnackBar(duration: const Duration(milliseconds: 2500),
+          content: Text(m['t'] == 'buzz' ? l.buzzed(who ?? '?') : l.pingedYou)));
     });
     notifyListeners();
   }

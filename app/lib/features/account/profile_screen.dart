@@ -58,7 +58,7 @@ class _ProfileState extends State<ProfileScreen> {
     if (busy) return;
     setState(() => busy = true);
     final l = L.of(context);
-    try { await f(); if (ok != null && mounted) toast(context, ok); } catch (e) { if (mounted) toastErr(context, errText(l, e)); }
+    try { await f(); if (ok != null && mounted) toast(context, ok); } catch (e) { if (mounted && !takenAlert(context, e, handle.text.trim())) toastErr(context, errText(l, e)); }
     if (mounted) setState(() => busy = false);
   }
 
