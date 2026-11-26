@@ -108,3 +108,9 @@ export function fromB64(b64: string): Uint8Array | null {
   for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
   return u;
 }
+
+/** 1.3.0: the roles a 1.2 app knows. History, game pages and Wi-Fi notes send it this role (the Hunter, the Mayor and
+ *  the Watcher are townsfolk: Citizen) and the real one in `role2`, which 1.3.0 reads; a 1.2 phone would break on a
+ *  role name it doesn't know. */
+const OLD_ROLES = ['mafia', 'doctor', 'detective', 'citizen', 'sniper', 'jester', 'bodyguard'];
+export const roleFor12 = (r: string) => (OLD_ROLES.includes(r) ? r : 'citizen');

@@ -10,7 +10,11 @@ export const EVERYONE = -1;
 /** The first app build every table needs: 1.1.0 (release run 19). An older app can't be dealt into any game
  *  (his rulings: Sprint 17 for 1.0.0, Sprint 18 for 1.1.0, which knows the Bodyguard and the new night rules). */
 export const MODES_BUILD = 100019;
-export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'bodyguard', 'all']);
+/** 1.3.0 (release run 23): the first build that knows the Hunter, the Mayor, the Framer and the Watcher. Avenger and
+ *  Shadows deal only when every seat is on it; the other modes still play with 1.1.0+ phones. */
+export const ROLES13_BUILD = 100023;
+export const NEW_MODES = ['avenger', 'shadows'];
+export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'bodyguard', 'all', 'avenger', 'shadows']);
 
 const seat = z.number().int().min(0).max(19);
 const cn = z.number().int().min(EVERYONE).max(999);
@@ -44,7 +48,10 @@ export const RoomIn = z.discriminatedUnion('t', [
   z.object({ t: z.literal('close') }).strict(),
   // players (the host is a player too)
   z.object({ t: z.literal('ready'), deal: z.number().int() }).strict(),
-  z.object({ t: z.literal('night'), choice: z.union([seat, z.literal('skip'), z.null()]), day: z.number().int() }).strict(),
+  z.object({ t: z.literal('night'), choice: z.union([seat, z.literal('skip'), z.null()]), day: z.number().int(),
+    frame: z.union([seat, z.null()]).optional(), reveal: z.boolean().optional() }).strict(),  // 1.3.0: the Framer's frame; a Mayor's reveal
+  z.object({ t: z.literal('hunt'), choice: z.union([seat, z.null()]) }).strict(),  // 1.3.0: the dead Hunter's shot, or hold fire
+  z.object({ t: z.literal('reveal') }).strict(),                                   // 1.3.0: a Mayor reveals himself
   z.object({ t: z.literal('vote'), choice: z.union([seat, z.literal('none')]), id: z.number() }).strict(),
   z.object({ t: z.literal('buzz') }).strict(),
   z.object({ t: z.literal('leave') }).strict(),
@@ -93,7 +100,8 @@ export interface Notification {
 /** A request to add a Wi-Fi game to online history, as the bell and History show it. */
 export interface WifiNote {
   request: string; status: WifiStatus; reason: string | null; players: number; winner: 'mafia' | 'citizens' | 'jester' | null; playedAt: number;
-  seat: number | null; role: Role | null;  // mine in that game
+  seat: number | null; role: Role | null;  // mine in that game (1.3.0: a role a 1.2 app knows; role2 the real one)
+  role2?: Role | null;
 }
 export type WifiStatus = 'pending' | 'approved' | 'declined' | 'expired' | 'rejected';
 
@@ -110,7 +118,7 @@ export const WifiAnswer = z.object({ yes: z.boolean() }).strict();
 /** A Wi-Fi request in History → Wi-Fi: mine as host (any status), or an approved game I played in. */
 export interface WifiGameInfo {
   id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | 'jester' | null;
-  host: boolean; waiting: number; total: number; gameId: string | null; seat: number | null; role: Role | null; record: unknown | null;
+  host: boolean; waiting: number; total: number; gameId: string | null; seat: number | null; role: Role | null; role2?: Role | null; record: unknown | null;
 }
 
 export const Invite = z.object({ userId: z.string().max(64), code: z.string().regex(/^\d{6}$/) }).strict();

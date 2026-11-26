@@ -5,7 +5,7 @@ import { notify } from './hub.ts';
 import { isAdmin } from './safety.ts';
 import { dismissWifi, expire, readWifi, wifiNotes } from './wifi.ts';
 import { bellNotes, dismissBell, readBell, refreshTitles } from './stats.ts';
-import { allow, ApiErr, body, card, HOUR, type AppEnv, type Ctx, type UserRow } from './lib.ts';
+import { allow, ApiErr, body, card, HOUR, roleFor12, type AppEnv, type Ctx, type UserRow } from './lib.ts';
 
 export const ROOMS_PER_HOUR = 10, INVITES_PER_HOUR = 30, AGAIN_MS = 5e3, BELL_KEEP_MS = 30 * 24 * HOUR, BELL_MAX = 200;
 
@@ -145,7 +145,7 @@ games.get('/', async c => {
      FROM game_players p JOIN games g ON g.id = p.game_id WHERE p.user_id = ? AND g.source = 'online' ORDER BY g.played_at DESC LIMIT 100`)
     .bind(c.var.user.id).all<{ id: string; winner: string; days: number; valid: number; played_at: number; seat: number; role: string; alive: number; players: number; names: string | null }>();
   // [S15-5] names: the old app's "Search by player name" in the history
-  return c.json({ games: results.map(r => ({ id: r.id, winner: r.winner, days: r.days, valid: !!r.valid, playedAt: r.played_at, seat: r.seat, role: r.role, alive: !!r.alive, players: r.players,
+  return c.json({ games: results.map(r => ({ id: r.id, winner: r.winner, days: r.days, valid: !!r.valid, playedAt: r.played_at, seat: r.seat, role: roleFor12(r.role), role2: r.role, alive: !!r.alive, players: r.players,
     names: (r.names ?? '').split(String.fromCharCode(31)).filter(Boolean) })) });
 });
 games.get('/:id', async c => {
@@ -159,7 +159,8 @@ games.get('/:id', async c => {
     id: g.id, winner: g.winner, days: g.days, valid: !!g.valid, playedAt: g.played_at, host: g.host_id === c.var.user.id,
     rules: JSON.parse(g.rules), log: JSON.parse(g.log), stats: JSON.parse(g.stats),
     sheikh: (g.record ? JSON.parse(g.record).sheikh : null) ?? null,  // 1.0.0: the Godfather's seat
-    players: results.map(p => ({ seat: p.seat, userId: p.user_id, name: p.name, role: p.role, alive: !!p.alive })),
+    framer: (g.record ? JSON.parse(g.record).framer : null) ?? null,  // 1.3.0: the Framer's seat
+    players: results.map(p => ({ seat: p.seat, userId: p.user_id, name: p.name, role: roleFor12(p.role), role2: p.role, alive: !!p.alive })),
   });
 });
 /** Only the game's host marks it valid / invalid (counts in stats or not). */

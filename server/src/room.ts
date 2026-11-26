@@ -2,7 +2,7 @@
 // judge), sends each phone only its own view, keeps the room chat, and deletes everything when the room ends.
 import { DurableObject } from 'cloudflare:workers';
 import { createGame, DEFAULT_RULES, nameKey, startRecord, step, viewFor, type Action, type Counts, type GameEvent, type GameRecord, type GameState, type Mode, type Rules } from '@mafia/engine';
-import { MODES_BUILD, RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
+import { MODES_BUILD, NEW_MODES, ROLES13_BUILD, RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
 import { canSee, edit, newChat, react, send, type ChatResult, type ChatState, type Who } from './chat.ts';
 import { setRoom } from './hub.ts';
 import { fcmSender } from './push.ts';
@@ -119,6 +119,7 @@ export class Room extends DurableObject<Env> {
   private async schedule(st: RoomState) {
     const at: number[] = [];
     if (st.game?.phase === 'night' && st.game.night.endsAt) at.push(st.game.night.endsAt);
+    if (st.game?.hunt?.endsAt) at.push(st.game.hunt.endsAt);  // 1.3.0: the Hunter's aim uses the night timer
     const open = this.sockets();
     if (!open.length) at.push(st.lastActive + IDLE_MS);
     else at.push(Math.min(...open.map(w => this.seen(w))) + STALE_MS);  // the next socket that could go stale
@@ -183,6 +184,9 @@ export class Room extends DurableObject<Env> {
     const m = st.members.find(x => x.uid === uid); if (!m) return;
     if (why === 'left') m.left = true;
     else st.members = st.members.filter(x => x.uid !== uid);
+    // [S20, Quin Q1] the aiming Hunter left the room: he holds fire (nobody else can shoot for him)
+    const h = st.game?.hunt;
+    if (h && st.seats[h.seat] === uid) this.play(st, { t: 'skipPending', seats: [h.seat] });
     st.ready = st.ready.filter(x => x !== uid);
     for (const w of this.sockets(uid)) { this.out(w, { t: 'bye', why }); try { w.close(4000, why); } catch { /* gone */ } }
     await setRoom(this.env, uid, null, '');
@@ -283,6 +287,7 @@ export class Room extends DurableObject<Env> {
     const before = statusOf(st), now = Date.now();
     let changed = false;
     if (st.game?.phase === 'night' && st.game.night.endsAt && now >= st.game.night.endsAt) changed = !this.play(st, { t: 'skipPending' });
+    else if (st.game?.hunt?.endsAt && now >= st.game.hunt.endsAt) changed = !this.play(st, { t: 'skipPending' });  // he holds fire
     for (const w of this.sockets()) {
       if (now - this.seen(w) < STALE_MS) continue;
       try { w.close(4001, 'stale'); } catch { /* gone */ }  // if the phone is still there, it reconnects
@@ -313,7 +318,7 @@ export class Room extends DurableObject<Env> {
 
     if (inp.t === 'chat' || inp.t === 'react' || inp.t === 'edit') return this.chat(st, ws, m.cn, inp);
     // a phone resending its night choice, vote or "ready" after a drop: already applied, nothing to do
-    const key = inp.t === 'night' || inp.t === 'vote' || inp.t === 'ready' ? JSON.stringify(inp) : null;
+    const key = inp.t === 'night' || inp.t === 'vote' || inp.t === 'ready' || inp.t === 'hunt' ? JSON.stringify(inp) : null;
     if (key && st.lastIn[uid] === key) return;
 
     const hostOnly = ['setup', 'deal', 'start', 'startDay', 'timer', 'startVote', 'nextNight', 'continue', 'kick', 'unmute', 'ping', 'mark', 'lobby', 'close'];
@@ -330,6 +335,8 @@ export class Room extends DurableObject<Env> {
         const players = st.members.filter(x => !x.left), mode = st.mode ?? 'classic';
         // his rulings (S17 Q4, S18): every seat must be on 1.1.0, Classic too (an older app doesn't know the new rules)
         if (players.some(x => !(x.v && x.v >= MODES_BUILD))) return err('old_app');
+        // 1.3.0: the new roles need 1.3.0 on every seat (an older app can't show a Hunter or a Mayor)
+        if (NEW_MODES.includes(mode) && players.some(x => !(x.v && x.v >= ROLES13_BUILD))) return err('old_app');
         const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules, mode, bodyguard: !!st.bodyguard }, rng, st.deal + 1);
         if (!r.ok) return err(r.error);
         st.deal++; st.game = r.state; st.seats = players.map(x => x.uid); st.ready = []; st.gameId = null; st.valid = null;
@@ -343,7 +350,10 @@ export class Room extends DurableObject<Env> {
         if (!st.ready.includes(uid)) st.ready.push(uid);
         if (st.seats.every(u => st.ready.includes(u))) e = this.play(st, { t: 'begin' });
         break;
-      case 'night': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'night', seat, choice: inp.choice, day: inp.day }); break;
+      case 'night': if (!g || seat < 0) return err('phase');
+        e = this.play(st, { t: 'night', seat, choice: inp.choice, day: inp.day, ...(inp.frame !== undefined ? { frame: inp.frame } : {}), ...(inp.reveal !== undefined ? { reveal: inp.reveal } : {}) }); break;
+      case 'hunt': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'hunt', seat, choice: inp.choice }); break;  // 1.3.0
+      case 'reveal': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'reveal', seat }); break;              // 1.3.0
       case 'vote': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'vote', seat, choice: inp.choice, id: inp.id }); break;
       case 'startDay': if (!g) return err('phase'); e = this.play(st, { t: 'startDay' }); break;
       case 'timer':
@@ -352,6 +362,10 @@ export class Room extends DurableObject<Env> {
       case 'startVote': if (!g) return err('phase'); e = this.play(st, { t: 'startVote', open: inp.open }); break;
       case 'nextNight': if (!g) return err('phase'); e = this.play(st, { t: 'nextNight' }); break;
       case 'continue': {  // skip the turns of players who are offline
+        if (g?.hunt) {  // 1.3.0: the host goes on without the Hunter's shot: he holds fire ([Quin Q4] online or not; the app asks first)
+          e = this.play(st, { t: 'skipPending', seats: [g.hunt.seat] });
+          break;
+        }
         if (!g || (g.phase !== 'night' && g.phase !== 'vote')) return err('phase');
         const pending = g.alive.map((a, i) => i).filter(i => g.alive[i] && (g.phase === 'night' ? !g.night.done[i] : g.vote!.votes[i] === undefined));
         const seats = pending.filter(i => !this.online(st.seats[i]));
@@ -363,7 +377,8 @@ export class Room extends DurableObject<Env> {
         if (inp.uid === uid || !st.members.some(x => x.uid === inp.uid)) return err('not_member');
         if (running(st) && (st.kick ?? 'lobby') === 'lobby') return err('lobby_only');  // the host's Settings: kicks in the lobby only
         const s = st.seats.indexOf(inp.uid);
-        if (running(st) && s >= 0 && g!.alive[s] && g!.phase !== 'deal') e = this.play(st, { t: 'remove', seat: s });
+        // 1.3.0: kicking the aiming (dead) Hunter: he holds fire
+        if (running(st) && s >= 0 && (g!.alive[s] || g!.hunt?.seat === s) && g!.phase !== 'deal') e = this.play(st, { t: 'remove', seat: s });
         if (e) return err(e);
         st.kicked.push(inp.uid);
         await this.drop(st, inp.uid, 'kicked');

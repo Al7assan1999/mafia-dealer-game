@@ -8,7 +8,7 @@ import { WifiAnswer, WifiRequestIn, type Notification, type WifiGameInfo, type W
 import { pushTo } from './hub.ts';
 import { sendPush, type PushKind } from './push.ts';
 import { refreshTitles } from './stats.ts';
-import { ApiErr, body, card, DAY, HOUR, sha256, type AppEnv, type Deps, type Env, type UserRow } from './lib.ts';
+import { ApiErr, body, card, DAY, HOUR, roleFor12, sha256, type AppEnv, type Deps, type Env, type UserRow } from './lib.ts';
 
 export interface WifiRules { version: number; minPlayers: number; maxPlayers: number; minSecondsPerRound: number; maxAgeDays: number; perHostPerDay: number; confirmHours: number }
 const FALLBACK: WifiRules = { version: 1, minPlayers: 4, maxPlayers: 20, minSecondsPerRound: 60, maxAgeDays: 7, perHostPerDay: 10, confirmHours: 48 };
@@ -23,11 +23,12 @@ interface ReqRow { id: string; host_id: string | null; record: string; record_ha
 interface SeatRow { request_id: string; seat: number; user_id: string | null; name: string; answer: string | null; seen: number }
 
 /** What a stored record says, read defensively (it's kept raw). */
-function sum(raw: string, seat: number | null) {
+export function sum(raw: string, seat: number | null) {  // exported for the 1.3.0 old-phone test
   try {
     const r = JSON.parse(raw) as GameRecord;
-    return { players: r.names.length, winner: r.winner ?? null, role: seat == null ? null : (r.roles[seat] as Role) ?? null };
-  } catch { return { players: 0, winner: null, role: null }; }
+    const role = seat == null ? null : (r.roles[seat] as Role) ?? null;
+    return { players: r.names.length, winner: r.winner ?? null, role: role && roleFor12(role) as Role, role2: role };  // 1.3.0: role2
+  } catch { return { players: 0, winner: null, role: null, role2: null }; }
 }
 const note = (r: ReqRow, seat: number | null): WifiNote => ({ request: r.id, status: r.status, reason: r.reason, playedAt: r.played_at, seat, ...sum(r.record, seat) });
 
@@ -107,7 +108,7 @@ wifiRoutes.get('/', async c => {
   const games: WifiGameInfo[] = results.map(r => {
     const n = note(r, r.my_seat);
     return { id: r.id, key: r.game_key, status: r.status, reason: r.reason, playedAt: r.played_at, players: n.players, winner: n.winner,
-      host: r.host_id === me.id, waiting: r.waiting, total: r.total, gameId: r.game_id, seat: r.my_seat, role: n.role,
+      host: r.host_id === me.id, waiting: r.waiting, total: r.total, gameId: r.game_id, seat: r.my_seat, role: n.role, role2: n.role2,
       record: r.status === 'approved' ? JSON.parse(r.record) : null };
   });
   return c.json({ games });

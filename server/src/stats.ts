@@ -57,7 +57,8 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
 /** The old app's profileView(), plus the best partner (the Mafia teammate you win with most). */
 export function profile(games: SGame[], key: string) {
   const mine = games.filter(g => g.seats.some(s => s.key === key)).sort((a, b) => b.playedAt - a.playedAt);
-  const R: Record<Role, [number, number]> = { mafia: [0, 0], doctor: [0, 0], detective: [0, 0], citizen: [0, 0], sniper: [0, 0], jester: [0, 0], bodyguard: [0, 0] };
+  const R: Record<Role, [number, number]> = { mafia: [0, 0], doctor: [0, 0], detective: [0, 0], citizen: [0, 0], sniper: [0, 0], jester: [0, 0], bodyguard: [0, 0],
+    hunter: [0, 0], mayor: [0, 0], watcher: [0, 0] };  // 1.3.0
   const by = new Map<string, { name: string; userId: string | null; n: number }>(), mates = new Map<string, { name: string; userId: string | null; n: number }>();
   let w = 0, sv = 0, ct = 0, kd = 0, vo = 0, gd = 0;
   const form: boolean[] = [];
@@ -77,7 +78,7 @@ export function profile(games: SGame[], key: string) {
     ?? roles.slice().sort((a, b) => R[b][0] - R[a][0])[0];
   // [Quin Q1] `best` stays one of the four roles a 0.4 app knows (it reads it as a role name); 1.0.0 reads `best1`
   const best = pick(['mafia', 'doctor', 'detective', 'citizen']), best1 = pick(Object.keys(R) as Role[]);
-  const side = (['doctor', 'detective', 'citizen', 'sniper', 'bodyguard'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
+  const side = (['doctor', 'detective', 'citizen', 'sniper', 'bodyguard', 'hunter', 'mayor', 'watcher'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
   const most = (m: typeof by) => [...m.values()].sort((a, b) => b.n - a.n)[0] ?? null;
   const seat = mine[0]?.seats.find(s => s.key === key);
   return {
