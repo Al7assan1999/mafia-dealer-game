@@ -78,3 +78,12 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   just open the app) and My messages shows Done.
 - **2026-11-26 · S19 box cap.** The box holds 300 items of any status until the admin empties it; "Empty" deletes only
   what he saw (Quin Q12). A small overshoot under parallel sends is accepted.
+- **2026-11-26 · 1.2.1 hotfix: a tie keeps the title.** `docs/hotfix-1.2.1-report.md`. His note: Sami "took" Best Doctor
+  on a 13-13 tie after the Sami → @sami link. A title moves only when someone has strictly more; migration 0013 gives it
+  back. Accepted (Quin Q2): undoing something can move a tied title for good.
+- **2026-11-26 · Old players recounts the titles at once, quietly.** [David · Dev] (Quin Q3): it's the admin's
+  bookkeeping, so it sends no "took it from you" notes. Titles taken in games still send them.
+- **2026-11-26 · One profile everywhere.** A player's page always shows every game, all time (from Stats it followed the
+  board's filter without saying so).
+- **2026-11-26 · No Old tab (his note).** Every old player is linked: Stats → Online includes the old app's games
+  (`source=old` still answers 1.2.0 phones), and History lists my old games in Online, marked "Old app".
