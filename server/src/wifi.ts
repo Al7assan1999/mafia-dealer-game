@@ -8,7 +8,7 @@ import { WifiAnswer, WifiRequestIn, type Notification, type WifiGameInfo, type W
 import { pushTo } from './hub.ts';
 import { sendPush, type PushKind } from './push.ts';
 import { refreshTitles } from './stats.ts';
-import { ApiErr, body, card, DAY, HOUR, roleFor12, sha256, type AppEnv, type Deps, type Env, type UserRow } from './lib.ts';
+import { ApiErr, body, card, DAY, HOUR, roleFor12, sha256, winnerFor13, type AppEnv, type Deps, type Env, type UserRow } from './lib.ts';
 
 export interface WifiRules { version: number; minPlayers: number; maxPlayers: number; minSecondsPerRound: number; maxAgeDays: number; perHostPerDay: number; confirmHours: number }
 const FALLBACK: WifiRules = { version: 1, minPlayers: 4, maxPlayers: 20, minSecondsPerRound: 60, maxAgeDays: 7, perHostPerDay: 10, confirmHours: 48 };
@@ -27,8 +27,8 @@ export function sum(raw: string, seat: number | null) {  // exported for the 1.3
   try {
     const r = JSON.parse(raw) as GameRecord;
     const role = seat == null ? null : (r.roles[seat] as Role) ?? null;
-    return { players: r.names.length, winner: r.winner ?? null, role: role && roleFor12(role) as Role, role2: role };  // 1.3.0: role2
-  } catch { return { players: 0, winner: null, role: null, role2: null }; }
+    return { players: r.names.length, winner: winnerFor13(r.winner ?? null), winner2: r.winner ?? null, role: role && roleFor12(role) as Role, role2: role };  // 1.3.0: role2; 1.4.0: winner2
+  } catch { return { players: 0, winner: null, winner2: null, role: null, role2: null }; }
 }
 const note = (r: ReqRow, seat: number | null): WifiNote => ({ request: r.id, status: r.status, reason: r.reason, playedAt: r.played_at, seat, ...sum(r.record, seat) });
 
@@ -107,7 +107,7 @@ wifiRoutes.get('/', async c => {
      ORDER BY r.played_at DESC LIMIT 100`).bind(me.id).all<ReqRow & { my_seat: number; waiting: number; total: number }>();
   const games: WifiGameInfo[] = results.map(r => {
     const n = note(r, r.my_seat);
-    return { id: r.id, key: r.game_key, status: r.status, reason: r.reason, playedAt: r.played_at, players: n.players, winner: n.winner,
+    return { id: r.id, key: r.game_key, status: r.status, reason: r.reason, playedAt: r.played_at, players: n.players, winner: n.winner, winner2: n.winner2,
       host: r.host_id === me.id, waiting: r.waiting, total: r.total, gameId: r.game_id, seat: r.my_seat, role: n.role, role2: n.role2,
       record: r.status === 'approved' ? JSON.parse(r.record) : null };
   });

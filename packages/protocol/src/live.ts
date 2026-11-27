@@ -14,7 +14,11 @@ export const MODES_BUILD = 100019;
  *  Shadows deal only when every seat is on it; the other modes still play with 1.1.0+ phones. */
 export const ROLES13_BUILD = 100023;
 export const NEW_MODES = ['avenger', 'shadows'];
-export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'bodyguard', 'all', 'avenger', 'shadows']);
+/** 1.4.0 (release run 25): the first build that knows the Serial Killer, Cupid and the Silencer, and the new endings.
+ *  Lovers and Lone Wolves deal only when every seat is on it. */
+export const ROLES14_BUILD = 100025;
+export const MODES14 = ['lovers', 'lonewolves'];
+export const ModeIn = z.enum(['classic', 'sniper', 'jester', 'bodyguard', 'all', 'avenger', 'shadows', 'lovers', 'lonewolves']);
 
 const seat = z.number().int().min(0).max(19);
 const cn = z.number().int().min(EVERYONE).max(999);
@@ -49,7 +53,8 @@ export const RoomIn = z.discriminatedUnion('t', [
   // players (the host is a player too)
   z.object({ t: z.literal('ready'), deal: z.number().int() }).strict(),
   z.object({ t: z.literal('night'), choice: z.union([seat, z.literal('skip'), z.null()]), day: z.number().int(),
-    frame: z.union([seat, z.null()]).optional(), reveal: z.boolean().optional() }).strict(),  // 1.3.0: the Framer's frame; a Mayor's reveal
+    frame: z.union([seat, z.null()]).optional(), reveal: z.boolean().optional(),  // 1.3.0: the Framer's frame; a Mayor's reveal
+    pair: seat.optional(), silence: z.union([seat, z.null()]).optional() }).strict(),  // 1.4.0: Cupid's second lover; the Silencer's pick
   z.object({ t: z.literal('hunt'), choice: z.union([seat, z.null()]) }).strict(),  // 1.3.0: the dead Hunter's shot, or hold fire
   z.object({ t: z.literal('reveal') }).strict(),                                   // 1.3.0: a Mayor reveals himself
   z.object({ t: z.literal('vote'), choice: z.union([seat, z.literal('none')]), id: z.number() }).strict(),
@@ -100,6 +105,7 @@ export interface Notification {
 /** A request to add a Wi-Fi game to online history, as the bell and History show it. */
 export interface WifiNote {
   request: string; status: WifiStatus; reason: string | null; players: number; winner: 'mafia' | 'citizens' | 'jester' | null; playedAt: number;
+  winner2?: string | null;  // 1.4.0: the real result (winner: one a 1.3 app knows)
   seat: number | null; role: Role | null;  // mine in that game (1.3.0: a role a 1.2 app knows; role2 the real one)
   role2?: Role | null;
 }
@@ -117,7 +123,7 @@ export const WifiRequestIn = z.object({
 export const WifiAnswer = z.object({ yes: z.boolean() }).strict();
 /** A Wi-Fi request in History → Wi-Fi: mine as host (any status), or an approved game I played in. */
 export interface WifiGameInfo {
-  id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | 'jester' | null;
+  id: string; key: string; status: WifiStatus; reason: string | null; playedAt: number; players: number; winner: 'mafia' | 'citizens' | 'jester' | null; winner2?: string | null;
   host: boolean; waiting: number; total: number; gameId: string | null; seat: number | null; role: Role | null; role2?: Role | null; record: unknown | null;
 }
 

@@ -11,15 +11,16 @@ import { ApiErr, avatarOf, card, DAY, type AppEnv, type Deps, type Env, type Use
 
 export interface SSeat { key: string; userId: string | null; name: string; role: Role; alive: boolean }
 export interface SGame {
-  id: string; source: 'online' | 'wifi' | 'old'; playedAt: number; winner: 'mafia' | 'citizens' | 'jester'; days: number; seats: SSeat[];
-  ev: { first: number | null; kills: number[]; outs: number[]; saves: number[]; caught: number[]; guards?: number[] };  // caught: detective seats; guards: Bodyguard seats (1.1.0)
+  id: string; source: 'online' | 'wifi' | 'old'; playedAt: number; winner: 'mafia' | 'citizens' | 'jester' | 'killer' | 'lovers' | 'draw'; days: number; seats: SSeat[];
+  ev: { first: number | null; kills: number[]; outs: number[]; saves: number[]; caught: number[]; guards?: number[]; lovers?: [number, number] };  // caught: detective seats; guards: Bodyguard seats (1.1.0); lovers: 1.4.0
 }
 export interface PlayerStat { key: string; userId: string | null; name: string; g: number; w: number; mg: number; mw: number; tg: number; tw: number; sv: number; ct: number; fk: number; q: boolean; r: number }
 export type TitleKey = 'best' | 'mafia' | 'det' | 'doc' | 'first';
 
-/** Each role's side: the Mafia (the Sheikh is one of them), the Jester alone, everyone else the Citizens. */
-const sideOf = (r: Role) => (r === 'mafia' ? 'mafia' : r === 'jester' ? 'jester' : 'citizens');  // the Bodyguard: the town
-const won = (g: SGame, i: number) => g.winner === sideOf(g.seats[i].role);
+/** Each role's side: the Mafia (the Sheikh is one of them), the Jester alone, the Serial Killer alone (1.4.0), everyone
+ *  else the Citizens. 1.4.0 (D8): each seat wins by its own result: the Lovers' win is the couple's, a draw nobody's. */
+const sideOf = (r: Role) => (r === 'mafia' ? 'mafia' : r === 'jester' ? 'jester' : r === 'killer' ? 'killer' : 'citizens');  // the Bodyguard: the town
+const won = (g: SGame, i: number) => g.winner === 'lovers' ? !!g.ev.lovers?.includes(i) : g.winner === 'draw' ? false : g.winner === sideOf(g.seats[i].role);
 export const userKey = (id: string) => 'u:' + id;
 export const nameKeyOf = (n: string) => 'n:' + nameKey(n);
 
@@ -31,7 +32,7 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
     if (!p) P.set(s.key, p = { key: s.key, userId: s.userId, name: s.name, g: 0, w: 0, mg: 0, mw: 0, tg: 0, tw: 0, sv: 0, ct: 0, fk: 0, q: false, r: 0 });
     const w = won(g, i);
     p.g++; if (w) p.w++;
-    if (s.role === 'mafia') { p.mg++; if (w) p.mw++; } else if (s.role !== 'jester') { p.tg++; if (w) p.tw++; }
+    if (s.role === 'mafia') { p.mg++; if (w) p.mw++; } else if (s.role !== 'jester' && s.role !== 'killer') { p.tg++; if (w) p.tw++; }  // 1.4.0: the Serial Killer is no townsman
     if (g.ev.first === i) p.fk++;
     p.sv += g.ev.saves.filter(x => x === i).length;
     p.ct += g.ev.caught.filter(x => x === i).length;
@@ -58,7 +59,7 @@ export function board(games: SGame[], minGames: number, keep: (p: PlayerStat) =>
 export function profile(games: SGame[], key: string) {
   const mine = games.filter(g => g.seats.some(s => s.key === key)).sort((a, b) => b.playedAt - a.playedAt);
   const R: Record<Role, [number, number]> = { mafia: [0, 0], doctor: [0, 0], detective: [0, 0], citizen: [0, 0], sniper: [0, 0], jester: [0, 0], bodyguard: [0, 0],
-    hunter: [0, 0], mayor: [0, 0], watcher: [0, 0] };  // 1.3.0
+    hunter: [0, 0], mayor: [0, 0], watcher: [0, 0], killer: [0, 0], cupid: [0, 0] };  // 1.3.0; 1.4.0
   const by = new Map<string, { name: string; userId: string | null; n: number }>(), mates = new Map<string, { name: string; userId: string | null; n: number }>();
   let w = 0, sv = 0, ct = 0, kd = 0, vo = 0, gd = 0;
   const form: boolean[] = [];
@@ -78,7 +79,7 @@ export function profile(games: SGame[], key: string) {
     ?? roles.slice().sort((a, b) => R[b][0] - R[a][0])[0];
   // [Quin Q1] `best` stays one of the four roles a 0.4 app knows (it reads it as a role name); 1.0.0 reads `best1`
   const best = pick(['mafia', 'doctor', 'detective', 'citizen']), best1 = pick(Object.keys(R) as Role[]);
-  const side = (['doctor', 'detective', 'citizen', 'sniper', 'bodyguard', 'hunter', 'mayor', 'watcher'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
+  const side = (['doctor', 'detective', 'citizen', 'sniper', 'bodyguard', 'hunter', 'mayor', 'watcher', 'cupid'] as const).reduce((a, r) => [a[0] + R[r][0], a[1] + R[r][1]], [0, 0]);
   const most = (m: typeof by) => [...m.values()].sort((a, b) => b.n - a.n)[0] ?? null;
   const seat = mine[0]?.seats.find(s => s.key === key);
   return {
@@ -103,10 +104,10 @@ async function onlineGames(db: D1Database, uid: string | null, since: number): P
   const seats = new Map<string, PRow[]>();
   for (const p of ps) (seats.get(p.game_id) ?? seats.set(p.game_id, []).get(p.game_id)!).push(p);
   return gs.map(g => {
-    const st = JSON.parse(g.stats) as { first: number | null; kills: number[]; outs: number[]; saves: number[]; caught: [number, number][]; guards?: [number, number][] };
+    const st = JSON.parse(g.stats) as { first: number | null; kills: number[]; outs: number[]; saves: number[]; caught: [number, number][]; guards?: [number, number][]; lovers?: [number, number] };
     return { id: g.id, source: g.source === 'wifi' ? 'wifi' : 'online', playedAt: g.played_at, winner: g.winner, days: g.days,
       seats: (seats.get(g.id) ?? []).map(p => ({ key: p.user_id ? userKey(p.user_id) : nameKeyOf(p.name), userId: p.user_id, name: p.name, role: p.role, alive: !!p.alive })),
-      ev: { first: st.first, kills: st.kills ?? [], outs: st.outs ?? [], saves: st.saves ?? [], caught: (st.caught ?? []).map(c => c[0]), guards: (st.guards ?? []).map(c => c[0]) } };
+      ev: { first: st.first, kills: st.kills ?? [], outs: st.outs ?? [], saves: st.saves ?? [], caught: (st.caught ?? []).map(c => c[0]), guards: (st.guards ?? []).map(c => c[0]), ...(st.lovers ? { lovers: st.lovers } : {}) } };
   });
 }
 

@@ -2,7 +2,7 @@
 // judge), sends each phone only its own view, keeps the room chat, and deletes everything when the room ends.
 import { DurableObject } from 'cloudflare:workers';
 import { createGame, DEFAULT_RULES, nameKey, startRecord, step, viewFor, type Action, type Counts, type GameEvent, type GameRecord, type GameState, type Mode, type Rules } from '@mafia/engine';
-import { MODES_BUILD, NEW_MODES, ROLES13_BUILD, RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
+import { MODES14, MODES_BUILD, NEW_MODES, ROLES13_BUILD, ROLES14_BUILD, RoomIn, SUBPROTOCOL, type Avatar, type ChatMsg, type RoomInfo, type RoomOut } from '@mafia/protocol';
 import { canSee, edit, newChat, react, send, type ChatResult, type ChatState, type Who } from './chat.ts';
 import { setRoom } from './hub.ts';
 import { fcmSender } from './push.ts';
@@ -15,6 +15,7 @@ interface RoomState {
   rules: Rules; counts: Counts; buzzMax: number; kick?: 'lobby' | 'any';  // kick: S9-4 (missing in older rooms = lobby only)
   mode?: Mode;  // 1.0.0 (missing in older rooms = Classic)
   bodyguard?: boolean;  // 1.1.0: the Sniper and Jester modes' optional Bodyguard
+  setupV?: number;  // 1.4.0 [Quin Q6]: the build of the phone that sent the setup (its screen chose the count)
   deal: number; game: GameState | null; seats: string[]; ready: string[]; gameId: string | null; valid: boolean | null;
   lastActive: number;
   rev: number;                                  // grows with every change: phones reconnect with the last one they saw
@@ -328,7 +329,7 @@ export class Room extends DurableObject<Env> {
       case 'setup':
         if (running(st)) return err('started');
         st.rules = { ...inp.rules, tieSkip: true }; st.counts = { mafia: inp.counts.mafia, doctor: 1, detective: inp.counts.detective }; st.buzzMax = inp.buzzMax; if (inp.kick) st.kick = inp.kick;
-        st.mode = inp.mode ?? 'classic'; st.bodyguard = inp.bodyguard ?? false;
+        st.mode = inp.mode ?? 'classic'; st.bodyguard = inp.bodyguard ?? false; st.setupV = m.v ?? 0;
         break;
       case 'deal': {  // also Play again after the end: the same room, new roles
         if (running(st)) return err('started');
@@ -337,7 +338,13 @@ export class Room extends DurableObject<Env> {
         if (players.some(x => !(x.v && x.v >= MODES_BUILD))) return err('old_app');
         // 1.3.0: the new roles need 1.3.0 on every seat (an older app can't show a Hunter or a Mayor)
         if (NEW_MODES.includes(mode) && players.some(x => !(x.v && x.v >= ROLES13_BUILD))) return err('old_app');
-        const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules, mode, bodyguard: !!st.bodyguard }, rng, st.deal + 1);
+        // 1.4.0: Lovers and Lone Wolves need 1.4.0 on every seat (the Serial Killer, Cupid, the new endings)
+        if (MODES14.includes(mode) && players.some(x => !(x.v && x.v >= ROLES14_BUILD))) return err('old_app');
+        // 1.4.0 (R10): the Sniper, Jester and Bodyguard modes deal the host's count inside their range only for a 1.4.0 host;
+        // an older host's screen shows (and its setup sends for Classic) the old fixed deck, so it gets that deck (rv 2)
+        // [Quin Q6] the build that chose the count, not whoever holds the controls now (the host may have changed)
+        const by = st.setupV ?? players.find(x => x.uid === this.hostOf(st))?.v, legacy = !(by && by >= ROLES14_BUILD);
+        const r = createGame({ names: seatNames(players), counts: st.counts, rules: st.rules, mode, bodyguard: !!st.bodyguard, legacy }, rng, st.deal + 1);
         if (!r.ok) return err(r.error);
         st.deal++; st.game = r.state; st.seats = players.map(x => x.uid); st.ready = []; st.gameId = null; st.valid = null;
         st.rec = startRecord(r.state); st.lastIn = {};
@@ -351,7 +358,8 @@ export class Room extends DurableObject<Env> {
         if (st.seats.every(u => st.ready.includes(u))) e = this.play(st, { t: 'begin' });
         break;
       case 'night': if (!g || seat < 0) return err('phase');
-        e = this.play(st, { t: 'night', seat, choice: inp.choice, day: inp.day, ...(inp.frame !== undefined ? { frame: inp.frame } : {}), ...(inp.reveal !== undefined ? { reveal: inp.reveal } : {}) }); break;
+        e = this.play(st, { t: 'night', seat, choice: inp.choice, day: inp.day, ...(inp.frame !== undefined ? { frame: inp.frame } : {}), ...(inp.reveal !== undefined ? { reveal: inp.reveal } : {}),
+          ...(inp.silence !== undefined ? { silence: inp.silence } : {}), ...(inp.pair !== undefined ? { pair: inp.pair } : {}) }); break;  // [Quin Q11] Dart's order
       case 'hunt': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'hunt', seat, choice: inp.choice }); break;  // 1.3.0
       case 'reveal': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'reveal', seat }); break;              // 1.3.0
       case 'vote': if (!g || seat < 0) return err('phase'); e = this.play(st, { t: 'vote', seat, choice: inp.choice, id: inp.id }); break;

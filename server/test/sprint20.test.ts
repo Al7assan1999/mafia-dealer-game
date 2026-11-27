@@ -199,7 +199,7 @@ describe('saved, counted and readable by old phones (migration 0014, C1, C8)', (
 
   it('a Wi-Fi note and the Wi-Fi tab give a 1.2.1 phone a role it knows (role2: the real one)', () => {
     const rec = JSON.stringify({ names: ['A', 'B', 'C', 'D'], roles: ['hunter', 'mafia', 'watcher', 'citizen'], winner: 'citizens' });
-    expect(sum(rec, 0)).toEqual({ players: 4, winner: 'citizens', role: 'citizen', role2: 'hunter' });
+    expect(sum(rec, 0)).toEqual({ players: 4, winner: 'citizens', winner2: 'citizens', role: 'citizen', role2: 'hunter' });
     expect(sum(rec, 1)).toMatchObject({ role: 'mafia', role2: 'mafia' });
     expect(sum(rec, null)).toMatchObject({ role: null, role2: null });
   });

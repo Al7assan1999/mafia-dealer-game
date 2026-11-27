@@ -114,3 +114,5 @@ export function fromB64(b64: string): Uint8Array | null {
  *  role name it doesn't know. */
 const OLD_ROLES = ['mafia', 'doctor', 'detective', 'citizen', 'sniper', 'jester', 'bodyguard'];
 export const roleFor12 = (r: string) => (OLD_ROLES.includes(r) ? r : 'citizen');
+/** 1.4.0: the result a phone before 1.4.0 knows (a 1.2 app breaks on another); the real one goes in `winner2`. */
+export const winnerFor13 = (w: string | null) => (w == null || w === 'mafia' || w === 'citizens' || w === 'jester' ? w : 'citizens') as 'mafia' | 'citizens' | 'jester' | null;
