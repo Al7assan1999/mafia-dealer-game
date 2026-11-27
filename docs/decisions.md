@@ -132,3 +132,23 @@ outcome (agreed / his ruling / waiting), one line of why. Decisions before 2026-
   - New setups and the Classic preset start with it off, the way the group plays (59 of 60 games). Beginner keeps it on.
   - Saved setups keep their own rules.
   - With it off, the new modes offer their Mafia choice by default. Choosing a mode starts at its default count.
+
+### Sprint 21 (1.4.0): wave 2
+- **2026-11-26 · Sprint 21 PRD signed off "as suggested"** (R1–R12 in `docs/sprint-21-prd.md`):
+  - Scope: the Serial Killer, Cupid and the Lovers, and the Silencer; the Lovers (8+) and Lone Wolves (9+) modes; Mafia ranges for Sniper, Jester and Bodyguard. All gets every role in Sprint 22.
+  - The Serial Killer has no immunity; the Doctor and the Bodyguard stop him; the Detective reads him "not Mafia".
+  - While he lives nobody else wins. He wins alone, or as one of the last two with a non-Mafia. He and one Mafia left is a draw.
+  - The lovers learn their partner's name and side.
+  - Cupid may pick himself.
+  - "Died of a broken heart" is announced.
+  - A removed lover's partner lives.
+  - The Silencer is announced each morning; never the same player two nights running, not himself, teammates allowed.
+  - One Serial Killer at 17–20.
+  - Arabic: القاتل المتسلسل، كيوبيد، العاشقان، المُسكِت.
+  - Phones before 1.4.0 see the new endings as "Citizens win".
+- **2026-11-27 · Sprint 22 tests the engine by roles and small tables, not by every setup.** His ruling, for Ben's
+  Sprint 22 PRD. The every-combination run takes over an hour and won't scale to more modes, roles and players.
+  - Check every deal (cheap); play only a sample of setups (pairwise / 3-wise).
+  - Deal arbitrary role mixes directly, not only through the modes (All mode needs this).
+  - At 5–7 players, try every possible game.
+  - Property-based tests that shrink a failure to the smallest game, on a time budget in CI and nightly.
