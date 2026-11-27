@@ -8,11 +8,20 @@ class ShownResult {
   final int? seat;
   final Role? role;
   final List<TallyLine>? tally;
-  final ({int seat, Role? role, bool sheikh, bool framer})? also; // 'killed': a second death (1.0.0)
+  final Shown? also; // 'killed': a second death (1.0.0)
   final bool sheikh; // the revealed role is the Godfather's (his ruling: named on reveal)
   final bool framer; // 1.3.0 (Quin Q13): the revealed Mafia was the Framer
-  const ShownResult(this.k, {this.seat, this.role, this.tally, this.also, this.sheikh = false, this.framer = false});
+  final bool silencer; // 1.4.0 (Quin Q10): the revealed Mafia was the Silencer
+  // 1.4.0, games with the Serial Killer or Cupid: a third death and on (more); who died of a broken heart (hearts)
+  final List<Shown>? more, hearts;
+  const ShownResult(this.k, {this.seat, this.role, this.tally, this.also, this.sheikh = false, this.framer = false, this.silencer = false, this.more, this.hearts});
 }
+
+/// One death on screen: the seat, and its role with the reveal rule (1.4.0).
+typedef Shown = ({int seat, Role? role, bool sheikh, bool framer, bool silencer});
+
+/// The Hunter's shot on screen: who shot whom (role and flags with the reveal rule), and the broken hearts it caused.
+typedef Hunted = ({int by, int? seat, Role? role, bool sheikh, bool framer, bool silencer, List<Shown>? hearts});
 
 class Recap {
   final Winner winner;
@@ -24,7 +33,8 @@ class Recap {
   final Mode mode;
   final int? sheikh;
   final int? framer; // 1.3.0
-  const Recap(this.winner, this.names, this.roles, this.alive, this.day, this.stats, [this.mode = 'classic', this.sheikh, this.framer]);
+  final int? silencer; // 1.4.0
+  const Recap(this.winner, this.names, this.roles, this.alive, this.day, this.stats, [this.mode = 'classic', this.sheikh, this.framer, this.silencer]);
 }
 
 /// What everyone may see (the table screen); a seat's view adds its own part.
@@ -46,7 +56,9 @@ class View {
   List<int>? mayors;
   ({int seat})? hunt;
   bool hasHunt = false; // the game has a Hunter (hunt / hunted are meaningful)
-  ({int by, int? seat, Role? role})? hunted;
+  Hunted? hunted;
+  bool hasSilencer = false; // 1.4.0: the game has a Silencer (silenced is meaningful)
+  int? silenced; // 1.4.0: who can't vote today (public, R8)
 
   // a seat's own part (null / defaults for the table)
   int? seat;
@@ -63,6 +75,8 @@ class View {
   ({int seat, bool hit})? framed; // 1.3.0, the Framer: last night's frame, and whether a Detective checked it
   List<({int seat, List<int> visitors})>? watch; // 1.3.0, the Watcher: every result so far, the last one last
   List<int>? huntOpts; // ph 'hunt': who he may shoot
+  int? silencer; // 1.4.0: the Silencer's seat (Mafia only; may be this seat)
+  ({int seat, String side})? lover; // 1.4.0, a lover: the partner and their side ('mafia' | 'town', R4)
 
   View._(this.deal, this.phase, this.day, this.roster, this.timerEnd, this.timerLeft, this.progress, this.board,
       this.voteId, this.result, this.winner, this.roles, this.recap);
@@ -88,16 +102,20 @@ View _publicView(GameState s, int now) {
   ShownResult? result;
   bool sh(int i) => R.reveal && i == s.sheikh; // the Godfather, named on reveal
   bool fr(int i) => R.reveal && i == s.framer && !sh(i); // 1.3.0: the Framer, named on reveal
+  bool sl(int i) => R.reveal && i == s.silencer && !sh(i) && !fr(i); // 1.4.0 [Quin Q10]: the Silencer, named on reveal
+  Shown shown(int i) => (seat: i, role: R.reveal ? s.roles[i] : null, sheikh: sh(i), framer: fr(i), silencer: sl(i));
   if (s.phase == Phase.morning && s.morning != null) {
-    final d = s.morning!.dead, d2 = s.morning!.dead2;
+    final d = s.morning!.dead, d2 = s.morning!.dead2, more = (s.morning!.deaths ?? const <int>[]).skip(2).toList(), hearts = s.morning!.hearts ?? const <int>[];
     result = d != null
-        ? ShownResult('killed', seat: d, role: R.reveal ? s.roles[d] : null, sheikh: sh(d), framer: fr(d),
-            also: d2 == null ? null : (seat: d2, role: R.reveal ? s.roles[d2] : null, sheikh: sh(d2), framer: fr(d2)))
+        ? ShownResult('killed', seat: d, role: R.reveal ? s.roles[d] : null, sheikh: sh(d), framer: fr(d), silencer: sl(d),
+            also: d2 == null ? null : shown(d2),
+            more: more.isEmpty ? null : more.map(shown).toList(), hearts: hearts.isEmpty ? null : hearts.map(shown).toList())
         : s.morning!.saved != null ? ShownResult('saved', seat: s.morning!.saved) : const ShownResult('nobody');
   } else if (s.phase == Phase.verdict && s.verdict != null) {
-    final v = s.verdict!;
+    final v = s.verdict!, hearts = s.log.whereType<DayLog>().lastOrNull?.hearts ?? const <int>[];
     result = v.out != null
-        ? ShownResult('out', seat: v.out, role: R.reveal ? s.roles[v.out!] : null, sheikh: sh(v.out!), framer: fr(v.out!), tally: v.tally)
+        ? ShownResult('out', seat: v.out, role: R.reveal ? s.roles[v.out!] : null, sheikh: sh(v.out!), framer: fr(v.out!), silencer: sl(v.out!), tally: v.tally,
+            hearts: hearts.isEmpty ? null : hearts.map(shown).toList())
         : ShownResult(v.kind == 'tie' ? 'tie' : 'skipped', tally: v.tally);
   }
   final isEnd = s.phase == Phase.end;
@@ -109,18 +127,22 @@ View _publicView(GameState s, int now) {
     s.phase == Phase.vote ? s.vote!.id : null,
     result, s.winner,
     isEnd ? [...s.roles] : null,
-    isEnd ? Recap(s.winner!, s.names, s.roles, s.alive, s.day, s.stats, s.mode, s.sheikh, s.framer) : null,
+    isEnd ? Recap(s.winner!, s.names, s.roles, s.alive, s.day, s.stats, s.mode, s.sheikh, s.framer, s.silencer) : null,
   )
+    ..hasSilencer = s.silencer != null
+    ..silenced = s.silencer != null ? s.silenced : null
     ..mayors = s.roles.contains(Role.mayor) ? [...s.mayors] : null
     ..hasHunt = s.roles.contains(Role.hunter)
     ..hunt = s.hunt == null ? null : (seat: s.hunt!.seat)
-    ..hunted = _hunted(s);
+    ..hunted = _hunted(s, shown);
 }
 
-({int by, int? seat, Role? role})? _hunted(GameState s) {
+Hunted? _hunted(GameState s, Shown Function(int) shown) {
   final h = s.log.whereType<HuntLog>().firstOrNull;
   if (h == null || h.day != s.day || !((s.phase == Phase.morning && h.from == 'night') || (s.phase == Phase.verdict && h.from == 'day'))) return null;
-  return (by: h.seat, seat: h.target, role: h.target != null && s.rules.reveal ? s.roles[h.target!] : null);
+  final t = h.target == null ? null : shown(h.target!);
+  return (by: h.seat, seat: h.target, role: t?.role, sheikh: t?.sheikh ?? false, framer: t?.framer ?? false, silencer: t?.silencer ?? false,
+      hearts: h.hearts == null || h.hearts!.isEmpty ? null : h.hearts!.map(shown).toList());
 }
 
 /// What one seat's phone may show; null = only the public part (the table screen).
@@ -144,6 +166,12 @@ View viewFor(GameState s, int? who, int now) {
     // last night's frame: from the morning until his next night turn is over (pass-and-play shows it on that turn)
     final fresh = lastNight != null && (s.phase == Phase.night ? lastNight.day == s.day - 1 : lastNight.day == s.day);
     if (i == s.framer) v.framed = fresh ? lastNight.frame : null;
+  }
+  if (s.silencer != null && r == Role.mafia) v.silencer = s.silencer;
+  final l = s.lovers; // 1.4.0: each lover learns the other and their side, once Cupid's night is over (R4)
+  if (l != null && (l.$1 == i || l.$2 == i)) {
+    final o = l.$1 == i ? l.$2 : l.$1;
+    v.lover = (seat: o, side: s.roles[o] == Role.mafia ? 'mafia' : 'town');
   }
   if (r == Role.watcher) {
     v.watch = [for (final e in s.log) if (e is NightLog) for (final (w, t, vs) in e.watch ?? const <(int, int, List<int>)>[]) if (w == i) (seat: t, visitors: vs)];
@@ -176,13 +204,20 @@ View viewFor(GameState s, int? who, int now) {
   return v;
 }
 
-/// Player of the game, with the reason ('mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'hunter' | 'surv' | 'jester'); the app writes the text.
+/// Player of the game, with the reason ('mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'hunter' | 'surv' | 'jester' | 'killer' | 'lovers'); the app writes the text.
 ({int seat, String why, int? n})? mvp(Winner winner, List<Role> roles, List<bool> alive, Stats stats) {
   final idx = [for (var i = 0; i < roles.length; i++) i];
   if (winner == Winner.jester) {
     final j = roles.indexOf(Role.jester);
     return j < 0 ? null : (seat: j, why: 'jester', n: null);
   }
+  // 1.4.0: the Serial Killer's win is his; the Lovers' win goes to the first of the couple; a draw has no player of the game
+  if (winner == Winner.killer) {
+    final k = roles.indexOf(Role.killer);
+    return k < 0 ? null : (seat: k, why: 'killer', n: null);
+  }
+  if (winner == Winner.lovers) return stats.lovers == null ? null : (seat: stats.lovers!.$1, why: 'lovers', n: null);
+  if (winner == Winner.draw) return null;
   (int, int)? top(List<int> a) {
     final c = <int, int>{};
     for (final x in a) { c[x] = (c[x] ?? 0) + 1; }

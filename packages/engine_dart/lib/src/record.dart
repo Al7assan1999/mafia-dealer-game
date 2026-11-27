@@ -21,18 +21,21 @@ class GameRecord {
   final List<Role> roles;
   final Mode mode;
   final int? sheikh; // 1.0.0; older records are Classic with no Sheikh (their own tie rule)
-  final int? framer; // 1.3.0, Shadows
-  final int? rv; // 1.1.0 rules (GameState.rv); older records replay by their own
+  final int? framer; // 1.3.0, Shadows (1.4.0: and Lone Wolves 13+)
+  final int? silencer; // 1.4.0, Lone Wolves 11+
+  final int? rv; // 1.1.0 rules (GameState.rv), 3 = 1.4.0; older records replay by their own
   final List<RecordedAction> actions;
   Winner? winner;
   List<Object?> log; // JSON, as the recorder saw it
-  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log, {this.mode = 'classic', this.sheikh, this.framer, this.rv});
+  GameRecord(this.deal, this.names, this.rules, this.roles, this.actions, this.winner, this.log,
+      {this.mode = 'classic', this.sheikh, this.framer, this.silencer, this.rv});
 
   Map<String, Object?> toJson() => {
         'format': 1, 'deal': deal, 'names': names, 'rules': rules.toJson(), 'roles': roles.map((r) => r.name).toList(),
         if (sheikh != null) 'mode': mode,
         if (sheikh != null) 'sheikh': sheikh,
         if (framer != null) 'framer': framer,
+        if (silencer != null) 'silencer': silencer,
         if (rv != null) 'rv': rv,
         'actions': actions.map((x) => x.toJson()).toList(), 'winner': winner?.name, 'log': log,
       };
@@ -48,11 +51,11 @@ GameRecord recordFromJson(Map<String, Object?> j) => GameRecord(
             (m['r'] as List?)?.map((d) => (d as num).toDouble()).toList());
       }).toList(),
       j['winner'] == null ? null : Winner.values.byName(j['winner'] as String), (j['log'] as List).cast<Object?>(),
-      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?, framer: j['framer'] as int?, rv: j['rv'] as int?);
+      mode: j['mode'] as String? ?? 'classic', sheikh: j['sheikh'] as int?, framer: j['framer'] as int?, silencer: j['silencer'] as int?, rv: j['rv'] as int?);
 
 /// A new record for a game just dealt (phase deal).
 GameRecord startRecord(GameState s) =>
-    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh, framer: s.framer, rv: s.rv);
+    GameRecord(s.deal, [...s.names], s.rules, [...s.roles], [], null, [], mode: s.mode, sheikh: s.sheikh, framer: s.framer, silencer: s.silencer, rv: s.rv);
 
 /// apply(), and on success the action joins the record (with its draws) and the record's result follows the game.
 Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
@@ -90,23 +93,32 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
   }
   // 1.1.0: rv only with a Sheikh; the Bodyguard only in a 1.1.0 game
   final rv = json['rv'];
-  if (json.containsKey('rv') && (rv != 2 || old)) return no('format');
+  if (json.containsKey('rv') && ((rv != 2 && rv != 3) || old)) return no('format');
   final pre = !json.containsKey('rv');
   if (pre && (count(Role.bodyguard) > 0 || mode == 'bodyguard')) return no('roles');
   // 1.3.0: the new roles and modes only in a 1.1.0+ game; the Framer only in Shadows, a Mafia other than the Sheikh
   final fresh = count(Role.hunter) + count(Role.mayor) + count(Role.watcher) > 0 || mode == 'avenger' || mode == 'shadows';
   if (fresh && pre) return no('roles');
-  final framer = json['framer'];
-  if (mode == 'shadows'
+  // 1.4.0: the Serial Killer, Cupid and their modes only in a 1.4.0 game (rv 3); the Silencer in Lone Wolves 11+
+  final wave2 = count(Role.killer) + count(Role.cupid) > 0 || mode == 'lovers' || mode == 'lonewolves';
+  if (wave2 && rv != 3) return no('roles');
+  final m0 = mode is String ? mode : 'classic', n0 = roles.length;
+  final framer = json['framer'], silencer = json['silencer'];
+  if (hasFramer(m0, n0)
       ? !(framer is int && framer >= 0 && framer < roles.length && roles[framer] == Role.mafia && framer != sheikh)
       : json.containsKey('framer')) {
+    return no('roles');
+  }
+  if (hasSilencer(m0, n0)
+      ? !(silencer is int && silencer >= 0 && silencer < roles.length && roles[silencer] == Role.mafia && silencer != sheikh && silencer != framer)
+      : json.containsKey('silencer')) {
     return no('roles');
   }
   final counts = Counts(count(Role.mafia), count(Role.doctor), count(Role.detective), sniper: count(Role.sniper), jester: count(Role.jester),
       bodyguard: count(Role.bodyguard));
   if (names0.any((x) => x is! String)) return no('setup: badName');
   final rules = recordRules(Map<String, Object?>.from(json['rules'] as Map));
-  final c = createGame(Setup(names0.cast<String>(), counts, rules, old ? 'classic' : mode as String, count(Role.bodyguard) > 0), () => 0, json['deal'] as int);
+  final c = createGame(Setup(names0.cast<String>(), counts, rules, old ? 'classic' : mode as String, count(Role.bodyguard) > 0, rv != 3), () => 0, json['deal'] as int);
   if (c.error != null) return no('setup: ${c.error}');
   // the dealt roles must be a deck this setup could deal (same counts after the setup's own limits)
   // (a 1.0.0 "All roles" deck had a Citizen where 1.1.0 deals the Bodyguard)
@@ -117,7 +129,8 @@ Applied step(GameRecord rec, GameState s, Action a, Ctx ctx) {
     ..roles = roles
     ..sheikh = old ? null : sheikh as int
     ..framer = framer as int?
-    ..rv = pre ? null : 2;
+    ..silencer = silencer as int?
+    ..rv = pre ? null : rv as int;
   num last = double.negativeInfinity;
   for (var i = 0; i < actions.length; i++) {
     final x = actions[i] as Map;

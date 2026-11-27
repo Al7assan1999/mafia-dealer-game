@@ -14,7 +14,7 @@ const M = 'mafia', D = 'doctor', T = 'detective', C = 'citizen', S = 'sniper', J
 /** A recorded game with exactly these roles and this Sheikh, in the night of day 1. */
 function deal(roles: Role[], sheikh: number, mode: Mode = 'classic', rules: Partial<Rules> = {}) {
   const names = roles.map((_, i) => 'P' + (i + 1)), n = (r: Role) => roles.filter(x => x === r).length;
-  const c = createGame({ names, counts: { mafia: n(M), doctor: 1, detective: n(T) }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode }, seeded(1));
+  const c = createGame({ names, counts: { mafia: n(M), doctor: 1, detective: n(T) }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode, legacy: true }, seeded(1));  // rv 2, as written
   assert.ok(c.ok, !c.ok ? c.error : '');
   let s: GameState = { ...c.state, roles: [...roles], sheikh }, now = 1_000_000;
   delete s.rv;  // these are 1.0.0 games (1.1.0's rules: s18.test.ts); their records are the 1.0.0 fixtures
@@ -143,7 +143,7 @@ test('the Jester wins alone when voted out by day; killed at night or removed, h
 
 test('modes: the deck is fixed by player count; each mode has its minimum', () => {
   const none = { mafia: 1, doctor: 1, detective: 0 };
-  assert.deepEqual(modeCounts('sniper', 6, none), { mafia: 2, doctor: 1, detective: 1, sniper: 1, jester: 0 });
+  assert.deepEqual(modeCounts('sniper', 6, none, false, {}, true), { mafia: 2, doctor: 1, detective: 1, sniper: 1, jester: 0 });
   assert.deepEqual(modeCounts('jester', 8, none), { mafia: 2, doctor: 1, detective: 1, sniper: 0, jester: 1 });
   assert.deepEqual(modeCounts('all', 12, none), { mafia: 3, doctor: 1, detective: 1, sniper: 1, jester: 1, bodyguard: 1 });  // 1.1.0: + the Bodyguard
   assert.deepEqual(modeCounts('classic', 8, { mafia: 3, doctor: 1, detective: 1 }), { mafia: 3, doctor: 1, detective: 1 });
@@ -152,7 +152,7 @@ test('modes: the deck is fixed by player count; each mode has its minimum', () =
   assert.equal(validateSetup(names(8), none, 'all').error, 'modeFew');
   assert.equal(validateSetup(names(9), none, 'all').error, null);
   for (const n of [9, 14, 20]) {
-    const c = createGame({ names: names(n), counts: none, rules: DEFAULT_RULES, mode: 'all' }, seeded(n));
+    const c = createGame({ names: names(n), counts: none, rules: DEFAULT_RULES, mode: 'all', legacy: true }, seeded(n));
     assert.ok(c.ok);
     const k = (r: Role) => c.state.roles.filter(x => x === r).length;
     assert.deepEqual([k(S), k(J), k(T), k(D)], [1, 1, 1, 1]);

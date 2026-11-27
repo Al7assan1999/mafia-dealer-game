@@ -16,7 +16,7 @@ const OFF = { reveal: false };  // the way the group plays (59 of 60 games)
 /** A recorded 1.3.0 game with exactly these roles (the deck the mode deals), this Sheikh (and Framer), in night 1. */
 function deal(roles: Role[], sheikh: number, mode: Mode, rules: Partial<Rules> = OFF, framer?: number) {
   const names = roles.map((_, i) => 'P' + (i + 1)), mafia = roles.filter(r => r === M).length;
-  const c = createGame({ names, counts: { mafia, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, ...rules }, mode }, seeded(1));
+  const c = createGame({ names, counts: { mafia, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, ...rules }, mode, legacy: true }, seeded(1));  // 1.3.0 rules (rv 2), as written
   assert.ok(c.ok, !c.ok ? c.error : '');
   const deck = (x: Role[]) => [...x].sort().join();
   assert.equal(deck(c.state.roles), deck(roles), 'the scripted roles are the deck this mode deals');
@@ -53,7 +53,7 @@ test('§8: the Mafia ranges, the lean, and the decks (Avenger: the Hunter; Shado
   assert.deepEqual(r('avenger', 6), [1, 2, 2]); assert.deepEqual(r('avenger', 9), [2, 2, 2]); assert.deepEqual(r('avenger', 12), [2, 3, 3]);
   assert.deepEqual(r('avenger', 15), [3, 4, 4]); assert.deepEqual(r('avenger', 20), [4, 5, 5]);
   assert.deepEqual(r('shadows', 8), [2, 2, 2]); assert.deepEqual(r('shadows', 9), [2, 3, 3]); assert.deepEqual(r('shadows', 18), [4, 5, 5]);
-  assert.equal(mafiaRange('classic', 9), null); assert.equal(mafiaRange('sniper', 9), null);
+  assert.equal(mafiaRange('classic', 9), null); assert.equal(mafiaRange('sniper', 9, OFF, true), null, 'a 1.3 game: Sniper had no range (1.4.0 gives it one)');
   // the lean: Mafia points minus town points
   assert.equal(lean(OFF), 0); assert.equal(lean({ reveal: true }), -2); assert.equal(lean(DEFAULT_RULES), 0, 'the default: reveal off (his ruling)'); assert.equal(lean({ rep: true, decoy: false }), 2);
   assert.equal(lean({ self: false, rep: true, decoy: false, saverev: true }), 2);

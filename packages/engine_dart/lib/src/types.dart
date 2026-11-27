@@ -2,10 +2,12 @@
 // objects exactly, so records written by either engine are byte-identical.
 import 'dart:collection';
 
-enum Role { mafia, doctor, detective, citizen, sniper, jester, bodyguard, hunter, mayor, watcher } // hunter, mayor, watcher: 1.3.0
+enum Role { mafia, doctor, detective, citizen, sniper, jester, bodyguard, hunter, mayor, watcher, killer, cupid } // hunter, mayor, watcher: 1.3.0; killer, cupid: 1.4.0
 
 /// jester: the Jester was voted out by day (1.0.0), everyone else loses.
-enum Winner { mafia, citizens, jester }
+/// 1.4.0: killer (the Serial Killer last standing, or one of two with a non-Mafia), lovers (a mixed couple are the last
+/// two), draw (the Serial Killer and one Mafia, or nobody).
+enum Winner { mafia, citizens, jester, killer, lovers, draw }
 
 /// A fixed set of roles, one tap (1.0.0): 'classic' | 'sniper' | 'jester' | 'bodyguard' (1.1.0) | 'all' | 'avenger' | 'shadows' (1.3.0).
 typedef Mode = String;
@@ -50,18 +52,18 @@ class Rules {
 }
 
 class Counts {
-  final int mafia, doctor, detective, sniper, jester, bodyguard, hunter, mayor, watcher;
+  final int mafia, doctor, detective, sniper, jester, bodyguard, hunter, mayor, watcher, killer, cupid;
   const Counts(this.mafia, this.doctor, this.detective,
-      {this.sniper = 0, this.jester = 0, this.bodyguard = 0, this.hunter = 0, this.mayor = 0, this.watcher = 0});
+      {this.sniper = 0, this.jester = 0, this.bodyguard = 0, this.hunter = 0, this.mayor = 0, this.watcher = 0, this.killer = 0, this.cupid = 0});
   @override
   bool operator ==(Object o) =>
       o is Counts && o.mafia == mafia && o.doctor == doctor && o.detective == detective && o.sniper == sniper && o.jester == jester &&
-      o.bodyguard == bodyguard && o.hunter == hunter && o.mayor == mayor && o.watcher == watcher;
+      o.bodyguard == bodyguard && o.hunter == hunter && o.mayor == mayor && o.watcher == watcher && o.killer == killer && o.cupid == cupid;
   @override
-  int get hashCode => Object.hash(mafia, doctor, detective, sniper, jester, bodyguard, hunter, mayor, watcher);
+  int get hashCode => Object.hash(mafia, doctor, detective, sniper, jester, bodyguard, hunter, mayor, watcher, killer, cupid);
   @override
   String toString() =>
-      'Counts($mafia, $doctor, $detective, sniper: $sniper, jester: $jester, bodyguard: $bodyguard, hunter: $hunter, mayor: $mayor, watcher: $watcher)';
+      'Counts($mafia, $doctor, $detective, sniper: $sniper, jester: $jester, bodyguard: $bodyguard, hunter: $hunter, mayor: $mayor, watcher: $watcher, killer: $killer, cupid: $cupid)';
 }
 
 class Setup {
@@ -70,7 +72,8 @@ class Setup {
   final Rules rules;
   final Mode mode;
   final bool bodyguard; // the Sniper and Jester modes' optional Bodyguard (1.1.0, his ruling)
-  const Setup(this.names, this.counts, this.rules, [this.mode = 'classic', this.bodyguard = false]);
+  final bool legacy; // a record from before 1.4.0 (rv 2): the Sniper, Jester and Bodyguard modes had no Mafia range
+  const Setup(this.names, this.counts, this.rules, [this.mode = 'classic', this.bodyguard = false, this.legacy = false]);
 }
 
 /// Discussion timer: left = seconds at the last change; while running it counts down from `at` (ms).
@@ -95,11 +98,14 @@ class Stats {
   final List<(int, int)> shots; // (sniper, target), 1.0.0
   final List<(int, int)> guards; // (bodyguard, guarded): each time he took a kill or a shot (1.1.0)
   final List<(int, int)> hunts; // (hunter, target) (1.3.0)
+  (int, int)? lovers; // 1.4.0: Cupid's couple
+  final List<int> hearts; // 1.4.0: who died of a broken heart
   Stats({this.first, List<int>? kills, List<int>? outs, List<int>? saves, List<(int, int)>? caught, List<(int, int)>? shots, List<(int, int)>? guards,
-      List<(int, int)>? hunts})
-      : kills = kills ?? [], outs = outs ?? [], saves = saves ?? [], caught = caught ?? [], shots = shots ?? [], guards = guards ?? [], hunts = hunts ?? [];
+      List<(int, int)>? hunts, this.lovers, List<int>? hearts})
+      : kills = kills ?? [], outs = outs ?? [], saves = saves ?? [], caught = caught ?? [], shots = shots ?? [], guards = guards ?? [], hunts = hunts ?? [],
+        hearts = hearts ?? [];
   Stats copy() => Stats(first: first, kills: [...kills], outs: [...outs], saves: [...saves], caught: [...caught], shots: [...shots], guards: [...guards],
-      hunts: [...hunts]);
+      hunts: [...hunts], lovers: lovers, hearts: [...hearts]);
 }
 
 class Night {
@@ -109,23 +115,29 @@ class Night {
   final SplayTreeMap<int, int?> bodyguard; // 1.1.0: who each Bodyguard guards
   final SplayTreeMap<int, int?> frame, watch; // 1.3.0: the Framer's frame; who each Watcher watches
   final SplayTreeSet<int> reveal; // 1.3.0, pass-and-play: a Mayor reveals himself in the morning
+  final SplayTreeMap<int, int?> killer, silence; // 1.4.0: the Serial Killer's pick; the Silencer's
+  final SplayTreeMap<int, (int, int)> cupid; // 1.4.0, night 1: Cupid's two lovers
   final Set<int> done;
   int endsAt; // night timer end (ms), 0 = none
   Night({SplayTreeMap<int, Object>? mafia, SplayTreeMap<int, int?>? doctor, SplayTreeMap<int, int?>? detective,
       SplayTreeMap<int, Object>? sniper, SplayTreeMap<int, int?>? bodyguard, SplayTreeMap<int, int?>? frame, SplayTreeMap<int, int?>? watch,
-      SplayTreeSet<int>? reveal, Set<int>? done, this.endsAt = 0})
+      SplayTreeSet<int>? reveal, SplayTreeMap<int, int?>? killer, SplayTreeMap<int, int?>? silence, SplayTreeMap<int, (int, int)>? cupid,
+      Set<int>? done, this.endsAt = 0})
       : mafia = mafia ?? SplayTreeMap(), doctor = doctor ?? SplayTreeMap(), detective = detective ?? SplayTreeMap(),
         sniper = sniper ?? SplayTreeMap(), bodyguard = bodyguard ?? SplayTreeMap(), frame = frame ?? SplayTreeMap(),
-        watch = watch ?? SplayTreeMap(), reveal = reveal ?? SplayTreeSet(), done = done ?? {};
+        watch = watch ?? SplayTreeMap(), reveal = reveal ?? SplayTreeSet(), killer = killer ?? SplayTreeMap(), silence = silence ?? SplayTreeMap(),
+        cupid = cupid ?? SplayTreeMap(), done = done ?? {};
   Night copy() => Night(mafia: SplayTreeMap.of(mafia), doctor: SplayTreeMap.of(doctor), detective: SplayTreeMap.of(detective),
       sniper: SplayTreeMap.of(sniper), bodyguard: SplayTreeMap.of(bodyguard), frame: SplayTreeMap.of(frame), watch: SplayTreeMap.of(watch),
-      reveal: SplayTreeSet.of(reveal), done: {...done}, endsAt: endsAt);
+      reveal: SplayTreeSet.of(reveal), killer: SplayTreeMap.of(killer), silence: SplayTreeMap.of(silence), cupid: SplayTreeMap.of(cupid),
+      done: {...done}, endsAt: endsAt);
 }
 
 class Morning {
   final int? dead, saved;
   final int? dead2; // a second death (the Sniper), seats in order (1.0.0)
-  const Morning(this.dead, this.saved, [this.dead2]);
+  final List<int>? deaths, hearts; // 1.4.0, games with the Serial Killer or Cupid: every death; who died of a broken heart
+  const Morning(this.dead, this.saved, [this.dead2, this.deaths, this.hearts]);
 }
 
 class Vote {
@@ -160,6 +172,11 @@ class GameState {
   List<int> mayors;
   /// 1.3.0: a dead Hunter taking aim before the game goes on (from 'night' or 'day'); endsAt: the night timer again, 0 = none.
   ({int seat, String from, int endsAt})? hunt;
+  /// المُسكِت (1.4.0, Lone Wolves 11+): one Mafia seat other than the Sheikh and the Framer; silenced: who can't vote
+  /// today; lastSilence: his last pick (never the same twice running).
+  int? silencer, silenced, lastSilence;
+  /// 1.4.0: Cupid's couple, linked on night 1.
+  (int, int)? lovers;
   /// 2 = the 1.1.0 rules: the Detective never checks a player twice, no Sniper shot on night 1, the Bodyguard.
   /// Null in older games (they replay by their own rules).
   int? rv;
@@ -181,7 +198,8 @@ class GameState {
 
   GameState({
     required this.deal, required this.names, required this.roles, required this.alive, required this.rules,
-    this.mode = 'classic', this.sheikh, this.framer, List<int>? mayors, this.hunt, this.rv, this.shotUsed = false, SplayTreeMap<int, int?>? lastGuard,
+    this.mode = 'classic', this.sheikh, this.framer, List<int>? mayors, this.hunt, this.silencer, this.silenced, this.lastSilence, this.lovers,
+    this.rv, this.shotUsed = false, SplayTreeMap<int, int?>? lastGuard,
     required this.phase, required this.day, required this.night, required this.skipUsed, required this.lastTarget,
     required this.lastProt, required this.morning, required this.timer, required this.vote, required this.verdict,
     required this.winner, required this.log, required this.stats,
@@ -189,7 +207,7 @@ class GameState {
 
   GameState copy() => GameState(
         deal: deal, names: [...names], roles: [...roles], alive: [...alive], rules: rules, mode: mode, sheikh: sheikh, rv: rv,
-        framer: framer, mayors: [...mayors], hunt: hunt,
+        framer: framer, mayors: [...mayors], hunt: hunt, silencer: silencer, silenced: silenced, lastSilence: lastSilence, lovers: lovers,
         shotUsed: shotUsed, lastGuard: SplayTreeMap.of(lastGuard), phase: phase, day: day,
         night: night.copy(), skipUsed: skipUsed, lastTarget: lastTarget, lastProt: SplayTreeMap.of(lastProt),
         morning: morning, timer: timer, vote: vote?.copy(), verdict: verdict, winner: winner, log: [...log],
@@ -215,7 +233,15 @@ class NightLog extends GameEvent {
   final List<bool>? read;
   final ({int seat, bool hit})? frame;
   final List<(int, int, List<int>)>? watch;
-  const NightLog(this.day, this.k, this.seat, this.prot, this.checked, [this.shot, this.guard, this.read, this.frame, this.watch]);
+  // 1.4.0, only in games with the role: the Serial Killer's kill ('kill' | 'saved' | 'none', seat); Cupid's couple (night 1);
+  // broken hearts; the Silencer's pick (hasSilence: the key is there, even null)
+  final ({String k, int? seat})? sk;
+  final (int, int)? link;
+  final List<int>? hearts;
+  final int? silence;
+  final bool hasSilence;
+  const NightLog(this.day, this.k, this.seat, this.prot, this.checked,
+      [this.shot, this.guard, this.read, this.frame, this.watch, this.sk, this.link, this.hearts, this.silence, this.hasSilence = false]);
   @override
   Map<String, Object?> toJson() => {
         't': 'night', 'day': day, 'mafia': seat == null ? {'k': k} : {'k': k, 'seat': seat}, 'prot': prot, 'checked': checked,
@@ -224,6 +250,10 @@ class NightLog extends GameEvent {
         if (read != null) 'read': read,
         if (frame != null) 'frame': {'seat': frame!.seat, 'hit': frame!.hit},
         if (watch != null) 'watch': [for (final (w, t, vs) in watch!) [w, t, vs]],
+        if (sk != null) 'sk': sk!.seat == null ? {'k': sk!.k} : {'k': sk!.k, 'seat': sk!.seat},
+        if (link != null) 'link': [link!.$1, link!.$2],
+        if (hearts != null) 'hearts': hearts,
+        if (hasSilence) 'silence': silence,
       };
 }
 
@@ -232,9 +262,10 @@ class HuntLog extends GameEvent {
   final int day, seat;
   final int? target;
   final String from;
-  const HuntLog(this.day, this.seat, this.target, this.from);
+  final List<int>? hearts; // 1.4.0: his shot took a lover, and the other died too
+  const HuntLog(this.day, this.seat, this.target, this.from, [this.hearts]);
   @override
-  Map<String, Object?> toJson() => {'t': 'hunt', 'day': day, 'seat': seat, 'target': target, 'from': from};
+  Map<String, Object?> toJson() => {'t': 'hunt', 'day': day, 'seat': seat, 'target': target, 'from': from, if (hearts != null) 'hearts': hearts};
 }
 
 /// 1.3.0: a Mayor revealed himself.
@@ -250,10 +281,11 @@ class DayLog extends GameEvent {
   final int? out;
   final String kind;
   final List<TallyLine>? tally;
-  const DayLog(this.day, this.out, this.kind, this.tally);
+  final List<int>? hearts; // 1.4.0: a lover voted out takes the other with him
+  const DayLog(this.day, this.out, this.kind, this.tally, [this.hearts]);
   @override
   Map<String, Object?> toJson() =>
-      {'t': 'day', 'day': day, 'out': out, 'kind': kind, 'tally': tally?.map((x) => x.toJson()).toList()};
+      {'t': 'day', 'day': day, 'out': out, 'kind': kind, 'tally': tally?.map((x) => x.toJson()).toList(), if (hearts != null) 'hearts': hearts};
 }
 
 class RemovedLog extends GameEvent {
@@ -300,14 +332,20 @@ class Action {
   final int? frame; // 1.3.0, the Framer's frame (hasFrame with null: no frame)
   final bool hasFrame;
   final bool? reveal; // 1.3.0, a Mayor in pass-and-play: reveal me in the morning
+  final int? silence; // 1.4.0, the Silencer's pick (hasSilence with null: nobody)
+  final bool hasSilence;
+  final int? pair; // 1.4.0, Cupid's second lover
+  final bool hasPair;
   const Action._(this.t, {this.seat, this.choice, this.hasChoice = false, this.day, this.id, this.seats, this.op, this.sec, this.open,
-      this.frame, this.hasFrame = false, this.reveal});
+      this.frame, this.hasFrame = false, this.reveal, this.silence, this.hasSilence = false, this.pair, this.hasPair = false});
 
   const Action.begin() : this._('begin');
   const Action.night(int seat, Object? choice, {int? day}) : this._('night', seat: seat, choice: choice, hasChoice: true, day: day);
   /// 1.3.0: a night pick with the Framer's frame (pass [hasFrame]) and / or a Mayor's reveal.
-  const Action.nightWith(int seat, Object? choice, {int? day, int? frame, bool hasFrame = false, bool? reveal})
-      : this._('night', seat: seat, choice: choice, hasChoice: true, day: day, frame: frame, hasFrame: hasFrame, reveal: reveal);
+  const Action.nightWith(int seat, Object? choice, {int? day, int? frame, bool hasFrame = false, bool? reveal, int? silence, bool hasSilence = false,
+      int? pair, bool hasPair = false})
+      : this._('night', seat: seat, choice: choice, hasChoice: true, day: day, frame: frame, hasFrame: hasFrame, reveal: reveal,
+            silence: silence, hasSilence: hasSilence, pair: pair, hasPair: hasPair);
   const Action.hunt(int seat, int? choice) : this._('hunt', seat: seat, choice: choice, hasChoice: true); // 1.3.0
   const Action.reveal(int seat) : this._('reveal', seat: seat); // 1.3.0
   const Action.skipPending([List<int>? seats]) : this._('skipPending', seats: seats);
@@ -327,6 +365,8 @@ class Action {
         if (day != null) 'day': day,
         if (hasFrame) 'frame': frame,
         if (reveal != null) 'reveal': reveal,
+        if (hasSilence) 'silence': silence,
+        if (hasPair) 'pair': pair,
         if (id != null) 'id': id,
         if (seats != null) 'seats': seats,
         if (op != null) 'op': op,
@@ -340,7 +380,8 @@ class Action {
     return Action._(j['t'] as String,
         seat: n('seat'), choice: j['choice'], hasChoice: j.containsKey('choice'), day: n('day'), id: n('id'),
         seats: (j['seats'] as List?)?.map((x) => x is int ? x : -1).toList(), op: j['op'] as String?, sec: n('sec'),
-        open: j['open'] as bool?, frame: n('frame'), hasFrame: j.containsKey('frame'), reveal: j['reveal'] is bool ? j['reveal'] as bool : null);
+        open: j['open'] as bool?, frame: n('frame'), hasFrame: j.containsKey('frame'), reveal: j['reveal'] is bool ? j['reveal'] as bool : null,
+        silence: n('silence'), hasSilence: j.containsKey('silence'), pair: n('pair'), hasPair: j.containsKey('pair'));
   }
 }
 
@@ -367,7 +408,8 @@ class NightOption {
 }
 
 class NightOptions {
-  final String key; // 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'watcher' | 'none'
+  final String key; // 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'watcher' | 'killer' | 'cupid' | 'none'
+  List<int>? silence; // 1.4.0, the Silencer: who he may silence for tomorrow
   final List<NightOption> opts = [];
   List<int>? frame; // 1.3.0, the Framer: who he may frame besides his kill vote
   bool reveal = false; // 1.3.0, an unrevealed Mayor: he may reveal himself in the morning with this turn

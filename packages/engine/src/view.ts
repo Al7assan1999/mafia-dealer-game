@@ -6,13 +6,17 @@ import type { GameState, Mode, NightOptions, Role, Stats, TallyLine, Winner } fr
 export type Result =
   // also: a second death; sheikh: the revealed role is the Godfather's (his ruling: named on reveal) (1.0.0)
   // framer (1.3.0, Quin Q13): the revealed Mafia was the Framer
-  | { k: 'killed'; seat: number; role: Role | null; sheikh?: true; framer?: true; also?: { seat: number; role: Role | null; sheikh?: true; framer?: true } }
+  // 1.4.0: more (a third death and on), hearts (who died of a broken heart), in games with the Serial Killer or Cupid
+  | { k: 'killed'; seat: number; role: Role | null; sheikh?: true; framer?: true; silencer?: true; also?: Shown; more?: Shown[]; hearts?: Shown[] }
   | { k: 'saved'; seat: number }
   | { k: 'nobody' }
-  | { k: 'out'; seat: number; role: Role | null; sheikh?: true; framer?: true; tally: TallyLine[] | null }
+  | { k: 'out'; seat: number; role: Role | null; sheikh?: true; framer?: true; silencer?: true; tally: TallyLine[] | null; hearts?: Shown[] }
   | { k: 'tie' | 'skipped'; tally: TallyLine[] | null };
+/** One death on screen: the seat, and its role with the reveal rule */
+export type Shown = { seat: number; role: Role | null; sheikh?: true; framer?: true };
 
-export interface Recap { winner: Winner; names: string[]; roles: Role[]; alive: boolean[]; day: number; stats: Stats; mode?: Mode; sheikh?: number; framer?: number }
+export interface Recap { winner: Winner; names: string[]; roles: Role[]; alive: boolean[]; day: number; stats: Stats; mode?: Mode; sheikh?: number; framer?: number;
+  silencer?: number }
 
 /** What everyone may see: the table (host screen) and every phone get at least this. */
 export interface PublicView {
@@ -30,7 +34,8 @@ export interface PublicView {
   // its morning or verdict is on screen (role only with the reveal rule)
   mayors?: number[];
   hunt?: { seat: number } | null;
-  hunted?: { by: number; seat: number | null; role: Role | null } | null;
+  hunted?: { by: number; seat: number | null; role: Role | null; sheikh?: true; framer?: true; silencer?: true; hearts?: Shown[] } | null;
+  silenced?: number | null;   // 1.4.0, games with the Silencer: who can't vote today (public, R8)
 }
 
 export type SeatView = PublicView & {
@@ -44,6 +49,8 @@ export type SeatView = PublicView & {
   framed?: { seat: number; hit: boolean } | null;   // 1.3.0, the Framer: last night's frame, and whether a Detective checked it (R4)
   watch?: { seat: number; visitors: number[] }[] | null;  // 1.3.0, the Watcher: every result so far, the last one last
   huntOpts?: number[] | null;                       // ph 'hunt': who he may shoot
+  silencer?: number | null;                         // 1.4.0: the Silencer's seat (Mafia only; may be this seat)
+  lover?: { seat: number; side: 'mafia' | 'town' } | null;  // 1.4.0, a lover: the partner and their side (R4)
   night: NightOptions | null;                       // ph 'night': what to pick
   voteOpts: { seat: number; disabled: boolean }[] | null;  // ph 'vote' ('no one' is always allowed)
 };
@@ -55,14 +62,16 @@ function publicView(s: GameState, now: number): PublicView {
   const progress = s.phase === 'night' ? { done: al.filter(i => s.night.done[i]).length, total: al.length }
     : s.phase === 'vote' ? { done: al.filter(i => s.vote!.votes[i] !== undefined).length, total: al.length } : null;
   let result: Result | null = null;
-  const sh = (i: number) => (R.reveal && i === s.sheikh ? { sheikh: true as const } : R.reveal && i === s.framer ? { framer: true as const } : {});  // the Godfather (the Framer), named on reveal
+  const sh = (i: number) => flags(s, i), shown = (i: number) => shownOf(s, i);
   if (s.phase === 'morning' && s.morning) {
-    const d = s.morning.dead, d2 = s.morning.dead2;
-    result = d != null ? { k: 'killed', seat: d, role: R.reveal ? s.roles[d] : null, ...sh(d), ...(d2 != null ? { also: { seat: d2, role: R.reveal ? s.roles[d2] : null, ...sh(d2) } } : {}) }
+    const d = s.morning.dead, d2 = s.morning.dead2, more = (s.morning.deaths ?? []).slice(2), hearts = s.morning.hearts ?? [];
+    result = d != null ? { k: 'killed', seat: d, role: R.reveal ? s.roles[d] : null, ...sh(d), ...(d2 != null ? { also: shown(d2) } : {}),
+      ...(more.length ? { more: more.map(shown) } : {}), ...(hearts.length ? { hearts: hearts.map(shown) } : {}) }
       : s.morning.saved != null ? { k: 'saved', seat: s.morning.saved } : { k: 'nobody' };
   } else if (s.phase === 'verdict' && s.verdict) {
-    const v = s.verdict;
-    result = v.out != null ? { k: 'out', seat: v.out, role: R.reveal ? s.roles[v.out] : null, ...sh(v.out), tally: v.tally } : { k: v.kind === 'tie' ? 'tie' : 'skipped', tally: v.tally };
+    const v = s.verdict, dl = [...s.log].reverse().find(e => e.t === 'day'), hearts = dl?.t === 'day' ? dl.hearts ?? [] : [];
+    result = v.out != null ? { k: 'out', seat: v.out, role: R.reveal ? s.roles[v.out] : null, ...sh(v.out), tally: v.tally, ...(hearts.length ? { hearts: hearts.map(shown) } : {}) }
+      : { k: v.kind === 'tie' ? 'tie' : 'skipped', tally: v.tally };
   }
   const end = s.phase === 'end';
   return {
@@ -74,10 +83,18 @@ function publicView(s: GameState, now: number): PublicView {
     result, winner: s.winner,
     roles: end ? s.roles.slice() : null,
     recap: end ? { winner: s.winner!, names: s.names, roles: s.roles, alive: s.alive, day: s.day, stats: s.stats,
-      ...(s.sheikh !== undefined ? { mode: s.mode ?? 'classic', sheikh: s.sheikh } : {}), ...(s.framer !== undefined ? { framer: s.framer } : {}) } : null,
+      ...(s.sheikh !== undefined ? { mode: s.mode ?? 'classic', sheikh: s.sheikh } : {}), ...(s.framer !== undefined ? { framer: s.framer } : {}),
+      ...(s.silencer !== undefined ? { silencer: s.silencer } : {}) } : null,
     ...newRoles(s),
   };
 }
+
+/** The Godfather (the Framer, [Quin Q10] the Silencer), named on reveal. */
+function flags(s: GameState, i: number): { sheikh?: true; framer?: true; silencer?: true } {
+  return !s.rules.reveal ? {} : i === s.sheikh ? { sheikh: true } : i === s.framer ? { framer: true } : i === s.silencer ? { silencer: true } : {};
+}
+/** One death on screen: the seat, and its role and flags with the reveal rule. */
+const shownOf = (s: GameState, i: number): Shown => ({ seat: i, role: s.rules.reveal ? s.roles[i] : null, ...flags(s, i) });
 
 /** 1.3.0: the public part of the new roles, only in games that have them (older games' views stay as they were). */
 function newRoles(s: GameState): Partial<PublicView> {
@@ -87,8 +104,10 @@ function newRoles(s: GameState): Partial<PublicView> {
     o.hunt = s.hunt ? { seat: s.hunt.seat } : null;
     const h = s.log.find(e => e.t === 'hunt');
     o.hunted = h?.t === 'hunt' && h.day === s.day && ((s.phase === 'morning' && h.from === 'night') || (s.phase === 'verdict' && h.from === 'day'))
-      ? { by: h.seat, seat: h.target, role: h.target != null && s.rules.reveal ? s.roles[h.target] : null } : null;
+      ? { by: h.seat, seat: h.target, role: h.target != null && s.rules.reveal ? s.roles[h.target] : null, ...(h.target != null ? flags(s, h.target) : {}),
+        ...(h.hearts?.length ? { hearts: h.hearts.map(x => shownOf(s, x)) } : {}) } : null;
   }
+  if (s.silencer !== undefined) o.silenced = s.silenced ?? null;
   return o;
 }
 
@@ -115,6 +134,10 @@ export function viewFor(s: GameState, who: number | 'table', now: number): Publi
     if (i === s.framer) v.framed = fresh && lastNight?.t === 'night' ? lastNight.frame ?? null : null;
   }
   if (r === 'watcher') v.watch = s.log.flatMap(e => (e.t === 'night' ? (e.watch ?? []).filter(([w]) => w === i).map(([, t, vs]) => ({ seat: t, visitors: vs })) : []));
+  if (s.silencer !== undefined && r === 'mafia') v.silencer = s.silencer;
+  // 1.4.0: each lover learns the other and their side, once Cupid's night is over (R4)
+  const L = s.lovers;
+  if (L && L.includes(i)) { const o = L[0] === i ? L[1] : L[0]; v.lover = { seat: o, side: s.roles[o] === 'mafia' ? 'mafia' : 'town' }; }
   if (s.phase === 'end') v.ph = 'end';
   else if (s.hunt?.seat === i) { v.ph = 'hunt'; v.huntOpts = aliveSeats(s).filter(j => j !== i); }  // 1.3.0: no ghost view before his shot (E-H8)
   else if (!s.alive[i]) {
@@ -132,9 +155,13 @@ export function viewFor(s: GameState, who: number | 'table', now: number): Publi
 
 /** Player of the game, with the reason (the app writes the text). */
 export function mvp(g: { winner: Winner; roles: Role[]; alive: boolean[]; stats: Stats }):
-  { seat: number; why: 'mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'hunter' | 'surv' | 'jester'; n?: number } | null {
+  { seat: number; why: 'mafia' | 'mafia2' | 'det' | 'doc' | 'guard' | 'hunter' | 'surv' | 'jester' | 'killer' | 'lovers'; n?: number } | null {
   const idx = g.roles.map((_, i) => i);
   if (g.winner === 'jester') { const j = idx.find(i => g.roles[i] === 'jester'); return j == null ? null : { seat: j, why: 'jester' }; }
+  // 1.4.0: the Serial Killer's win is his; the Lovers' win goes to the first of the couple; a draw has no player of the game
+  if (g.winner === 'killer') { const k = idx.find(i => g.roles[i] === 'killer'); return k == null ? null : { seat: k, why: 'killer' }; }
+  if (g.winner === 'lovers') return g.stats.lovers ? { seat: g.stats.lovers[0], why: 'lovers' } : null;
+  if (g.winner === 'draw') return null;
   const top = (a: number[]) => { const c: Record<string, number> = {}; a.forEach(x => { c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((x, y) => y[1] - x[1])[0]; };
   if (g.winner === 'mafia') { const m = idx.filter(i => g.roles[i] === 'mafia'), al = m.filter(i => g.alive[i]); return { seat: (al.length ? al : m)[0], why: al.length ? 'mafia' : 'mafia2' }; }
   const c = top(g.stats.caught.map(([d]) => d)); if (c) return { seat: +c[0], why: 'det', n: c[1] };

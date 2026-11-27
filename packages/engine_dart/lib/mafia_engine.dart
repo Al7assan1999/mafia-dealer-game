@@ -2,7 +2,7 @@
 /// packages/engine/fixtures/records.json identically (test/engine_test.dart).
 library;
 
-export 'src/game.dart' show apply, nightOptions, aliveSeats, timerLeft;
+export 'src/game.dart' show apply, nightOptions, aliveSeats, timerLeft, winnerOf;
 export 'src/record.dart';
 export 'src/setup.dart';
 export 'src/types.dart';

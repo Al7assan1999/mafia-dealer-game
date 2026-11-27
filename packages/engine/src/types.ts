@@ -1,10 +1,12 @@
 // Shapes of the game. Everything here is plain JSON so a game can be saved (phone, Postgres) and sent as is.
 
-export type Role = 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'jester' | 'bodyguard' | 'hunter' | 'mayor' | 'watcher';
-/** 'jester': the Jester was voted out by day (1.0.0), everyone else loses. */
-export type Winner = 'mafia' | 'citizens' | 'jester';
+export type Role = 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'jester' | 'bodyguard' | 'hunter' | 'mayor' | 'watcher' | 'killer' | 'cupid';
+/** 'jester': the Jester was voted out by day (1.0.0), everyone else loses. 1.4.0: 'killer' (the Serial Killer is the
+ *  last one standing, or one of two with a non-Mafia), 'lovers' (a mixed couple are the last two), 'draw' (the Serial
+ *  Killer and one Mafia are left, or nobody is). */
+export type Winner = 'mafia' | 'citizens' | 'jester' | 'killer' | 'lovers' | 'draw';
 /** A fixed set of roles, one tap (1.0.0). Classic = the counts the table picks; the others are fixed by player count. */
-export type Mode = 'classic' | 'sniper' | 'jester' | 'all' | 'bodyguard' | 'avenger' | 'shadows';  // avenger, shadows: 1.3.0
+export type Mode = 'classic' | 'sniper' | 'jester' | 'all' | 'bodyguard' | 'avenger' | 'shadows' | 'lovers' | 'lonewolves';  // avenger, shadows: 1.3.0; lovers, lonewolves: 1.4.0
 export type Phase = 'deal' | 'night' | 'morning' | 'day' | 'vote' | 'verdict' | 'end';
 
 /** The table rules, frozen into the game when it is dealt. */
@@ -23,10 +25,11 @@ export interface Rules {
   tieSkip: boolean;   // a tied Mafia vote kills nobody (Sprint 7). Records from before it lack the key: random pick
 }
 
-export interface Counts { mafia: number; doctor: number; detective: number; sniper?: number; jester?: number; bodyguard?: number; hunter?: number; mayor?: number; watcher?: number }
+export interface Counts { mafia: number; doctor: number; detective: number; sniper?: number; jester?: number; bodyguard?: number; hunter?: number; mayor?: number; watcher?: number; killer?: number; cupid?: number }
 
 /** bodyguard: the Sniper and Jester modes' optional Bodyguard (1.1.0, his ruling) */
-export interface Setup { names: string[]; counts: Counts; rules: Rules; mode?: Mode; bodyguard?: boolean }
+/** legacy: a record from before 1.4.0 (rv 2), when the Sniper, Jester and Bodyguard modes had no Mafia range */
+export interface Setup { names: string[]; counts: Counts; rules: Rules; mode?: Mode; bodyguard?: boolean; legacy?: boolean }
 
 /** Random number in [0, 1). Passed in so a game can be replayed in tests. */
 export type Rng = () => number;
@@ -52,6 +55,8 @@ export interface Stats {
   shots?: [number, number][];    // [sniper, target] (1.0.0)
   guards?: [number, number][];   // [bodyguard, guarded]: each time he took a kill or a shot (1.1.0)
   hunts?: [number, number][];    // [hunter, target] (1.3.0)
+  lovers?: [number, number];     // 1.4.0: Cupid's couple (who won with the Lovers)
+  hearts?: number[];             // 1.4.0: who died of a broken heart
 }
 
 export interface GameState {
@@ -73,9 +78,16 @@ export interface GameState {
   /** 1.3.0: a dead Hunter taking aim, before the game goes on (from the night or the verdict). endsAt: the night
    *  timer's length again, 0 = none */
   hunt?: { seat: number; from: 'night' | 'day'; endsAt: number } | null;
+  /** المُسكِت (1.4.0, Lone Wolves 11+): one Mafia seat other than the Sheikh and the Framer. Each night he picks a
+   *  player who can't vote the next day (silenced); lastSilence: his last pick (never the same twice running). */
+  silencer?: number;
+  silenced?: number | null;
+  lastSilence?: number | null;
+  /** 1.4.0: Cupid's couple, linked on night 1: when one dies, so does the other. */
+  lovers?: [number, number] | null;
   /** 2 = the 1.1.0 rules: the Detective never checks a player twice, no Sniper shot on night 1, the Bodyguard.
    *  Absent in older games (they replay by their own rules). */
-  rv?: 2;
+  rv?: 2 | 3;  // 3 = 1.4.0: the Sniper, Jester and Bodyguard modes have a Mafia range (older records replay without)
   phase: Phase;
   day: number;
   night: {
@@ -87,6 +99,9 @@ export interface GameState {
     frame?: Record<number, number | null>;      // 1.3.0: the Framer's frame
     watch?: Record<number, number | null>;      // 1.3.0: who each Watcher watches
     reveal?: Record<number, true>;              // 1.3.0, pass-and-play: a Mayor reveals himself in the morning
+    killer?: Record<number, number | null>;     // 1.4.0: the Serial Killer's pick
+    cupid?: Record<number, [number, number]>;   // 1.4.0, night 1: Cupid's two lovers
+    silence?: Record<number, number | null>;    // 1.4.0: the Silencer's pick
     done: Record<number, true>;
     endsAt: number;              // night timer end (ms), 0 = none
   };
@@ -95,7 +110,9 @@ export interface GameState {
   lastTarget: number | null;     // the Mafia's target last night (norep)
   lastProt: Record<number, number | null>;  // each Doctor's pick last night (rep)
   lastGuard?: Record<number, number | null>;  // 1.1.0: each Bodyguard's pick last night (never the same twice running)
-  morning: { dead: number | null; saved: number | null; dead2?: number | null } | null;  // dead2: a second death (the Sniper), seats in order
+  // dead2: a second death (the Sniper), seats in order. 1.4.0, games with the Serial Killer or Cupid: every death in seat
+  // order (deaths) and who died of a broken heart (hearts)
+  morning: { dead: number | null; saved: number | null; dead2?: number | null; deaths?: number[]; hearts?: number[] } | null;
   timer: Timer;
   vote: { id: number; open: boolean; votes: Record<number, VoteChoice> } | null;
   verdict: { out: number | null; kind: 'out' | 'skipped' | 'tie'; tally: TallyLine[] | null } | null;
@@ -111,10 +128,12 @@ export type LogEvent =
       prot: number[]; checked: number[]; shot?: number; guard?: number[];  // guard: who the Bodyguard guarded (1.1.0)
       // 1.3.0, only in games with the role: read = what each check read (with a Framer, it can't be worked out from the
       // roles afterwards); frame = the Framer's pick and whether a Detective checked it; watch = [watcher, target, visitors]
-      read?: boolean[]; frame?: { seat: number; hit: boolean }; watch?: [number, number, number[]][] }
-  | { t: 'hunt'; day: number; seat: number; target: number | null; from: 'night' | 'day' }  // 1.3.0: the Hunter's shot (null: held fire)
+      read?: boolean[]; frame?: { seat: number; hit: boolean }; watch?: [number, number, number[]][];
+      // 1.4.0, only in games with the role: the Serial Killer's kill; Cupid's couple (night 1); broken hearts; the Silencer's pick
+      sk?: { k: 'kill' | 'saved'; seat: number } | { k: 'none' }; link?: [number, number]; hearts?: number[]; silence?: number | null }
+  | { t: 'hunt'; day: number; seat: number; target: number | null; from: 'night' | 'day'; hearts?: number[] }  // 1.3.0: the Hunter's shot (null: held fire)
   | { t: 'reveal'; day: number; seat: number }                        // 1.3.0: a Mayor revealed himself
-  | { t: 'day'; day: number; out: number | null; kind: 'out' | 'skipped' | 'tie'; tally: TallyLine[] | null }
+  | { t: 'day'; day: number; out: number | null; kind: 'out' | 'skipped' | 'tie'; tally: TallyLine[] | null; hearts?: number[] }
   | { t: 'removed'; seat: number }
   | { t: 'win'; winner: Winner; lead: { k: 'killed' | 'votedOut'; seat: number } | null };
 
@@ -123,7 +142,8 @@ export type GameEvent = LogEvent | { t: 'phase'; phase: Phase; day: number };
 
 export type Action =
   | { t: 'begin' }
-  | { t: 'night'; seat: number; choice: NightChoice; day?: number; frame?: number | null; reveal?: boolean }  // frame: the Framer (1.3.0); reveal: a Mayor, pass-and-play
+  // frame: the Framer (1.3.0); reveal: a Mayor, pass-and-play; pair: Cupid's second lover (1.4.0); silence: the Silencer (1.4.0)
+  | { t: 'night'; seat: number; choice: NightChoice; day?: number; frame?: number | null; reveal?: boolean; pair?: number; silence?: number | null }
   | { t: 'hunt'; seat: number; choice: number | null }  // 1.3.0: the dead Hunter's shot, or null (hold fire)
   | { t: 'reveal'; seat: number }                      // 1.3.0: a Mayor reveals himself (morning or day)
   | { t: 'skipPending'; seats?: number[] }
@@ -154,9 +174,10 @@ export interface NightOption {
   mayor?: boolean;      // 1.3.0, Doctor: a revealed Mayor (can't be protected)
 }
 export interface NightOptions {
-  key: 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'watcher' | 'none';  // 'none' = nothing to pick (Citizen without decoy)
+  key: 'mafia' | 'doctor' | 'detective' | 'citizen' | 'sniper' | 'bodyguard' | 'watcher' | 'killer' | 'cupid' | 'none';  // cupid: two different picks (choice + pair)  // 'none' = nothing to pick (Citizen without decoy)
   opts: NightOption[];
   skip: { mateVotes: number; sheikh: boolean } | null;  // the Mafia's one-time skip, if still allowed; the Sniper's "keep the bullet"
   frame?: number[];     // 1.3.0, the Framer: who he may frame (besides his kill vote); null in the action = no frame
   reveal?: boolean;     // 1.3.0, an unrevealed Mayor: he may reveal himself in the morning with this turn
+  silence?: number[];   // 1.4.0, the Silencer: who he may silence for tomorrow (null in the action = nobody)
 }

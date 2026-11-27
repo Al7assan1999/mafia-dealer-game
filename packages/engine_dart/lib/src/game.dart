@@ -19,7 +19,9 @@ NightOptions nightOptions(GameState s, int p) {
   final r = s.roles[p], R = s.rules, rv = s.rv != null;
   // the Jester, and the Sniper once his bullet is spent (1.1.0: or on night 1), pick like a Citizen; 1.3.0: the Hunter
   // and the Mayor too
-  final k0 = r == Role.jester || r == Role.hunter || r == Role.mayor || (r == Role.sniper && (s.shotUsed || (rv && s.day == 1))) ? 'citizen' : r.name,
+  // 1.4.0: Cupid links his couple on night 1 only, then picks like a Citizen
+  final k0 = r == Role.jester || r == Role.hunter || r == Role.mayor || (r == Role.cupid && s.day != 1) ||
+          (r == Role.sniper && (s.shotUsed || (rv && s.day == 1))) ? 'citizen' : r.name,
       key = k0 == 'citizen' && !R.decoy ? 'none' : k0;
   final res = NightOptions(key);
   if (r == Role.mayor && !s.mayors.contains(p)) res.reveal = true; // pass-and-play: reveal himself in the morning
@@ -36,7 +38,7 @@ NightOptions nightOptions(GameState s, int p) {
       if (R.rep && s.lastProt[p] == j) { o.disabled = true; o.lastNight = true; }
     }
     if (r == Role.doctor && s.mayors.contains(j)) { o.disabled = true; o.mayor = true; } // 1.3.0: a revealed Mayor
-    if ((key == 'detective' || key == 'sniper' || key == 'bodyguard' || key == 'watcher') && j == p) o.disabled = true;
+    if ((key == 'detective' || key == 'sniper' || key == 'bodyguard' || key == 'watcher' || key == 'killer') && j == p) o.disabled = true;
     if (key == 'bodyguard' && s.lastGuard[p] == j) { o.disabled = true; o.lastNight = true; }
     if (past != null && past.containsKey(j)) { o.disabled = true; o.check = past[j]; }
     if (r == Role.mafia) o.mateVotes = mates((v) => v == j);
@@ -48,6 +50,8 @@ NightOptions nightOptions(GameState s, int p) {
   }
   if (key == 'sniper') res.skipMateVotes = 0; // keep the bullet
   if (r == Role.mafia && p == s.framer) res.frame = [for (final j in aliveSeats(s)) if (s.roles[j] != Role.mafia) j]; // 1.3.0: never a teammate
+  // 1.4.0: the Silencer: anyone but himself and his last pick (teammates too, R8)
+  if (r == Role.mafia && p == s.silencer) res.silence = [for (final j in aliveSeats(s)) if (j != p && j != s.lastSilence) j];
   // everyone else is already checked: nothing to pick tonight. 1.3.0: the same for any power left with no target, so a
   // night can never wait for a pick that can't be made
   if ((past != null || rv) && res.opts.every((o) => o.disabled) && !res.canSkip) return NightOptions('none')..reveal = res.reveal;
@@ -71,9 +75,14 @@ Map<int, bool> readsOf(GameState s) {
   return m;
 }
 
-/// Winner when the Mafia are all gone, or as many as everyone else.
-Winner? _winnerOf(GameState s) {
-  final a = aliveSeats(s), m = a.where((i) => s.roles[i] == Role.mafia).length;
+/// Winner when the Mafia are all gone, or as many as everyone else. 1.4.0 (R3): a mixed couple who are the last two win;
+/// while the Serial Killer lives nobody else wins: he wins alone or as one of two with a non-Mafia, and he with one
+/// Mafia is a draw; nobody left is a draw.
+Winner? winnerOf(GameState s) {
+  final a = aliveSeats(s), m = a.where((i) => s.roles[i] == Role.mafia).length, k = a.where((i) => s.roles[i] == Role.killer).length, l = s.lovers;
+  if (a.isEmpty) return Winner.draw;
+  if (l != null && a.length == 2 && a.contains(l.$1) && a.contains(l.$2) && (s.roles[l.$1] == Role.mafia) != (s.roles[l.$2] == Role.mafia)) return Winner.lovers;
+  if (k > 0) return a.length == k ? Winner.killer : a.length == 2 ? (m > 0 ? Winner.draw : Winner.killer) : null;
   return m == 0 ? Winner.citizens : m >= a.length - m ? Winner.mafia : null;
 }
 
@@ -93,12 +102,13 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
   void startNight() {
     s.night = Night(endsAt: s.rules.nightT != 0 ? ctx.now + s.rules.nightT * 1000 : 0);
     s.morning = null; s.verdict = null; s.vote = null;
+    s.silenced = null; // 1.4.0: a silence lasts one day
     phase(Phase.night);
   }
   bool checkWin(Lead? lead, [Winner? forced]) {
-    final w = forced ?? _winnerOf(s);
+    final w = forced ?? winnerOf(s);
     if (w == null) return false;
-    if (w == Winner.mafia && forced == null && s.hunt != null) return false; // 1.3.0: the Hunter shoots first (E-H1)
+    if (w != Winner.citizens && forced == null && s.hunt != null) return false; // 1.3.0: the Hunter shoots first (E-H1); 1.4.0: before any win but the town's
     s.hunt = null;
     pauseTimer(); s.winner = w; log(WinLog(w, lead)); phase(Phase.end);
     return true;
@@ -106,13 +116,24 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
   /// 1.3.0: a Hunter who just died takes aim before the game goes on, unless the town has already won (E-H2).
   void takeAim(List<int> seats, String from) {
     final h = seats.where((x) => s.roles[x] == Role.hunter).firstOrNull;
-    if (h != null && _winnerOf(s) != Winner.citizens) s.hunt = (seat: h, from: from, endsAt: s.rules.nightT != 0 ? ctx.now + s.rules.nightT * 1000 : 0);
+    if (h != null && winnerOf(s) != Winner.citizens) s.hunt = (seat: h, from: from, endsAt: s.rules.nightT != 0 ? ctx.now + s.rules.nightT * 1000 : 0);
+  }
+  /// 1.4.0: a lover just died: the other dies too ("of a broken heart"), once. Returns who did.
+  List<int> heartbreak(List<int> dead) {
+    final l = s.lovers, out = <int>[];
+    if (l != null) {
+      for (final (x, y) in [(l.$1, l.$2), (l.$2, l.$1)]) {
+        if (dead.contains(x) && s.alive[y]) { s.alive[y] = false; out.add(y); s.stats.hearts.add(y); }
+      }
+    }
+    return out;
   }
   void shoot(int? target) {
     final h = s.hunt!;
     s.hunt = null;
     if (target != null) { s.alive[target] = false; s.stats.hunts.add((h.seat, target)); }
-    log(HuntLog(s.day, h.seat, target, h.from));
+    final hearts = target != null ? heartbreak([target]) : <int>[];
+    log(HuntLog(s.day, h.seat, target, h.from, hearts.isNotEmpty ? hearts : null));
     checkWin(target != null ? Lead('killed', target) : Lead(h.from == 'night' ? 'killed' : 'votedOut', h.seat));
   }
 
@@ -157,13 +178,20 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       if (!dup) gs.add((g.key, t!));
       return g.key;
     }
-    final victim = cover(target), shot = cover(aim);
+    // 1.4.0: the Serial Killer's kill: the Bodyguard covers it and the Doctor saves it, as the Mafia's (R2)
+    final kp = s.night.killer.entries.where((e) => s.sheikh == null || s.alive[e.key]).where((e) => e.value != null).firstOrNull, kaim = kp?.value;
+    final victim = cover(target), shot = cover(aim), kvictim = cover(kaim);
     final doc = s.night.doctor.entries.where((e) => e.value != null).map((e) => (e.key, e.value!)).toList();
     final prot = doc.map((d) => d.$2).toSet();
     s.lastProt = s.night.copy().doctor;
     if (bg) s.lastGuard = s.night.copy().bodyguard;
     final saved = victim != null && prot.contains(victim), dead = victim != null && !saved ? victim : null;
     final kept = saved && shot != victim; // a save the Sniper didn't undo
+    final ksaved = kvictim != null && prot.contains(kvictim), kdead = kvictim != null && !ksaved ? kvictim : null, kkept = ksaved && shot != kvictim && kvictim != victim;
+    // 1.4.0: Cupid's couple (night 1; not if the host removed him) and the Silencer's pick, before anyone dies
+    final cu = s.day == 1 ? s.night.cupid.entries.where((e) => s.alive[e.key]).firstOrNull : null, link = cu?.value;
+    if (link != null) { s.lovers = link; s.stats.lovers = link; }
+    final sil = s.silencer != null && s.alive[s.silencer!] ? s.night.silence[s.silencer!] : null;
     // 1.3.0, before anyone dies (the night is one moment): the Framer's frame (not if the host removed him), what the
     // checks read, and who visited whom for the Watcher. One Mafia goes to the victim: the Sheikh if he voted for him,
     // else the lowest seat that did (E-W1).
@@ -178,6 +206,9 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       if (framed != null) (fr!, framed),
       if (aim != null) (sn!.key, aim),
       if (voters.isNotEmpty) (s.sheikh != null && voters.contains(s.sheikh) ? s.sheikh! : voters.reduce(math.min), target!),
+      if (kaim != null) (kp!.key, kaim),
+      if (cu != null) ...[(cu.key, cu.value.$1), (cu.key, cu.value.$2)],
+      if (sil != null) (s.silencer!, sil),
     ];
     final watch = [
       for (final e in s.night.watch.entries)
@@ -185,30 +216,39 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
           (e.key, e.value!, ({for (final v in visits) if (v.$2 == e.value && v.$1 != e.key) v.$1}.toList()..sort())),
     ];
     if (dead != null) s.alive[dead] = false;
+    if (kdead != null) s.alive[kdead] = false;
     if (shot != null) { s.alive[shot] = false; s.shotUsed = true; s.stats.shots.add((sn!.key, shot)); }
+    final hearts = heartbreak([?dead, ?kdead, ?shot]);
+    if (s.silencer != null) { s.silenced = sil != null && s.alive[sil] ? sil : null; s.lastSilence = sil; }
+    final newRoles = s.roles.contains(Role.killer) || s.roles.contains(Role.cupid);
     log(NightLog(s.day, skip ? 'skip' : victim == null ? 'none' : saved ? 'saved' : 'kill', skip ? null : victim,
         doc.map((d) => d.$2).toList(), checks, shot,
         bg ? guards.map((e) => e.value).whereType<int>().toList() : null,
         fr != null ? reads : null, fr != null && framed != null ? (seat: framed, hit: checks.contains(framed)) : null,
-        s.roles.contains(Role.watcher) ? watch : null));
+        s.roles.contains(Role.watcher) ? watch : null,
+        s.roles.contains(Role.killer) ? (k: kvictim == null ? 'none' : ksaved ? 'saved' : 'kill', seat: kvictim) : null,
+        link, hearts.isNotEmpty ? hearts : null, sil, s.silencer != null));
     s.lastTarget = target;
     if (kept) { for (final d in doc) { if (d.$2 == victim) s.stats.saves.add(d.$1); } }
+    if (kkept) { for (final d in doc) { if (d.$2 == kvictim) s.stats.saves.add(d.$1); } }
     if (dead != null) { s.stats.first ??= dead; s.stats.kills.add(dead); }
+    if (kdead != null && kdead != dead) { s.stats.first ??= kdead; s.stats.kills.add(kdead); }
     for (final e in s.night.detective.entries) {
       final p = e.key, q = e.value;
       if (q != null && s.roles[q] == Role.mafia && q != s.sheikh && !s.stats.caught.any((x) => x.$1 == p && x.$2 == q)) s.stats.caught.add((p, q));
     }
     // the morning names the dead in seat order: nobody can tell which death was the Sniper's
-    final deaths = {?dead, ?shot}.toList()..sort();
-    s.morning = Morning(deaths.firstOrNull, kept && s.rules.saverev ? target : null, deaths.length > 1 ? deaths[1] : null); // [Quin Q2, B15]
+    final deaths = {?dead, ?kdead, ?shot}.toList()..sort();
+    s.morning = Morning(deaths.firstOrNull, kept && s.rules.saverev ? target : null, deaths.length > 1 ? deaths[1] : null, // [Quin Q2, B15]
+        newRoles ? deaths : null, newRoles ? hearts : null);
     // the death that decides the game leads its announcement: a Mafia shot by the Sniper when the town wins
-    final lead = deaths.where((x) => s.roles[x] == Role.mafia && !aliveSeats(s).any((i) => s.roles[i] == Role.mafia)).firstOrNull ?? dead ?? shot;
+    final lead = deaths.where((x) => s.roles[x] == Role.mafia && !aliveSeats(s).any((i) => s.roles[i] == Role.mafia)).firstOrNull ?? dead ?? kdead ?? shot;
     // 1.3.0, pass-and-play: a Mayor who chose to reveal himself on his turn, if he lived
     for (final m in s.night.reveal) {
       if (s.alive[m]) { s.mayors.add(m); log(RevealLog(s.day, m)); }
     }
-    takeAim(deaths, 'night');
-    if (checkWin(lead != null ? Lead('killed', lead) : null)) return;
+    takeAim([...deaths, ...hearts], 'night');
+    if (checkWin(lead != null ? Lead('killed', lead) : hearts.isNotEmpty ? Lead('killed', hearts.first) : null)) return;
     phase(Phase.morning);
   }
 
@@ -216,8 +256,9 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
     pauseTimer();
     if (out != null) { s.alive[out] = false; s.stats.outs.add(out); }
     s.verdict = Verdict(out, kind, tally);
-    log(DayLog(s.day, out, kind, tally));
-    if (out != null) takeAim([out], 'day');
+    final hearts = out != null ? heartbreak([out]) : <int>[]; // 1.4.0: a lover voted out takes the other with him
+    log(DayLog(s.day, out, kind, tally, hearts.isNotEmpty ? hearts : null));
+    if (out != null) takeAim([out, ...hearts], 'day');
     // the Jester wins alone when the day vote puts him out
     if (checkWin(out != null ? Lead('votedOut', out) : null, out != null && s.roles[out] == Role.jester ? Winner.jester : null)) return;
     phase(Phase.verdict);
@@ -270,11 +311,19 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       // 1.3.0: the Framer's frame (null = none) and a Mayor's "reveal me in the morning" (pass-and-play)
       if (a.hasFrame && !(no.frame != null && (a.frame == null || no.frame!.contains(a.frame)))) return fail('choice');
       if (a.reveal != null && !(a.reveal == false || no.reveal)) return fail('choice');
+      // 1.4.0: Cupid's second lover (another living player), the Silencer's pick (null = nobody)
+      if (no.key == 'cupid' ? !(a.hasPair && _seatOk(s, a.pair) && s.alive[a.pair!] && a.pair != a.choice) : a.hasPair) return fail('choice');
+      if (a.hasSilence && !(no.silence != null && (a.silence == null || no.silence!.contains(a.silence)))) return fail('choice');
       final r = s.roles[seat];
+      if (no.key == 'killer') s.night.killer[seat] = a.choice as int?;
+      if (no.key == 'cupid') s.night.cupid[seat] = (a.choice as int, a.pair!);
+      if (a.silence != null) s.night.silence[seat] = a.silence;
       if (r == Role.watcher) s.night.watch[seat] = a.choice as int?;
       if (a.frame != null) s.night.frame[seat] = a.frame;
       if (a.reveal == true) s.night.reveal.add(seat);
-      if (r == Role.mafia) s.night.mafia[seat] = a.choice!;
+      // 1.4.0 (found by the every-combination test): a Mafia with no target left (only the Serial Killer they hit last,
+      // under "not twice") picks nothing, and nothing is no vote
+      if (r == Role.mafia && a.choice != null) s.night.mafia[seat] = a.choice!;
       if (r == Role.doctor) s.night.doctor[seat] = a.choice as int;
       if (r == Role.detective) s.night.detective[seat] = a.choice as int?; // 1.1.0: null when everyone is checked
       if (no.key == 'sniper') s.night.sniper[seat] = a.choice!;
@@ -346,6 +395,9 @@ Applied apply(GameState prev, Action a, Ctx ctx) {
       if (s.phase != Phase.day) return fail('phase');
       pauseTimer();
       s.vote = Vote(ctx.now, a.open == true);
+      // 1.4.0 (D7): the silenced player can't vote: he abstains from the start
+      final sd = s.silenced;
+      if (sd != null && s.alive[sd]) s.vote!.votes[sd] = 'abstain';
       phase(Phase.vote);
 
     case 'vote':

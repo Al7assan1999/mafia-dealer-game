@@ -28,6 +28,9 @@ List<int> alive(GameState s) => aliveSeats(s);
   final c = createGame(Setup(names, Counts(m0, 1, m0 >= 2 ? 1 : 0), rules, mode, bodyguard), r);
   expect(c.error, isNull);
   var s = c.state!, now = 1000000, steps = 0;
+  // [Quin Q1] rv 3 only for the new modes, or a count 1.3.x would not have dealt (so 1.3.x phones replay the rest)
+  final old = validateSetup(names, Counts(m0, 1, m0 >= 2 ? 1 : 0), mode, bodyguard, rules, true);
+  final rv = mode == 'lovers' || mode == 'lonewolves' || old.error != null || old.counts.mafia != s.roles.where((x) => x == Role.mafia).length ? 3 : 2;
   final rec = startRecord(s);
 
   void check() {
@@ -37,15 +40,23 @@ List<int> alive(GameState s) => aliveSeats(s);
     if (s.phase == Phase.end && s.winner == Winner.jester) {
       expect(last is WinLog && last.lead?.k == 'votedOut' && s.roles[last.lead!.seat] == Role.jester, isTrue);
     } else if (s.phase == Phase.end) {
-      expect(s.winner, m == 0 ? Winner.citizens : Winner.mafia);
+      // 1.4.0 [Quin Q4]: each ending on its own terms, as in play.ts
+      final k = al.where((i) => s.roles[i] == Role.killer).length, w = s.winner, L = s.lovers;
+      if (!s.roles.contains(Role.killer) && L == null) expect(w, m == 0 ? Winner.citizens : Winner.mafia);
+      expect(w, isNotNull);
+      if (w == Winner.citizens) expect(m == 0 && k == 0, isTrue, reason: 'the town wins only with the Mafia and the Serial Killer gone');
+      if (w == Winner.mafia) expect(k == 0 && m >= al.length - m, isTrue);
+      if (w == Winner.killer) expect(k == 1 && al.length <= 2 && m == 0, isTrue);
+      if (w == Winner.draw) expect(al.isEmpty || (k == 1 && m == 1 && al.length == 2), isTrue);
+      if (w == Winner.lovers) expect(al.length == 2 && s.alive[L!.$1] && s.alive[L.$2] && (s.roles[L.$1] == Role.mafia) != (s.roles[L.$2] == Role.mafia), isTrue);
     } else if (s.hunt != null) {
-      expect(m > 0 && !s.alive[s.hunt!.seat] && s.roles[s.hunt!.seat] == Role.hunter, isTrue, reason: 'a dead Hunter aims');
+      expect(winnerOf(s) != Winner.citizens && !s.alive[s.hunt!.seat] && s.roles[s.hunt!.seat] == Role.hunter, isTrue, reason: 'a dead Hunter aims');
     } else {
-      expect(m > 0 && m < al.length - m, isTrue, reason: 'seed $seed: game should have ended');
+      expect(winnerOf(s), isNull, reason: 'seed $seed: game should have ended');
     }
     // 1.3.0
     expect(s.roles.contains(Role.sniper) && s.roles.contains(Role.hunter), isFalse, reason: 'never the Sniper and the Hunter');
-    if (s.framer != null) expect(s.roles[s.framer!] == Role.mafia && s.framer != s.sheikh && mode == 'shadows', isTrue);
+    if (s.framer != null) expect(s.roles[s.framer!] == Role.mafia && s.framer != s.sheikh && hasFramer(mode, n), isTrue);
     for (var i = 0; i < n; i++) {
       final v = viewFor(s, i, now);
       if (s.phase != Phase.end && !(rules.ghost && !s.alive[i] && s.hunt?.seat != i)) expect(v.roles, isNull, reason: 'no roles before the end');
@@ -67,7 +78,7 @@ List<int> alive(GameState s) => aliveSeats(s);
     }
     expect(s.stats.shots.length <= 1, isTrue, reason: 'one bullet');
     // 1.1.0
-    expect(s.rv, 2);
+    expect(s.rv, rv);
     final nights = s.log.whereType<NightLog>().toList();
     if (nights.isNotEmpty) expect(nights.first.shot, isNull, reason: 'no shot on night 1');
     final checked = [for (final e in nights) ...e.checked];
@@ -117,7 +128,13 @@ List<int> alive(GameState s) => aliveSeats(s);
       final fr = no.frame != null && chance(.9);
       final frame = fr ? (chance(.2) || no.frame!.isEmpty ? null : pick(no.frame!)) : null;
       final rev = no.reveal && chance(.1);
-      go(Action.nightWith(p, no.key == 'none' ? null : pick(opts), day: s.day, frame: frame, hasFrame: fr, reveal: rev ? true : null));
+      // 1.4.0, the same order as play.ts: the Silencer's pick, then the choice, then Cupid's second lover
+      final sl = no.silence != null && chance(.9);
+      final silence = sl ? (chance(.2) || no.silence!.isEmpty ? null : pick(no.silence!)) : null;
+      final choice = no.key == 'none' ? null : pick(opts);
+      final pair = no.key == 'cupid' ? pick(opts.where((o) => o != choice).toList()) as int : null;
+      go(Action.nightWith(p, choice, day: s.day, frame: frame, hasFrame: fr, reveal: rev ? true : null, silence: silence, hasSilence: sl,
+          pair: pair, hasPair: pair != null));
     } else if (s.phase == Phase.morning) {
       go(const Action.startDay());
     } else if (s.phase == Phase.day) {
@@ -194,6 +211,36 @@ void main() {
       expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
       expect(jsJson(recordFromJson(Map<String, Object?>.from(r)).toJson()), jsJson(r), reason: 'reads back byte-identical');
     }
+  });
+
+  test('records from 1.3 (rv 2: before the Serial Killer, Cupid, the Silencer and the old modes\' ranges) still replay', () {
+    final old = jsonDecode(File('../engine/fixtures/records-1.3.json').readAsStringSync()) as List;
+    expect(old, hasLength(60));
+    for (final (i, r) in old.indexed) {
+      expect((r as Map)['rv'], 2);
+      expect(replay(r).error, isNull, reason: 'game ${i + 1}');
+    }
+  });
+
+  test('the scripted 1.4.0 games (the Serial Killer, Cupid, the Silencer; s21.test.ts) replay, byte-identical', () {
+    final games = jsonDecode(File('../engine/fixtures/records-s21.json').readAsStringSync()) as List;
+    expect(games.length, greaterThanOrEqualTo(15));
+    for (final (i, r) in games.indexed) {
+      expect(replay(r).error, isNull, reason: 'scripted game ${i + 1}');
+      expect(jsJson(recordFromJson(Map<String, Object?>.from(r as Map)).toJson()), jsJson(r), reason: 'reads back byte-identical');
+    }
+    expect(games.any((r) => (r as Map)['winner'] == 'killer'), isTrue);
+    expect(games.any((r) => (r as Map)['winner'] == 'lovers'), isTrue);
+  });
+
+  test('1.4.0 setup and endings, as s21.test.ts', () {
+    final r0 = defaultRules;
+    expect(mafiaRange('lovers', 9, r0), (min: 2, max: 3, def: 3));
+    expect(mafiaRange('sniper', 10, r0), (min: 2, max: 3, def: 3));
+    expect(mafiaRange('sniper', 10, r0, true), isNull);
+    expect(modeCounts('lonewolves', 9, const Counts(9, 1, 1), false, r0), const Counts(2, 1, 1, bodyguard: 1, killer: 1));
+    expect(modeCounts('lovers', 17, const Counts(9, 1, 1), false, r0).sniper, 1);
+    expect([hasSilencer('lonewolves', 11), hasFramer('lonewolves', 13), hasFramer('lonewolves', 12)], [true, true, false]);
   });
 
   test('records from 1.2 (before the Hunter, the Mayor, the Framer and the Watcher) still replay', () {
@@ -310,7 +357,7 @@ void main() {
 
   test('modes: the deck is fixed by player count; each mode has its minimum', () {
     const none = Counts(1, 1, 0);
-    expect(modeCounts('sniper', 6, none), const Counts(2, 1, 1, sniper: 1));
+    expect(modeCounts('sniper', 6, none, false, null, true), const Counts(2, 1, 1, sniper: 1)); // 1.3 (legacy): fixed
     expect(modeCounts('jester', 8, none), const Counts(2, 1, 1, jester: 1));
     expect(modeCounts('all', 12, none), const Counts(3, 1, 1, sniper: 1, jester: 1, bodyguard: 1)); // 1.1.0: + the Bodyguard
     expect(modeCounts('bodyguard', 8, none), const Counts(2, 1, 1, bodyguard: 1));

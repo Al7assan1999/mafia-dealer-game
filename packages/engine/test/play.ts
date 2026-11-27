@@ -1,6 +1,6 @@
 // One random game from a seed, checking what must always hold after every action. Returns its record.
 import assert from 'node:assert/strict';
-import { apply, createGame, DEFAULT_RULES, mafiaRange, maxMafia, MODE_MIN, MODES, seeded, startRecord, step, viewFor, type Action, type GameRecord, type GameState, type Mode, type Rules, type SeatView } from '../src/index.ts';
+import { apply, createGame, validateSetup, DEFAULT_RULES, hasFramer, hasSilencer, mafiaRange, winnerOf, maxMafia, MODE_MIN, MODES, seeded, startRecord, step, viewFor, type Action, type GameRecord, type GameState, type Mode, type Rules, type SeatView } from '../src/index.ts';
 
 const alive = (s: GameState) => s.alive.map((a, i) => (a ? i : -1)).filter(i => i >= 0);
 
@@ -20,6 +20,9 @@ export function play(seed: number, fix?: Fix): { steps: number; rec: GameRecord;
   assert.ok(c.ok);
   let s = c.state, now = 1_000_000, steps = 0;
   const rec = startRecord(s);
+  // [Quin Q1] rv 3 only for the new modes, or a count 1.3.x would not have dealt (so 1.3.x phones replay the rest)
+  const old = validateSetup(names, { mafia, doctor: 1, detective: mafia >= 2 ? 1 : 0 }, mode, bodyguard, rules, true);
+  const rv = mode === 'lovers' || mode === 'lonewolves' || old.error || old.counts.mafia !== s.roles.filter(x => x === 'mafia').length ? 3 : 2;
   const go = (a: Action) => {
     const res = step(rec, s, a, { rng: r, now: now += 1000 });
     assert.ok(res.ok, `seed ${seed}: ${a.t} refused (${!res.ok && res.error})`);
@@ -34,24 +37,37 @@ export function play(seed: number, fix?: Fix): { steps: number; rec: GameRecord;
     assert.equal(s.roles[s.sheikh!], 'mafia', 'the Sheikh is one of the Mafia');
     const last = s.log.at(-1);
     if (s.phase === 'end' && s.winner === 'jester') assert.ok(last?.t === 'win' && last.lead?.k === 'votedOut' && s.roles[last.lead.seat] === 'jester');
-    else if (s.phase === 'end') assert.equal(s.winner, m === 0 ? 'citizens' : 'mafia');
-    else if (s.hunt) { assert.ok(m > 0 && !s.alive[s.hunt.seat] && s.roles[s.hunt.seat] === 'hunter', 'a dead Hunter aims, the town has not won');
+    else if (s.phase === 'end') {
+      // 1.4.0: the endings with a Serial Killer or a couple (R3), checked one by one
+      const k = al.filter(i => s.roles[i] === 'killer').length, w = s.winner;
+      if (!s.roles.includes('killer') && !s.lovers) assert.equal(w, m === 0 ? 'citizens' : 'mafia');
+      if (w === 'citizens') assert.ok(m === 0 && k === 0, 'the town wins only with the Mafia and the Serial Killer gone');
+      if (w === 'mafia') assert.ok(k === 0 && m >= al.length - m);
+      if (w === 'killer') assert.ok(k === 1 && al.length <= 2 && m === 0, 'the Serial Killer alone, or with one non-Mafia');
+      if (w === 'draw') assert.ok(al.length === 0 || (k === 1 && m === 1 && al.length === 2), 'a draw: nobody, or the Serial Killer and one Mafia');
+      if (w === 'lovers') assert.ok(al.length === 2 && s.lovers!.every(x => s.alive[x]) && (s.roles[s.lovers![0]] === 'mafia') !== (s.roles[s.lovers![1]] === 'mafia'));
+    }
+    else if (s.hunt) { assert.ok(winnerOf(s) !== 'citizens' && !s.alive[s.hunt.seat] && s.roles[s.hunt.seat] === 'hunter', 'a dead Hunter aims, the town has not won');
       assert.ok(s.phase === 'morning' || s.phase === 'verdict'); }
-    else assert.ok(m > 0 && m < al.length - m, `seed ${seed}: game should have ended`);
+    else assert.equal(winnerOf(s), null, `seed ${seed}: game should have ended`);
+    if (s.phase === 'vote' && s.silenced != null && s.alive[s.silenced]) assert.equal(s.vote!.votes[s.silenced], 'abstain', 'the silenced player cannot vote');
+    if (s.lovers) assert.notEqual(s.lovers[0], s.lovers[1]);
     // 1.3.0
     assert.ok(!(s.roles.includes('sniper') && s.roles.includes('hunter')), 'never the Sniper and the Hunter');
     if (range) assert.ok(s.roles.filter(x => x === 'mafia').length >= range.min && s.roles.filter(x => x === 'mafia').length <= range.max, 'Mafia inside the range');
-    if (s.framer !== undefined) assert.ok(s.roles[s.framer] === 'mafia' && s.framer !== s.sheikh && mode === 'shadows', 'the Framer');
-    else assert.notEqual(mode, 'shadows');
+    if (s.framer !== undefined) assert.ok(s.roles[s.framer] === 'mafia' && s.framer !== s.sheikh && hasFramer(mode, n), 'the Framer');
+    else assert.ok(!hasFramer(mode, n));
+    if (s.silencer !== undefined) assert.ok(s.roles[s.silencer] === 'mafia' && s.silencer !== s.sheikh && s.silencer !== s.framer && hasSilencer(mode, n), 'the Silencer');
+    else assert.ok(!hasSilencer(mode, n));
     if (s.phase === 'end') assert.equal(s.hunt ?? null, null);
     for (const x of s.mayors ?? []) assert.equal(s.roles[x], 'mayor');
-    const powers = ['doctor', 'bodyguard', 'detective', 'sniper', 'mafia'];
+    const powers = ['doctor', 'bodyguard', 'detective', 'sniper', 'mafia', 'killer', 'cupid'];
     if (full) for (const e of s.log) if (e.t === 'night') {
       e.read?.forEach((x, k) => { const q = e.checked[k]; assert.equal(x, (s.roles[q] === 'mafia' && q !== s.sheikh) || q === e.frame?.seat, 'a read is the truth, or the frame'); });
       if (e.frame) assert.notEqual(s.roles[e.frame.seat], 'mafia', 'never frames a teammate');
       for (const [w, t, vs] of e.watch ?? []) { assert.equal(s.roles[w], 'watcher'); assert.notEqual(w, t);
         for (const x of vs) assert.ok(x !== w && powers.includes(s.roles[x]), 'only real powers visit (no decoys)');
-        assert.ok(vs.filter(x => s.roles[x] === 'mafia' && x !== s.framer).length <= 1, 'one Mafia visits the victim (E-W1)'); }
+        assert.ok(vs.filter(x => s.roles[x] === 'mafia' && x !== s.framer && x !== s.silencer).length <= 1, 'one Mafia visits the victim (E-W1)'); }
     }
     for (const [x, q] of s.stats.hunts ?? []) { assert.equal(s.roles[x], 'hunter'); assert.equal(s.alive[q], false); assert.notEqual(x, q); }
     // the every-combination test looks at one phone a step (in turn), the random games at all of them
@@ -67,7 +83,7 @@ export function play(seed: number, fix?: Fix): { steps: number; rec: GameRecord;
     for (const [x, q] of s.stats.shots ?? []) { assert.equal(s.roles[x], 'sniper'); assert.equal(s.alive[q], false); }
     assert.ok((s.stats.shots ?? []).length <= 1, 'one bullet');
     // 1.1.0
-    assert.equal(s.rv, 2);
+    assert.equal(s.rv, rv);
     const nights = s.log.filter(e => e.t === 'night');
     if (nights[0]?.t === 'night') assert.equal(nights[0].shot, undefined, 'no shot on night 1');
     const checked = nights.flatMap(e => (e.t === 'night' ? e.checked : []));
@@ -101,7 +117,11 @@ export function play(seed: number, fix?: Fix): { steps: number; rec: GameRecord;
       if (no.skip) opts.push('skip');
       assert.ok(no.key === 'none' || opts.length, `seed ${seed}: seat ${p} (${s.roles[p]}) has nothing to pick`);
       const extra = { ...(no.frame && chance(.9) ? { frame: chance(.2) || !no.frame.length ? null : pick(no.frame) } : {}), ...(no.reveal && chance(.1) ? { reveal: true } : {}) };
-      go({ t: 'night', seat: p, choice: no.key === 'none' ? null : pick(opts), day: s.day, ...extra });
+      // 1.4.0: the Silencer's pick; Cupid's second lover (drawn after his first, so the older games draw as before)
+      const sil = no.silence && chance(.9) ? { silence: chance(.2) || !no.silence.length ? null : pick(no.silence) } : {};
+      const choice = no.key === 'none' ? null : pick(opts);
+      const pair = no.key === 'cupid' ? { pair: pick(opts.filter(o => o !== choice) as number[]) } : {};
+      go({ t: 'night', seat: p, choice, day: s.day, ...extra, ...sil, ...pair });
     } else if (s.phase === 'morning') go({ t: 'startDay' });
     else if (s.phase === 'day') {
       if (chance(.3)) go({ t: 'decide', choice: chance(.3) ? 'none' : pick(alive(s)) });

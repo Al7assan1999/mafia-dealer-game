@@ -15,7 +15,7 @@ const M = 'mafia', D = 'doctor', T = 'detective', C = 'citizen', S = 'sniper', B
 /** A recorded 1.1.0 game with exactly these roles (the deck the mode deals) and this Sheikh, in night 1. */
 function deal(roles: Role[], sheikh: number, mode: Mode, rules: Partial<Rules> = {}) {
   const names = roles.map((_, i) => 'P' + (i + 1));
-  const c = createGame({ names, counts: { mafia: 1, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode, bodyguard: roles.includes(B) }, seeded(1));
+  const c = createGame({ names, counts: { mafia: 1, doctor: 1, detective: 0 }, rules: { ...DEFAULT_RULES, reveal: true, ...rules }, mode, bodyguard: roles.includes(B), legacy: true }, seeded(1));  // 1.1.0 rules (rv 2), as written
   assert.ok(c.ok, !c.ok ? c.error : '');
   const deck = (x: Role[]) => [...x].sort().join();
   assert.equal(deck(c.state.roles), deck(roles), 'the scripted roles are the deck this mode deals');
@@ -171,11 +171,11 @@ test('S18-4: the Bodyguard mode, the Sniper and Jester modes\' optional Bodyguar
   const none = { mafia: 1, doctor: 1, detective: 0 };
   assert.deepEqual(modeCounts('bodyguard', 8, none), { mafia: 2, doctor: 1, detective: 1, sniper: 0, jester: 0, bodyguard: 1 });
   assert.deepEqual(modeCounts('sniper', 8, none, true), { mafia: 2, doctor: 1, detective: 1, sniper: 1, jester: 0, bodyguard: 1 });
-  assert.deepEqual(modeCounts('jester', 6, none, true), { mafia: 2, doctor: 1, detective: 1, sniper: 0, jester: 1, bodyguard: 1 });
+  assert.deepEqual(modeCounts('jester', 6, none, true, {}, true), { mafia: 2, doctor: 1, detective: 1, sniper: 0, jester: 1, bodyguard: 1 });
   assert.deepEqual(modeCounts('sniper', 8, none), { mafia: 2, doctor: 1, detective: 1, sniper: 1, jester: 0 });
   assert.deepEqual(modeCounts('classic', 8, none, true), { mafia: 1, doctor: 1, detective: 0 });
   const names = (n: number) => Array.from({ length: n }, (_, i) => 'N' + i);
-  const k = (m: Mode, n: number) => { const c = createGame({ names: names(n), counts: none, rules: DEFAULT_RULES, mode: m, bodyguard: true }, seeded(n)); assert.ok(c.ok); return c.state.roles.filter(x => x === B).length; };
+  const k = (m: Mode, n: number) => { const c = createGame({ names: names(n), counts: none, rules: DEFAULT_RULES, mode: m, bodyguard: true, legacy: true }, seeded(n)); assert.ok(c.ok); return c.state.roles.filter(x => x === B).length; };
   assert.deepEqual([k('bodyguard', 6), k('all', 9), k('sniper', 6), k('jester', 7), k('classic', 6)], [1, 1, 1, 1, 0]);
   assert.equal(createGame({ names: names(5), counts: none, rules: DEFAULT_RULES, mode: 'bodyguard' }, seeded(1)).ok, false);
 });

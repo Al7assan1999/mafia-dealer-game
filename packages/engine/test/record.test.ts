@@ -51,10 +51,19 @@ test('records from 1.2 (before the Hunter, the Mayor, the Framer and the Watcher
   old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
 });
 
+test('records from 1.3 (rv 2: before the Serial Killer, Cupid, the Silencer and the Mafia ranges of the old modes) still replay', () => {
+  const old: GameRecord[] = JSON.parse(readFileSync(new URL('../fixtures/records-1.3.json', import.meta.url), 'utf8'));
+  assert.equal(old.length, SEEDS);
+  assert.ok(old.every(r => r.rv === 2 && !('silencer' in r)));
+  old.forEach((r, i) => { const x = replay(r); assert.ok(x.ok, `game ${i + 1}: ${!x.ok && x.error}`); });
+});
+
 test('the shared games cover every mode and every 1.0.0 ending', () => {
   const saved: GameRecord[] = JSON.parse(readFileSync(FILE, 'utf8'));
-  for (const m of ['classic', 'sniper', 'jester', 'bodyguard', 'all', 'avenger', 'shadows']) assert.ok(saved.some(r => r.mode === m), 'mode ' + m);
-  assert.ok(saved.every(r => r.rv === 2), 'every new game is a 1.1.0 game');
+  for (const m of ['classic', 'sniper', 'jester', 'bodyguard', 'all', 'avenger', 'shadows', 'lovers', 'lonewolves']) assert.ok(saved.some(r => r.mode === m), 'mode ' + m);
+  // [Quin Q1] a deal 1.3.x could have made stays rv 2; the new modes and the new counts are rv 3
+  assert.ok(saved.every(r => r.rv === 2 || r.rv === 3) && saved.some(r => r.rv === 2) && saved.some(r => r.rv === 3), 'both rule versions');
+  assert.ok(saved.every(r => r.rv === 3 || (r.mode !== 'lovers' && r.mode !== 'lonewolves')), 'the new modes are always rv 3');
   assert.ok(saved.some(r => r.log.some(e => e.t === 'night' && e.guard?.length)), 'a Bodyguard on guard');
   for (const w of ['mafia', 'citizens']) assert.ok(saved.some(r => r.winner === w), 'winner ' + w);  // the Jester's win: roles.test.ts
   assert.ok(saved.some(r => r.log.some(e => e.t === 'night' && e.shot != null)), 'a Sniper shot');
