@@ -129,6 +129,13 @@ class Audio {
     say([...lead, 'v_laugh'], delay: 1.3, at: (i) { if (i == lead.length) arm(.3); });
   }
 
+  /// [S21] the Serial Killer, the Lovers or a draw: no voice for them yet: the death that ended it, then the result on screen
+  void otherWin(List<String?> lead, void Function(double) arm) {
+    sfx('verdict');
+    arm(lead.isEmpty ? 1 : 4);
+    if (lead.isNotEmpty) say(lead, delay: 1.3, at: (i) { if (i == lead.length - 1) arm(.6); });
+  }
+
   void mafiaWin(List<String> mafia, List<String?> lead, void Function(double) arm) {
     lead.isNotEmpty ? sfx('verdict') : sfx('mafia_win');
     arm(2);

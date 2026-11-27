@@ -1691,5 +1691,71 @@
     "placeholders": {
       "n": {}
     }
-  }
+  },
+  "killer": "Serial Killer",
+  "cupid": "Cupid",
+  "silencer": "Silencer",
+  "dKiller": "Alone: each night you kill one player. You win when you are the last one standing, or one of two with a non-Mafia",
+  "dCupid": "On the first night, link two players: if one dies, so does the other",
+  "dSilencer": "A Mafia who also picks one player each night: they can't vote tomorrow",
+  "oneSilencer": "one is the Silencer",
+  "silencerIs": "The Silencer: {n}",
+  "@silencerIs": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "sideKiller": "On nobody's side · you win when you are the last one standing",
+  "aKiller": "Whom do you kill tonight?",
+  "aKillerD": "You kill alone. The Doctor and the Bodyguard can stop you.",
+  "aCupid": "Link two lovers",
+  "aCupidD": "Pick two players (you may pick yourself). If one dies, the other dies of a broken heart.",
+  "loverTag": "Lover",
+  "silenceTitle": "Silence someone",
+  "silenceD": "They can't vote tomorrow, and everyone will know",
+  "noSilence": "Nobody tonight",
+  "silencedToday": "{n} can't vote today",
+  "@silencedToday": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "youSilenced": "You can't vote today",
+  "silencedTag": "can't vote",
+  "loverTown": "Your lover: {n} (town side)",
+  "@loverTown": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "loverMafia": "Your lover: {n} (Mafia side)",
+  "@loverMafia": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "loverWin": "A mixed couple wins only as the last two alive",
+  "heartDied": "{n} died of a broken heart",
+  "@heartDied": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "winKiller": "The Serial Killer wins",
+  "winLovers": "The Lovers win",
+  "winDraw": "It's a draw",
+  "mvpKiller": "Outlived everyone",
+  "mvpLovers": "Survived together",
+  "modeLovers": "Lovers",
+  "mLovers": "Cupid links two players: if one dies, both die; the Hunter from 9 players",
+  "modeLonewolves": "Lone Wolves",
+  "mLonewolves": "A Serial Killer against everyone; the Silencer from 11 players",
+  "hSk": " · the Serial Killer killed {n}",
+  "@hSk": {
+    "placeholders": {
+      "n": {}
+    }
+  },
+  "gEndings": "the town wins when every Mafia and the Serial Killer are out. The Mafia win when they are as many as everyone else. The Serial Killer wins when he is alone, or one of two with a non-Mafia (with one Mafia it is a draw). A mixed couple wins when they are the last two.",
+  "gEndingsT": "Who wins"
 }

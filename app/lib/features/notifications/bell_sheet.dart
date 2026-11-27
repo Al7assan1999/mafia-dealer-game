@@ -112,7 +112,7 @@ class _WifiNoteState extends State<_WifiNote> {
     final l = L.of(context), n = widget.note, w = n.wifi!, a = widget.account;
     // [QA] U1: day and year in Western digits, like every other number in the app (Arabic's date format uses ٢٣)
     final d = DateTime.fromMillisecondsSinceEpoch(w['playedAt'] as int), date = '${d.day} ${DateFormat.MMMM(Localizations.localeOf(context).languageCode).format(d)} ${d.year}';
-    final winner = winText(l, w['winner']), role = w['role2'] ?? w['role']; // [S20] role2: the real role (role: one a 1.2 app knows)
+    final winner = winText(l, winnerIn(w)), role = w['role2'] ?? w['role']; // [S21] winner2: the real result // [S20] role2: the real role (role: one a 1.2 app knows)
     if (n.kind == 'wifi_result') {
       final ok = w['status'] == 'approved';
       return ListTile(key: Key('note_${n.id}'), contentPadding: EdgeInsets.zero,

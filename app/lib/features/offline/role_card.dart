@@ -8,11 +8,13 @@ import 'package:mafia_dealer/l10n/app_localizations.dart';
 /// The button waits for one look. Used offline (pass the phone) and online (my own phone).
 class RoleCard extends StatefulWidget {
   const RoleCard({super.key, required this.name, required this.role, required this.mates, required this.done, required this.onDone, this.extra = const [], this.foot,
-      this.sheikh, this.isSheikh = false, this.framer, this.isFramer = false});
+      this.sheikh, this.isSheikh = false, this.framer, this.isFramer = false, this.silencer, this.isSilencer = false});
   final String? sheikh; // [S17] Mafia: the Godfather's name (another Mafia)
   final bool isSheikh; // this player is the Godfather
   final String? framer; // [S20] Mafia: the Framer's name (another Mafia)
   final bool isFramer; // this player is the Framer
+  final String? silencer; // [S21] Mafia: the Silencer's name (another Mafia)
+  final bool isSilencer; // this player is the Silencer
   final String? foot; // [S14-6] "Round 1 · 6/6 alive" under the card
   final String name, done;
   final Role role;
@@ -38,7 +40,7 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final l = L.of(context), role = widget.role;
-    final desc = widget.isSheikh ? l.youSheikh : widget.isFramer ? l.dFramer : roleDesc(l, role);
+    final desc = widget.isSheikh ? l.youSheikh : widget.isFramer ? l.dFramer : widget.isSilencer ? l.dSilencer : roleDesc(l, role);
     return Stage(card: true, foot: widget.foot, bottom: [
       Btn(widget.done, key: const Key('memorized'), ghost: true, onTap: seen && !show ? widget.onDone : null), // outlined, as the old app
       ...widget.extra,
@@ -73,7 +75,7 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
                         decoration: BoxDecoration(color: _ink(role).withValues(alpha: .12), borderRadius: BorderRadius.circular(C.neon ? 14 : 3)),
                         child: Icon(roleIcon(role), size: 28, color: _ink(role))),
                     const SizedBox(height: 10),
-                    Text(seatRole(l, role, widget.isSheikh, framer: widget.isFramer), key: const Key('roleName'), style: head.copyWith(fontSize: 38, color: _ink(role))),
+                    Text(seatRole(l, role, widget.isSheikh, framer: widget.isFramer, silencer: widget.isSilencer), key: const Key('roleName'), style: head.copyWith(fontSize: 38, color: _ink(role))),
                     const SizedBox(height: 8),
                     Text(desc, textAlign: TextAlign.center, style: TextStyle(color: C.neon ? C.mute : const Color(0xFF3A342C), fontSize: 15)),
                     Padding(padding: const EdgeInsets.only(top: 6), child: Text(sideLine(l, role), key: const Key('sideLine'), textAlign: TextAlign.center,
@@ -84,6 +86,8 @@ class _RoleCardState extends State<RoleCard> with WidgetsBindingObserver {
                         child: Text(l.sheikhIs(widget.sheikh!), key: const Key('sheikhIs'), textAlign: TextAlign.center, style: TextStyle(color: C.red, fontWeight: FontWeight.w700))),
                     if (widget.framer != null) Padding(padding: const EdgeInsets.only(top: 4),
                         child: Text(l.framerIs(widget.framer!), key: const Key('framerIs'), textAlign: TextAlign.center, style: TextStyle(color: C.red, fontWeight: FontWeight.w700))),
+                    if (widget.silencer != null) Padding(padding: const EdgeInsets.only(top: 4),
+                        child: Text(l.silencerIs(widget.silencer!), key: const Key('silencerIs'), textAlign: TextAlign.center, style: TextStyle(color: C.red, fontWeight: FontWeight.w700))),
                   ]))))),
                 ])
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [

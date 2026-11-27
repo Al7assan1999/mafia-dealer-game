@@ -42,7 +42,7 @@ class _HistoryState extends State<HistoryScreen> {
   void _loadOld() {
     widget.account.oldGames().then((o) {
       final mine = [for (final x in o) if (x['seat'] is int) {
-        'id': x['id'], 'winner': x['winner'], 'days': x['days'], 'valid': x['valid'], 'playedAt': x['playedAt'], 'names': x['names'],
+        'id': x['id'], 'winner': winnerIn(x), 'days': x['days'], 'valid': x['valid'], 'playedAt': x['playedAt'], 'names': x['names'],
         'role': (x['roles'] as List)[x['seat'] as int], 'players': (x['names'] as List).length, 'old': x}];
       if (mounted) setState(() { oldFailed = false; old = mine; });
     })
@@ -103,7 +103,8 @@ class _HistoryState extends State<HistoryScreen> {
     final s = r.state!, my = g['mySeat'] as int? ?? -1;
     return {
       'winner': s.winner?.name, 'days': s.day, 'valid': true, 'host': false, 'log': s.log.map((e) => e.toJson()).toList(), 'stats': {'first': s.stats.first, 'kills': s.stats.kills, 'outs': s.stats.outs, 'saves': s.stats.saves, 'caught': [for (final (d, m) in s.stats.caught) [d, m]],
-        'guards': [for (final (b, q) in s.stats.guards) [b, q]], 'hunts': [for (final (h, q) in s.stats.hunts) [h, q]]}, 'sheikh': s.sheikh, 'framer': s.framer,
+        'guards': [for (final (b, q) in s.stats.guards) [b, q]], 'hunts': [for (final (h, q) in s.stats.hunts) [h, q]],
+        if (s.stats.lovers != null) 'lovers': [s.stats.lovers!.$1, s.stats.lovers!.$2]}, 'sheikh': s.sheikh, 'framer': s.framer,
       'players': [for (var i = 0; i < s.names.length; i++) {'seat': i, 'name': s.names[i], 'role': s.roles[i].name, 'alive': s.alive[i]}],
       'mine': my >= 0 && my < s.roles.length ? s.roles[my].name : null,
     };
@@ -144,8 +145,8 @@ class _HistoryState extends State<HistoryScreen> {
               for (final g in shown)
                 Card(color: C.card, child: ListTile(
                   key: Key('game_${g['id']}'),
-                  leading: Icon(winIcon(g['winner']), color: winColor(g['winner'])),
-                  title: Text(winText(l, g['winner'])),
+                  leading: Icon(winIcon(winnerIn(g)), color: winColor(winnerIn(g))),
+                  title: Text(winText(l, winnerIn(g))),
                   subtitle: Text('${l.youPlayed(roleName(l, roleIn(g)))} · ${l.rcSub(g['players'] as int, g['days'] as int)}'
                       '${g['valid'] == true ? '' : ' · ${l.invalid}'}${g['old'] is Map ? ' · ${l.tabOld}${switch ((g['old'] as Map)['status']) { 'waiting' => ' · ${l.oldWaiting}', 'test' => ' · ${l.oldTestGame}', _ => '' }}' : ''}', style: TextStyle(color: C.mute)),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => g['old'] is Map ? OldDetail(g: Map<String, Object?>.from(g['old'] as Map))

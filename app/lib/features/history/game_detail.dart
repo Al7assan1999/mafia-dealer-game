@@ -26,8 +26,9 @@ class _GameDetailState extends State<GameDetail> {
     final stats = Stats(first: st['first'] as int?, kills: ((st['kills'] as List?) ?? []).cast<int>(), outs: ((st['outs'] as List?) ?? []).cast<int>(),
         saves: ((st['saves'] as List?) ?? []).cast<int>(), caught: [for (final p in ((st['caught'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
         guards: [for (final p in ((st['guards'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
-        hunts: [for (final p in ((st['hunts'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)]);
-    return mvp(Winner.values.asNameMap()[game['winner']] ?? Winner.citizens, [for (final p in ps) roleIn(p)], [for (final p in ps) p['alive'] == true], stats);
+        hunts: [for (final p in ((st['hunts'] as List?) ?? [])) ((p as List)[0] as int, p[1] as int)],
+        lovers: st['lovers'] is List ? ((st['lovers'] as List)[0] as int, (st['lovers'] as List)[1] as int) : null);
+    return mvp(Winner.values.asNameMap()[winnerIn(game)] ?? Winner.citizens, [for (final p in ps) roleIn(p)], [for (final p in ps) p['alive'] == true], stats);
   }
 
   Map<String, Object?>? g;
@@ -48,18 +49,24 @@ class _GameDetailState extends State<GameDetail> {
               'kill' => l.hKill(name[(e['mafia'] as Map)['seat']] ?? '?'), 'saved' => l.hSaved(name[(e['mafia'] as Map)['seat']] ?? '?'),
               'skip' => l.hSkip, _ => l.hNoMafia } + (e['shot'] is int ? l.hShot(name[e['shot']] ?? '?') : '') +
               // [S18 P2] whom the Bodyguard guarded
-              [for (final q in (e['guard'] as List? ?? const [])) l.hGuard(name[q] ?? '?')].join(),
-          'day' => l.hDay(e['day'] as int) + (e['out'] != null ? l.hOut(name[e['out']] ?? '?') : l.hNone),
+              [for (final q in (e['guard'] as List? ?? const [])) l.hGuard(name[q] ?? '?')].join() +
+              // [S21] the Serial Killer's kill, broken hearts
+              ((e['sk'] as Map?)?['k'] == 'kill' ? l.hSk(name[(e['sk'] as Map)['seat']] ?? '?') : '') +
+              [for (final q in (e['hearts'] as List? ?? const [])) ' · ${l.heartDied(name[q] ?? '?')}'].join(),
+          'day' => l.hDay(e['day'] as int) + (e['out'] != null ? l.hOut(name[e['out']] ?? '?') : l.hNone) +
+              [for (final q in (e['hearts'] as List? ?? const [])) ' · ${l.heartDied(name[q] ?? '?')}'].join(),
           'removed' => l.hRemoved(name[e['seat']] ?? '?'),
           // [S20] the Hunter's shot, a Mayor's reveal
-          'hunt' => e['target'] is int ? l.huntShot(name[e['seat']] ?? '?', name[e['target']] ?? '?') : l.huntHeld(name[e['seat']] ?? '?'),
+          'hunt' => (e['target'] is int ? l.huntShot(name[e['seat']] ?? '?', name[e['target']] ?? '?') : l.huntHeld(name[e['seat']] ?? '?')) +
+              [for (final q in (e['hearts'] as List? ?? const [])) ' · ${l.heartDied(name[q] ?? '?')}'].join(),
           'reveal' => l.mayorIs(name[e['seat']] ?? '?'),
           _ => '',
         };
     final sheikh = (game['sheikh'] ?? (game['record'] as Map?)?['sheikh']) as int?;
     final framer = (game['framer'] ?? (game['record'] as Map?)?['framer']) as int?;
+    final silencer = (game['silencer'] ?? (game['record'] as Map?)?['silencer']) as int?; // [Quin Q9]
     return Scaffold(
-      appBar: AppBar(title: Text(winText(l, game['winner']), style: head.copyWith(fontSize: 20)), actions: [
+      appBar: AppBar(title: Text(winText(l, winnerIn(game)), style: head.copyWith(fontSize: 20)), actions: [
         // [Quin Q7] only a player of this game (the admin also opens others' games from the box)
         if (widget.local == null && widget.account.signedIn && (game['players'] as List).any((p) => (p as Map)['userId'] == widget.account.me?['id'])) IconButton(key: const Key('reportGame'), tooltip: l.fbReportGame, icon: Icon(Icons.bug_report_outlined, color: C.mute),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeedbackScreen(account: widget.account, gameId: widget.id)))),
@@ -95,7 +102,7 @@ class _GameDetailState extends State<GameDetail> {
               child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
                 Icon(roleIcon(roleIn(p)), size: 18, color: roleColor(roleIn(p))), const SizedBox(width: 8),
                 Expanded(child: Text(p['name'] as String, style: TextStyle(decoration: p['alive'] == true ? null : TextDecoration.lineThrough))),
-                Text(seatRole(l, roleIn(p), p['seat'] == sheikh, framer: p['seat'] == framer)),
+                Text(seatRole(l, roleIn(p), p['seat'] == sheikh, framer: p['seat'] == framer, silencer: p['seat'] == silencer)),
               ])),
             ),
         ])),

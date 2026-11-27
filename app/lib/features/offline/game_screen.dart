@@ -30,6 +30,8 @@ class _GameScreenState extends State<GameScreen> {
   bool _deciding = false; // the day: the town chose "decide together" (the pick list shows)
   Object? _frame; // [S20] the Framer's frame tonight: a seat, 'none', or null (not chosen yet)
   bool _reveal = false; // [S20] a Mayor: reveal me in the morning
+  Object? _silence; // [S21] the Silencer's pick: a seat, 'none', or null (not chosen yet)
+  int? _pair; // [S21] Cupid's second lover
 
   @override
   void initState() {
@@ -55,7 +57,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _do(VoidCallback f) { f(); _pick = null; _deciding = false; _frame = null; _reveal = false; }
+  void _do(VoidCallback f) { f(); _pick = null; _deciding = false; _frame = null; _reveal = false; _silence = null; _pair = null; }
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -76,6 +78,8 @@ class _GameScreenState extends State<GameScreen> {
             sheikh: switch (g.view(g.who).sheikh) { final sh? when sh != g.who => _name(sh), _ => null },
             isFramer: g.view(g.who).framer == g.who,
             framer: switch (g.view(g.who).framer) { final f? when f != g.who => _name(f), _ => null },
+            isSilencer: g.view(g.who).silencer == g.who,
+            silencer: switch (g.view(g.who).silencer) { final f? when f != g.who => _name(f), _ => null },
             onDone: () => g.dealDone(g.who)),
         Screen.nightPass => _pass(l, l.open(_name(g.who)), () => g.nightOpen(g.who), color: C.night, top: l.night(g.s.day), glyph: Icons.nightlight_outlined),
         Screen.nightPick => _nightPick(l),
@@ -129,6 +133,8 @@ class _GameScreenState extends State<GameScreen> {
   Widget _nightPick(L l) {
     final seat = g.who, v = g.view(seat), no = v.night!, role = g.s.roles[seat];
     if (_frame is int && !(no.frame?.contains(_frame) ?? false)) _frame = null; // [Quin Q5] a frame left from an earlier turn
+    if (_silence is int && !(no.silence?.contains(_silence) ?? false)) _silence = null;
+    final cupid = no.key == 'cupid';
     final none = no.key == 'none', sniper = no.key == 'sniper';
     // [S18] a Detective who has checked everyone; a Sniper on night 1 (his bullet is ready from night 2)
     final night1 = role == Role.sniper && (no.key == 'citizen' || none) && g.s.day == 1 && g.s.rv != null; // [Quin Q4] decoy off: 'none'
@@ -137,9 +143,13 @@ class _GameScreenState extends State<GameScreen> {
         : none && role == Role.detective ? (l.allChecked, l.allCheckedD) : nightText(l, no.key);
     return Stage(card: true, foot: _foot(L.of(context)), color: C.night, center: false, bottom: [
       // [Quin Q5] the Framer chooses a frame or "No frame" too before he can confirm
-      Btn(l.confirm, key: const Key('confirm'), onTap: (none || _pick != null) && (no.frame == null || _frame != null) ? () {
-        final c = none ? null : _pick, f = _frame, rv = _reveal;
-        if (none || c != null) _do(() => g.nightPick(seat, c, frame: f is int ? f : null, hasFrame: no.frame != null, reveal: no.reveal ? rv : null));
+      Btn(l.confirm, key: const Key('confirm'), onTap: (none || _pick != null) && (no.frame == null || _frame != null) && (no.silence == null || _silence != null) &&
+          (!cupid || _pair != null) ? () {
+        final c = none ? null : _pick, f = _frame, rv = _reveal, sl = _silence, pr = _pair;
+        if (none || c != null) {
+          _do(() => g.nightPick(seat, c, frame: f is int ? f : null, hasFrame: no.frame != null, reveal: no.reveal ? rv : null,
+              silence: sl is int ? sl : null, hasSilence: no.silence != null, pair: cupid ? pr : null));
+        }
       } : null),
     ], children: [
       Row(children: [
@@ -159,7 +169,16 @@ class _GameScreenState extends State<GameScreen> {
             style: TextStyle(color: C.mute, fontSize: 13))),
       if (g.s.night.endsAt != 0) _nightClock(l),
       const SizedBox(height: 16),
-      if (!none)
+      // [S21] Cupid picks two: a tap adds or removes a lover
+      if (cupid)
+        for (final o in no.opts)
+          PickRow(key: Key('opt_${o.seat}'), label: _name(o.seat), seat: o.seat, on: _pick == o.seat || _pair == o.seat,
+              tags: [if (o.self) l.you, if (_pick == o.seat || _pair == o.seat) l.loverTag],
+              onTap: () => setState(() {
+                final j = o.seat;
+                if (_pick == j) { _pick = _pair; _pair = null; } else if (_pair == j) { _pair = null; } else if (_pick == null) { _pick = j; } else { _pair = j; }
+              }))
+      else if (!none)
         for (final o in no.opts)
           _option(_name(o.seat), o.seat, disabled: o.disabled,
               accent: o.teammate || o.check == true ? C.red2 : o.check == false ? C.green : null, tags: [
@@ -185,6 +204,19 @@ class _GameScreenState extends State<GameScreen> {
         for (final j in fr) PickRow(key: Key('frame_$j'), label: _name(j), seat: j, on: _frame == j, onTap: () => setState(() => _frame = j)),
         PickRow(key: const Key('frame_none'), label: l.noFrame, on: _frame == 'none', onTap: () => setState(() => _frame = 'none')),
       ],
+      // [S21] the Silencer: who can't vote tomorrow (a pick or "Nobody" before Confirm)
+      if (no.silence case final sl?) ...[
+        const SizedBox(height: 14),
+        Text(l.silenceTitle, style: head.copyWith(fontSize: 20)),
+        Text(l.silenceD, style: TextStyle(color: C.mute)),
+        const SizedBox(height: 8),
+        for (final j in sl) PickRow(key: Key('silence_$j'), label: _name(j), seat: j, on: _silence == j, onTap: () => setState(() => _silence = j)),
+        PickRow(key: const Key('silence_none'), label: l.noSilence, on: _silence == 'none', onTap: () => setState(() => _silence = 'none')),
+      ],
+      // [S21] a lover learns the other (name and side, R4) on their next turn
+      if (v.lover case final lv?) Padding(padding: const EdgeInsets.only(top: 12), child: Text(
+          '${lv.side == 'mafia' ? l.loverMafia(_name(lv.seat)) : l.loverTown(_name(lv.seat))}${(lv.side == 'mafia') != (role == Role.mafia) ? ' · ${l.loverWin}' : ''}',
+          key: const Key('loverNews'), style: TextStyle(color: roleColor(Role.cupid)))),
       // [S20, R3] pass-and-play: the Mayor reveals himself from his own turn, in the morning
       if (no.reveal) Material(type: MaterialType.transparency, child: SwitchListTile(key: const Key('revealTomorrow'), contentPadding: EdgeInsets.zero, value: _reveal,
           activeThumbColor: roleColor(Role.mayor), onChanged: (b) => setState(() => _reveal = b), title: Text(l.revealTomorrow, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -241,7 +273,7 @@ class _GameScreenState extends State<GameScreen> {
         Text(m.dead2 != null ? l.diedIs : sniper ? l.diedOne : l.victimIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         for (final x in [d, ?m.dead2]) ...[
           Big(_name(x), size: 42, color: C.red2),
-          if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[x], x == g.s.sheikh)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+          if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[x], x == g.s.sheikh, framer: x == g.s.framer, silencer: x == g.s.silencer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
         ],
       ] else if (m.saved != null) ...[
         Text(l.savedIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
@@ -254,8 +286,25 @@ class _GameScreenState extends State<GameScreen> {
             style: head.copyWith(fontSize: 20, color: roleColor(Role.mayor)))),
       if (hunt != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(l.huntAim(_name(hunt.seat)), key: const Key('huntAim'), textAlign: TextAlign.center,
           style: head.copyWith(fontSize: 18, color: roleColor(Role.hunter)))),
+      // [S21] a third death and on, the broken hearts, who can't vote today
+      for (final x in (m.deaths ?? const <int>[]).skip(2)) ...[
+        Big(_name(x), size: 42, color: C.red2),
+        if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[x], x == g.s.sheikh, framer: x == g.s.framer, silencer: x == g.s.silencer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+      ],
+      ..._hearts(l, m.hearts ?? const []),
+      if (g.s.silenced case final sd?) Padding(padding: const EdgeInsets.only(top: 14), child: Text(l.silencedToday(_name(sd)), key: const Key('silencedToday'),
+          textAlign: TextAlign.center, style: head.copyWith(fontSize: 18, color: C.gold))),
     ]);
   }
+
+  /// [S21] "X died of a broken heart", with the role when the rule shows it
+  List<Widget> _hearts(L l, List<int> hearts) => [
+        for (final x in hearts) ...[
+          Padding(padding: const EdgeInsets.only(top: 14), child: Text(l.heartDied(_name(x)), key: Key('heart_$x'), textAlign: TextAlign.center,
+              style: head.copyWith(fontSize: 20, color: roleColor(Role.cupid)))),
+          if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[x], x == g.s.sheikh, framer: x == g.s.framer, silencer: x == g.s.silencer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        ],
+      ];
 
   // ---------------------------------------------------------------- [S20] the Hunter
   Widget _huntPick(L l) {
@@ -283,7 +332,8 @@ class _GameScreenState extends State<GameScreen> {
       GlyphBox(Icons.my_location, color: roleColor(Role.hunter)),
       const SizedBox(height: 16),
       Big(t != null ? l.huntShot(_name(h.seat), _name(t)) : l.huntHeld(_name(h.seat)), color: t != null ? C.red2 : null),
-      if (t != null && g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[t], t == g.s.sheikh, framer: t == g.s.framer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+      if (t != null && g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[t], t == g.s.sheikh, framer: t == g.s.framer, silencer: t == g.s.silencer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+      ..._hearts(l, h.hearts ?? const []),
     ]);
   }
 
@@ -326,7 +376,7 @@ class _GameScreenState extends State<GameScreen> {
         for (var i = 0; i < g.n; i++)
           Chip(
             key: Key('roster_$i'),
-            label: Text(g.s.alive[i] ? [_name(i), if (g.s.mayors.contains(i)) l.mayorTag].join(' · ') : '${_name(i)} · ${g.s.rules.reveal ? seatRole(l, g.s.roles[i], i == g.s.sheikh, framer: i == g.s.framer) : l.outTag}',
+            label: Text(g.s.alive[i] ? [_name(i), if (g.s.mayors.contains(i)) l.mayorTag, if (g.s.silenced == i) l.silencedTag].join(' · ') : '${_name(i)} · ${g.s.rules.reveal ? seatRole(l, g.s.roles[i], i == g.s.sheikh, framer: i == g.s.framer, silencer: i == g.s.silencer) : l.outTag}',
                 style: TextStyle(color: g.s.alive[i] ? C.text : C.dim, decoration: g.s.alive[i] ? null : TextDecoration.lineThrough)),
             backgroundColor: g.s.alive[i] ? C.card2 : C.bg, side: BorderSide(color: C.line),
           ),
@@ -358,7 +408,8 @@ class _GameScreenState extends State<GameScreen> {
       if (v.out != null) ...[
         Text(l.outIs, textAlign: TextAlign.center, style: TextStyle(color: C.mute, fontSize: 16)),
         Big(_name(v.out!), size: 42, color: C.red2),
-        if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[v.out!], v.out == g.s.sheikh, framer: v.out == g.s.framer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        if (g.s.rules.reveal) Text(l.wasRole(seatRole(l, g.s.roles[v.out!], v.out == g.s.sheikh, framer: v.out == g.s.framer, silencer: v.out == g.s.silencer)), textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+        ..._hearts(l, g.s.log.whereType<DayLog>().lastOrNull?.hearts ?? const []),
         if (hunt != null) Padding(padding: const EdgeInsets.only(top: 14), child: Text(l.huntAim(_name(hunt.seat)), key: const Key('huntAim'), textAlign: TextAlign.center,
             style: head.copyWith(fontSize: 18, color: roleColor(Role.hunter)))),
       ] else
@@ -379,8 +430,8 @@ class _GameScreenState extends State<GameScreen> {
   // ---------------------------------------------------------------- end
   Widget _end(L l) {
     if (!g.revealed) return _suspense(l, l.gameOver, C.glory, Icons.emoji_events_outlined);
-    final s = g.s, mafia = s.winner == Winner.mafia, best = mvp(s.winner!, s.roles, s.alive, s.stats);
-    return Stage(color: mafia ? C.blood : C.glory, center: false, bottom: [
+    final s = g.s, best = mvp(s.winner!, s.roles, s.alive, s.stats);
+    return Stage(color: winStage(s.winner!), center: false, bottom: [
       Btn('${l.playAgain} · ${l.sameNew}', key: const Key('playAgain'), icon: Icons.replay, onTap: () {
         final n = g.playAgain();
         if (n != null) setState(() => g = n);
@@ -395,7 +446,7 @@ class _GameScreenState extends State<GameScreen> {
       ]),
     ], children: [
       // [S15-4] the old app's recap card
-      RecapCard(winner: s.winner!, days: s.day, sheikh: s.sheikh, framer: s.framer, took: {for (final x in s.stats.guards) x.$1}, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
+      RecapCard(winner: s.winner!, days: s.day, sheikh: s.sheikh, framer: s.framer, silencer: s.silencer, took: {for (final x in s.stats.guards) x.$1}, players: [for (var i = 0; i < g.n; i++) (name: _name(i), role: s.roles[i], alive: s.alive[i])],
           best: best == null ? null : (name: _name(best.seat), role: s.roles[best.seat], why: mvpWhy(l, best.why, best.n)),
           lines: [for (final e in s.log) if (_line(l, e) case final t?) (night: e is NightLog, text: t)]),
       const SizedBox(height: 12),
@@ -404,12 +455,15 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   String? _line(L l, GameEvent e) => switch (e) {
-        NightLog(:final day, :final k, :final seat, :final shot, :final guard) => l.hNight(day) +
+        NightLog(:final day, :final k, :final seat, :final shot, :final guard, :final sk, :final hearts) => l.hNight(day) +
             switch (k) { 'kill' => l.hKill(_name(seat!)), 'saved' => l.hSaved(_name(seat!)), 'skip' => l.hSkip, _ => l.hNoMafia } +
-            (shot != null ? l.hShot(_name(shot)) : '') + [for (final q in guard ?? const <int>[]) l.hGuard(_name(q))].join(), // [S18 P2]
-        DayLog(:final day, :final out) => l.hDay(day) + (out != null ? l.hOut(_name(out)) : l.hNone),
+            (shot != null ? l.hShot(_name(shot)) : '') + [for (final q in guard ?? const <int>[]) l.hGuard(_name(q))].join() + // [S18 P2]
+            (sk?.k == 'kill' ? l.hSk(_name(sk!.seat!)) : '') + [for (final q in hearts ?? const <int>[]) ' · ${l.heartDied(_name(q))}'].join(), // [S21]
+        DayLog(:final day, :final out, :final hearts) => l.hDay(day) + (out != null ? l.hOut(_name(out)) : l.hNone) +
+            [for (final q in hearts ?? const <int>[]) ' · ${l.heartDied(_name(q))}'].join(),
         RemovedLog(:final seat) => l.hRemoved(_name(seat)),
-        HuntLog(:final seat, :final target) => target != null ? l.huntShot(_name(seat), _name(target)) : l.huntHeld(_name(seat)), // [S20]
+        HuntLog(:final seat, :final target, :final hearts) => (target != null ? l.huntShot(_name(seat), _name(target)) : l.huntHeld(_name(seat))) + // [S20]
+            [for (final q in hearts ?? const <int>[]) ' · ${l.heartDied(_name(q))}'].join(),
         RevealLog(:final seat) => l.mayorIs(_name(seat)),
         _ => null,
       };

@@ -8,7 +8,7 @@ import 'package:mafia_dealer/core/ui.dart';
 import 'package:mafia_dealer/l10n/app_localizations.dart';
 
 class RecapCard extends StatelessWidget {
-  const RecapCard({super.key, required this.winner, required this.days, required this.players, this.best, this.lines = const [], this.sheikh, this.framer,
+  const RecapCard({super.key, required this.winner, required this.days, required this.players, this.best, this.lines = const [], this.sheikh, this.framer, this.silencer,
       this.took = const {}});
   final Set<int> took; // [S18-5] seats of a Bodyguard who took a kill or a shot (a shield on his line)
   final Winner winner;
@@ -16,6 +16,7 @@ class RecapCard extends StatelessWidget {
   final List<({String name, Role role, bool alive})> players;
   final int? sheikh; // [S17] the Godfather's seat (named on his line)
   final int? framer; // [S20] the Framer's seat (named on his line)
+  final int? silencer; // [S21] the Silencer's seat
   final ({String name, String why, Role role})? best;
   final List<({bool night, String text})> lines;
 
@@ -23,7 +24,8 @@ class RecapCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = L.of(context), noir = !C.neon, mafia = winner == Winner.mafia, jester = winner == Winner.jester;
     final ink = noir ? C.altText : C.text, soft = noir ? const Color(0xFF5A5248) : C.mute, rule = noir ? const Color(0xFF9A8F7C) : C.line2;
-    final win = jester ? _rc(Role.jester) : noir ? C.red : mafia ? C.red2 : C.gold;
+    // [S21] the Serial Killer's and the Lovers' wins in their colour
+    final win = jester ? _rc(Role.jester) : winner == Winner.killer ? _rc(Role.killer) : winner == Winner.lovers ? _rc(Role.cupid) : noir ? C.red : mafia ? C.red2 : C.gold;
     return Container(
       key: const Key('recap'),
       padding: const EdgeInsets.all(18),
@@ -79,7 +81,7 @@ class RecapCard extends StatelessWidget {
                   color: p.alive ? ink : ink.withValues(alpha: .6), decoration: p.alive ? null : TextDecoration.lineThrough))),
               if (took.contains(i)) Padding(padding: const EdgeInsetsDirectional.only(end: 4),
                   child: Icon(Icons.shield, key: Key('took_$i'), size: 14, color: _rc(p.role), semanticLabel: l.psGuards)),
-              Text(seatRole(l, p.role, i == sheikh, framer: i == framer), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
+              Text(seatRole(l, p.role, i == sheikh, framer: i == framer, silencer: i == silencer), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _rc(p.role))),
             ]),
           ),
         ])),
@@ -102,7 +104,8 @@ class RecapCard extends StatelessWidget {
   static Color _rc(Role r) => C.neon ? roleColor(r) : paperInk[r]!;
   static const paperInk = {Role.mafia: Color(0xFF9E2C25), Role.doctor: Color(0xFF28613A), Role.detective: Color(0xFF315A84), Role.citizen: Color(0xFF6F5015),
     Role.sniper: Color(0xFF5E3D82), Role.jester: Color(0xFF8A3F0E), Role.bodyguard: Color(0xFF1F5E57),
-    Role.hunter: Color(0xFF7A3E12), Role.mayor: Color(0xFF6A5410), Role.watcher: Color(0xFF2F4F7A)};
+    Role.hunter: Color(0xFF7A3E12), Role.mayor: Color(0xFF6A5410), Role.watcher: Color(0xFF2F4F7A),
+    Role.killer: Color(0xFF7A1F3A), Role.cupid: Color(0xFF8A2F5C)};
 }
 
 /// [S15] "24 Nov 2026"; the numbers stay 0-9 in Arabic, as everywhere else in the app (as the bell)

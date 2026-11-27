@@ -29,7 +29,7 @@ const SB = [M, M, D, T, S, B, C0, C0];
 /// A saved 1.1.0 game with exactly these roles (the mode's deck), after `actions`, open on `screen` for seat `who`.
 Future<OfflineGame> resumed(WidgetTester t, List<Role> roles, String mode, List<Action> actions, String screen, int who, {String lang = 'en'}) async {
   final names = [for (var i = 0; i < roles.length; i++) 'P${i + 1}'];
-  final c = createGame(Setup(names, const Counts(1, 1, 0), defaultRules.merge({'reveal': true}), mode, roles.contains(B)), seeded(1));
+  final c = createGame(Setup(names, const Counts(1, 1, 0), defaultRules.merge({'reveal': true}), mode, roles.contains(B), true), seeded(1)); // 1.1.0 rules (rv 2), as written
   expect(c.error, isNull);
   var s = c.state!
     ..roles = [...roles]

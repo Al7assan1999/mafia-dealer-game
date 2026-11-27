@@ -39,6 +39,10 @@ class _SetupState extends State<SetupScreen> {
     try { rules = defaultRules.merge(Map<String, Object?>.from(((acc ?? s)?['rules'] as Map?) ?? {})); } catch (_) { rules = defaultRules; }
     final m = acc?['mode'] ?? s?['mode']; // a setup saved before 1.0.0 has none: Classic
     if (modes.contains(m)) mode = m as String;
+    // [S21] a setup saved before 1.4.0 kept the Classic count under the Sniper, Jester and Bodyguard modes (they had no
+    // range then): start those at the mode's default, not at that count
+    // [Quin Q2] the flag lives in this phone's copy only (the account copy keeps counts, rules and mode)
+    if (s?['ranged'] != true && (mode == 'sniper' || mode == 'jester' || mode == 'bodyguard')) mafia = mafiaRange(mode, names.length, rules)?.def ?? mafia;
     bodyguard = (acc?['bodyguard'] ?? s?['bodyguard']) == true;
   }
 
@@ -63,8 +67,9 @@ class _SetupState extends State<SetupScreen> {
     final roster = [...ns.where((n) => !RegExp(r'^(Player|لاعب) \d+$').hasMatch(n)), ..._roster.where((r) => !ns.map(nameKey).contains(nameKey(r)))].take(30).toList();
     // Classic keeps the table's counts; another mode's deck comes from the player count
     // [S20] Avenger and Shadows keep the Mafia count the table chose inside their range
-    final keep = mode == 'classic' ? counts : newMode(mode) ? Counts(counts.mafia, 1, detective) : Counts(mafia, 1, detective);
-    final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode, 'bodyguard': bodyguard};
+    // [S21] every mode with a range (the old three too) keeps its count; 'ranged' marks a setup saved by 1.4.0+
+    final keep = mode == 'classic' ? counts : mafiaRange(mode, ns.length, rules) != null ? Counts(counts.mafia, 1, detective) : Counts(mafia, 1, detective);
+    final saved = {'mafia': keep.mafia, 'detective': keep.detective, 'rules': rules.toJson(), 'mode': mode, 'bodyguard': bodyguard, 'ranged': true};
     if (_acc != null) {
       _acc!.saveNames(roster).catchError((_) {}); // offline: the next deal saves them
       _acc!.saveSetup(saved).catchError((_) {});
@@ -232,7 +237,7 @@ class DeckEditor extends StatelessWidget {
     return Sec(
       title: l.deck,
       child: Column(children: [
-        _count(l.mafia, [l.dMafia, m > 1 ? l.oneSheikh : l.sheikh, if (mode == 'shadows') l.oneFramer].join(' · '), Role.mafia, m,
+        _count(l.mafia, [l.dMafia, m > 1 ? l.oneSheikh : l.sheikh, if (hasFramer(mode, n)) l.oneFramer, if (hasSilencer(mode, n)) l.oneSilencer].join(' · '), Role.mafia, m,
             on != null && m > 1 ? () => set(m - 1, m - 1 < 2 ? 0 : d) : pickM != null && m > range!.min ? () => pickM(Counts(m - 1, 1, d)) : null,
             on != null && deckOk(n, m + 1, d) ? () => set(m + 1, d) : pickM != null && m < range!.max ? () => pickM(Counts(m + 1, 1, d)) : null,
             steppers: classic || pickM != null),
@@ -245,8 +250,10 @@ class DeckEditor extends StatelessWidget {
         if (counts.hunter > 0) _count(l.hunter, l.dHunter, Role.hunter, counts.hunter, null, null),
         if (counts.mayor > 0) _count(l.mayor, l.dMayor, Role.mayor, counts.mayor, null, null),
         if (counts.watcher > 0) _count(l.watcher, l.dWatcher, Role.watcher, counts.watcher, null, null),
+        if (counts.killer > 0) _count(l.killer, l.dKiller, Role.killer, counts.killer, null, null),
+        if (counts.cupid > 0) _count(l.cupid, l.dCupid, Role.cupid, counts.cupid, null, null),
         _count(l.citizen, l.dCitizen, Role.citizen,
-            (n - m - 1 - d - counts.sniper - counts.jester - counts.bodyguard - counts.hunter - counts.mayor - counts.watcher).clamp(0, 99), null, null),
+            (n - m - 1 - d - counts.sniper - counts.jester - counts.bodyguard - counts.hunter - counts.mayor - counts.watcher - counts.killer - counts.cupid).clamp(0, 99), null, null),
         if (note != null) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(note, key: const Key('mafiaNote'), style: TextStyle(color: C.gold, fontSize: 13))),
         if (!classic) Text(l.modeFixed, key: const Key('modeFixed'), style: TextStyle(color: C.dim, fontSize: 12))
         else if (n >= minPlayers) Text(l.recM(recMafia(n)), style: TextStyle(color: C.dim, fontSize: 12)),

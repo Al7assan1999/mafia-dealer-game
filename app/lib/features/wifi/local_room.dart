@@ -253,6 +253,7 @@ class LocalRoom {
         if (players.any((p) => (p.build ?? 0) < modesBuild)) return err('old_app');
         // [S20] Avenger and Shadows: every phone on 1.3.0 (an older one can't show a Hunter or a Mayor)
         if ((mode == 'avenger' || mode == 'shadows') && players.any((p) => (p.build ?? 0) < roles13Build)) return err('old_app');
+        if ((mode == 'lovers' || mode == 'lonewolves') && players.any((p) => (p.build ?? 0) < roles14Build)) return err('old_app'); // [S21]
         final r = createGame(Setup(_seatNames(players), Counts(mafia, 1, detective), rules, mode, bodyguard), _rng, deal + 1);
         if (r.error != null) return err(r.error!);
         deal++;
@@ -271,9 +272,10 @@ class LocalRoom {
         if (seats.every(ready.contains)) e = _play(const Action.begin());
       case 'night':
         if (g == null || seat < 0) return err('phase');
-        final fr = inp['frame'], rv = inp['reveal']; // [S20] the Framer's frame; a Mayor's reveal
-        if ((fr != null && fr is! int) || (rv != null && rv is! bool)) return err('bad_request');
-        e = _play(Action.nightWith(seat, inp['choice'], day: inp['day'] as int?, frame: fr as int?, hasFrame: inp.containsKey('frame'), reveal: rv as bool?));
+        final fr = inp['frame'], rv = inp['reveal'], sl = inp['silence'], pr = inp['pair']; // [S20] the Framer, a Mayor; [S21] the Silencer, Cupid
+        if ((fr != null && fr is! int) || (rv != null && rv is! bool) || (sl != null && sl is! int) || (pr != null && pr is! int)) return err('bad_request');
+        e = _play(Action.nightWith(seat, inp['choice'], day: inp['day'] as int?, frame: fr as int?, hasFrame: inp.containsKey('frame'), reveal: rv as bool?,
+            silence: sl as int?, hasSilence: inp.containsKey('silence'), pair: pr as int?, hasPair: inp.containsKey('pair')));
       case 'hunt': // [S20] the dead Hunter's shot, or hold fire (null)
         final ch = inp['choice'];
         if (g == null || seat < 0) return err('phase');

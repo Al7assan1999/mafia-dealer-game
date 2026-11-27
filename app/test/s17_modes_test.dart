@@ -66,7 +66,7 @@ void main() {
     expect(find.byKey(const Key('count_sniper')), findsNothing);
     expect(find.byKey(const Key('minus_mafia')), findsOneWidget, reason: 'Classic: the table picks the counts');
     await tapIn(t, 'mode_sniper');
-    expect(find.byKey(const Key('minus_mafia')), findsNothing, reason: 'a mode fixes the deck');
+    expect(t.widget<Text>(find.byKey(const Key('mafiaNote'))).data, 'You can play 1 or 2 Mafia', reason: '[S21, R10] the Sniper mode has a Mafia range now');
     expect(t.widget<Text>(find.byKey(const Key('count_sniper'))).data, '1');
     expect(t.widget<Text>(find.byKey(const Key('count_mafia'))).data, '2');
     expect(find.byKey(const Key('modeFixed')), findsOneWidget);

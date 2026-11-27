@@ -13,14 +13,16 @@ extension _LobbyViews on _RoomScreenState {
     // every phone counts, mine included, as on the server
     final old = ms.where((m) => !(m['v'] is int && (m['v'] as int) >= modesBuild)).toList();
     // [S20] Avenger and Shadows: every phone on 1.3.0 (the server refuses the deal too)
-    final old13 = newMode(mode) ? ms.where((m) => !(m['v'] is int && (m['v'] as int) >= roles13Build)).toList() : const [];
+    final old13 = newMode(mode) ? ms.where((m) => !(m['v'] is int && (m['v'] as int) >= roles13Build)).toList()
+        : mode14(mode) ? ms.where((m) => !(m['v'] is int && (m['v'] as int) >= roles14Build)).toList() : const []; // [S21] Lovers, Lone Wolves: 1.4.0
     void setup(Counts cc, Rules rr, [Mode? mm, bool? bb]) => c.send({'t': 'setup', 'rules': rr.toJson(), 'counts': {'mafia': cc.mafia, 'detective': cc.detective}, 'buzzMax': room['buzzMax'] ?? 3,
       if (room['kick'] != null) 'kick': room['kick'], 'mode': mm ?? mode, 'bodyguard': bb ?? bg});
     return Stage(center: false, bottom: [
       if (host) ...[
         Text([l.playersCount(ms.length), modeName(l, mode), '${v.counts.mafia} ${l.mafia}', l.doctor, if (v.counts.detective > 0) l.detective,
               if (v.counts.sniper > 0) l.sniper, if (v.counts.jester > 0) l.jester, if (v.counts.bodyguard > 0) l.bodyguard,
-              if (v.counts.hunter > 0) l.hunter, if (v.counts.mayor > 0) l.mayor, if (v.counts.watcher > 0) l.watcher].join(' · '),
+              if (v.counts.hunter > 0) l.hunter, if (v.counts.mayor > 0) l.mayor, if (v.counts.watcher > 0) l.watcher,
+              if (v.counts.killer > 0) l.killer, if (v.counts.cupid > 0) l.cupid].join(' · '),
             key: const Key('dealSummary'), textAlign: TextAlign.center, style: TextStyle(color: C.mute)),
         if (old.isNotEmpty) Text(l.eOldApp, key: const Key('oldAppNote'), textAlign: TextAlign.center, style: TextStyle(color: C.red2))
         else if (old13.isNotEmpty) Text('${l.eOldApp13}: ${old13.map((m) => m['display']).join(', ')}', key: const Key('oldApp13'), textAlign: TextAlign.center, style: TextStyle(color: C.red2)),

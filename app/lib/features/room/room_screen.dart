@@ -72,6 +72,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   String? _wifiKey; // the Wi-Fi game just kept on this phone (its end screen offers it to online history)
   Object? _pick;
   Object? _frame; // [S20] the Framer's frame tonight: a seat, 'none', or null (not chosen yet)
+  Object? _silence; // [S21] the Silencer's pick: a seat, 'none', or null
+  int? _pair; // [S21] Cupid's second lover
   String? _pickAt; // [Quin Q5] the step the picks belong to: a new step clears them
   Audio get audio => widget.audio;
   RoomConn get conn => c; // for the tests
@@ -125,7 +127,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   bool _defaults = false;
   void _changed() {
-    if (_pickAt != _stepOf(v)) { _pickAt = _stepOf(v); _pick = null; _frame = null; } // [Quin Q5] last night's picks never carry over
+    if (_pickAt != _stepOf(v)) { _pickAt = _stepOf(v); _pick = null; _frame = null; _silence = null; _pair = null; } // [Quin Q5] last night's picks never carry over
     final rr = _roleRoute;
     if (rr != null && (c.bye != null || _roleAt != _stepOf(v))) { _roleRoute = null; if (rr.isActive) Navigator.of(context).removeRoute(rr); }
     final err = c.error;
@@ -229,6 +231,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
           audio.mafiaWin(mafia, clips, _armReveal);
         } else if (view['winner'] == 'jester') {
           audio.jesterWin(clips, _armReveal);
+        } else if (view['winner'] != 'citizens') {
+          audio.otherWin(clips, _armReveal); // [S21] the Serial Killer, the Lovers, a draw
         } else {
           audio.citizensWin(mafia, clips, _armReveal);
         }
@@ -249,7 +253,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _send(Map<String, Object?> m) { c.send(m); setState(() { _pick = null; _frame = null; }); }
+  void _send(Map<String, Object?> m) { c.send(m); setState(() { _pick = null; _frame = null; _silence = null; _pair = null; }); }
 
   /// The host's (and room) actions only while connected: a tap during a drop would fire later, into a moved-on phase.
   VoidCallback? _h(VoidCallback f) => c.open ? f : null;
@@ -360,7 +364,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (ph == 'dead' && (phase == 'night' || phase == 'vote')) return _dead(l, view);
     return switch (phase) {
       'night' => _waiting(l, view, l.lockedWait, C.night),
-      'vote' => _waiting(l, view, l.votedWait, C.day),
+      'vote' => _waiting(l, view, view['silenced'] != null && view['silenced'] == view['seat'] ? l.youSilenced : l.votedWait, C.day), // [S21]
       'morning' => _morning(l, view),
       'day' => _day(l, view),
       'verdict' => _verdict(l, view),
@@ -373,16 +377,22 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   String? _roleAt;
   static String _stepOf(Map<String, Object?>? x) => '${x?['deal']}/${x?['phase']}/${x?['day']}/${x?['ph']}';
   void _myRole(Map<String, Object?> view) {
-    final me = view['seat'] as int, sh = view['sheikh'] as int?, fr = view['framer'] as int?, l = L.of(context);
+    final me = view['seat'] as int, sh = view['sheikh'] as int?, fr = view['framer'] as int?, sl = view['silencer'] as int?, l = L.of(context);
     // [Quin Q4] closes by itself when the game moves on (a night pick, a new deal, the room closed)
     _roleAt = _stepOf(view);
     Navigator.of(context).push(_roleRoute = MaterialPageRoute(builder: (ctx) => Scaffold(appBar: AppBar(), body: RoleCard(name: _name(me), role: roleOf(view['role'])!,
         mates: [for (final j in (view['mates'] as List? ?? const [])) _name(j as int)], isSheikh: sh == me, sheikh: sh != null && sh != me ? _name(sh) : null,
         isFramer: fr == me, framer: fr != null && fr != me ? _name(fr) : null,
+        isSilencer: sl == me, silencer: sl != null && sl != me ? _name(sl) : null,
         done: l.gotIt, onDone: () { _roleRoute = null; Navigator.of(ctx).pop(); }))));
   }
 
   /// the option picked on a night or vote screen (the views live in the part files)
   void _choose(Object value) => setState(() => _pick = value);
   void _setFrame(Object seat) => setState(() => _frame = seat); // [S20] the Framer's frame (a seat or 'none')
+  void _setSilence(Object seat) => setState(() => _silence = seat); // [S21] the Silencer's pick (a seat or 'none')
+  /// [S21] Cupid: a tap adds or removes a lover (two at most)
+  void _toggleLover(int j) => setState(() {
+        if (_pick == j) { _pick = _pair; _pair = null; } else if (_pair == j) { _pair = null; } else if (_pick == null) { _pick = j; } else { _pair = j; }
+      });
 }

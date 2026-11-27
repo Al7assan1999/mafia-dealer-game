@@ -30,7 +30,8 @@ const noirPalette = Palette(name: 'noir',
     altText: Color(0xFF1C1915), night: Color(0xFF08090C), day: Color(0xFF120F0B), blood: Color(0xFF0C0606), glory: Color(0xFF0E0C06),
     roles: {Role.mafia: Color(0xFFE0574D), Role.doctor: Color(0xFF7FB08B), Role.detective: Color(0xFF86A6C9), Role.citizen: Color(0xFFD4B483),
       Role.sniper: Color(0xFFB79AD6), Role.jester: Color(0xFFE39A5B), Role.bodyguard: Color(0xFF8FB8B0),
-      Role.hunter: Color(0xFFC98F5F), Role.mayor: Color(0xFFD9C27A), Role.watcher: Color(0xFF9FB4D8)},
+      Role.hunter: Color(0xFFC98F5F), Role.mayor: Color(0xFFD9C27A), Role.watcher: Color(0xFF9FB4D8),
+      Role.killer: Color(0xFFB0546E), Role.cupid: Color(0xFFE08FB0)},
     body: 'Plex', head: 'Elite', headFallback: ['Messiri'], headLs: .4, headWeight: FontWeight.w400, radius: 4, neon: false);
 
 /// The old app's Neon: violet-black with pink and blue glows, glassy cards, a pink-orange gradient, Readex Pro.
@@ -41,7 +42,8 @@ const neonPalette = Palette(name: 'neon',
     altText: Color(0xFFF4F2F8), night: Color(0xFF0F1433), day: Color(0xFF2A1A12), blood: Color(0xFF2A0B16), glory: Color(0xFF2A2010),
     roles: {Role.mafia: Color(0xFFFF4D7D), Role.doctor: Color(0xFF3CE0A0), Role.detective: Color(0xFF5AA2FF), Role.citizen: Color(0xFFFFC65A),
       Role.sniper: Color(0xFFB98CFF), Role.jester: Color(0xFFFF8A3D), Role.bodyguard: Color(0xFF4FD6C8),
-      Role.hunter: Color(0xFFFF9F5A), Role.mayor: Color(0xFFFFD86B), Role.watcher: Color(0xFF8FB6FF)},
+      Role.hunter: Color(0xFFFF9F5A), Role.mayor: Color(0xFFFFD86B), Role.watcher: Color(0xFF8FB6FF),
+      Role.killer: Color(0xFFE0457A), Role.cupid: Color(0xFFFF8CC6)},
     body: 'Readex', head: 'Readex', headFallback: [], headLs: 0, headWeight: FontWeight.w700, radius: 22, neon: true);
 
 /// The current look's colours. Set from Prefs.theme by the app before it builds.
@@ -347,23 +349,24 @@ TextDirection dirOf(String s) {
 String roleName(L l, Role r) => switch (r) {
       Role.mafia => l.mafia, Role.doctor => l.doctor, Role.detective => l.detective, Role.citizen => l.citizen,
       Role.sniper => l.sniper, Role.jester => l.jester, Role.bodyguard => l.bodyguard,
-      Role.hunter => l.hunter, Role.mayor => l.mayor, Role.watcher => l.watcher,
+      Role.hunter => l.hunter, Role.mayor => l.mayor, Role.watcher => l.watcher, Role.killer => l.killer, Role.cupid => l.cupid,
     };
 /// A seat's role as the table sees it: the Sheikh (1.0.0) and the Framer (1.3.0) are Mafia with their own name.
-String seatRole(L l, Role r, bool sheikh, {bool framer = false}) =>
-    sheikh && r == Role.mafia ? l.sheikh : framer && r == Role.mafia ? l.framer : roleName(l, r);
+String seatRole(L l, Role r, bool sheikh, {bool framer = false, bool silencer = false}) =>
+    sheikh && r == Role.mafia ? l.sheikh : framer && r == Role.mafia ? l.framer : silencer && r == Role.mafia ? l.silencer : roleName(l, r);
 String roleDesc(L l, Role r) => switch (r) {
       Role.mafia => l.dMafia, Role.doctor => l.dDoctor, Role.detective => l.dDetective, Role.citizen => l.dCitizen,
       Role.sniper => l.dSniper, Role.jester => l.dJester, Role.bodyguard => l.dBodyguard,
-      Role.hunter => l.dHunter, Role.mayor => l.dMayor, Role.watcher => l.dWatcher,
+      Role.hunter => l.dHunter, Role.mayor => l.dMayor, Role.watcher => l.dWatcher, Role.killer => l.dKiller, Role.cupid => l.dCupid,
     };
 /// [S17 P2] the role's side and how it wins, in one line
-String sideLine(L l, Role r) => switch (r) { Role.mafia => l.sideMafia, Role.jester => l.sideJester, _ => l.sideTown };
+String sideLine(L l, Role r) => switch (r) { Role.mafia => l.sideMafia, Role.jester => l.sideJester, Role.killer => l.sideKiller, _ => l.sideTown };
 Color roleColor(Role r) => C.p.roles[r]!;
 IconData roleIcon(Role r) => switch (r) {
       Role.mafia => Icons.dangerous_outlined, Role.doctor => Icons.healing_outlined, Role.detective => Icons.search, Role.citizen => Icons.person_outline,
       Role.sniper => Icons.gps_fixed, Role.jester => Icons.theater_comedy_outlined, Role.bodyguard => Icons.shield_outlined,
       Role.hunter => Icons.my_location, Role.mayor => Icons.account_balance_outlined, Role.watcher => Icons.visibility_outlined,
+      Role.killer => Icons.bloodtype_outlined, Role.cupid => Icons.favorite_border,
     };
 /// [S18 P1] the Detective's results so far (engine view `checks`): name and Mafia / not Mafia, in the order checked.
 class ChecksList extends StatelessWidget {
@@ -411,35 +414,47 @@ class WatchList extends StatelessWidget {
 (String, String) nightText(L l, String key) => switch (key) {
       'mafia' => (l.aMafia, l.aMafiaD), 'doctor' => (l.aDoctor, l.aDoctorD), 'detective' => (l.aDetective, l.aDetectiveD),
       'citizen' => (l.aCitizen, l.aCitizenD), 'sniper' => (l.aSniper, l.aSniperD), 'bodyguard' => (l.aBodyguard, l.aBodyguardD),
-      'watcher' => (l.aWatcher, l.aWatcherD),
+      'watcher' => (l.aWatcher, l.aWatcherD), 'killer' => (l.aKiller, l.aKillerD), 'cupid' => (l.aCupid, l.aCupidD),
       _ => (l.aNone, l.aNoneD),
     };
 
 /// Who won, from a Winner or its name ('mafia' | 'citizens' | 'jester').
-String winText(L l, Object? w) => switch (w is Winner ? w.name : w) { 'mafia' => l.winMafia, 'jester' => l.jesterWins, _ => l.winCitizens };
+/// [S21] also 'killer' | 'lovers' | 'draw'
+String winText(L l, Object? w) => switch (w is Winner ? w.name : w) {
+      'mafia' => l.winMafia, 'jester' => l.jesterWins, 'killer' => l.winKiller, 'lovers' => l.winLovers, 'draw' => l.winDraw, _ => l.winCitizens };
 IconData winIcon(Object? w) => switch (w is Winner ? w.name : w) {
-      'mafia' => Icons.dangerous_outlined, 'jester' => Icons.theater_comedy_outlined, _ => Icons.emoji_events_outlined };
-Color winColor(Object? w) => switch (w is Winner ? w.name : w) { 'mafia' => C.red2, 'jester' => roleColor(Role.jester), _ => C.gold };
+      'mafia' => Icons.dangerous_outlined, 'jester' => Icons.theater_comedy_outlined, 'killer' => Icons.bloodtype_outlined,
+      'lovers' => Icons.favorite_border, 'draw' => Icons.balance_outlined, _ => Icons.emoji_events_outlined };
+/// [Quin Q8] the end screen's backdrop: a kill side's win is blood, the Lovers' the night, a draw the plain day
+Color winStage(Winner w) => switch (w) { Winner.mafia || Winner.killer => C.blood, Winner.lovers => C.night, Winner.draw => C.day, _ => C.glory };
+Color winColor(Object? w) => switch (w is Winner ? w.name : w) {
+      'mafia' => C.red2, 'jester' => roleColor(Role.jester), 'killer' => roleColor(Role.killer), 'lovers' => roleColor(Role.cupid), 'draw' => C.mute, _ => C.gold };
+/// [S21] a game's result from the server: winner2 is the real one (winner: one a 1.3 app knows)
+Object? winnerIn(Map g) => g['winner2'] ?? g['winner'];
 
 /// Why the player of the game (engine mvp()) earned it.
 String mvpWhy(L l, String why, int? n) => switch (why) {
-      'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(n ?? 1), 'doc' => l.mvpDoc(n ?? 1), 'guard' => l.mvpGuard(n ?? 1), 'hunter' => l.mvpHunter, 'jester' => l.mvpJester, _ => l.mvpSurv };
+      'mafia' => l.mvpMafia, 'mafia2' => l.mvpMafia2, 'det' => l.mvpDet(n ?? 1), 'doc' => l.mvpDoc(n ?? 1), 'guard' => l.mvpGuard(n ?? 1), 'hunter' => l.mvpHunter, 'jester' => l.mvpJester, 'killer' => l.mvpKiller, 'lovers' => l.mvpLovers, _ => l.mvpSurv };
 
 String modeName(L l, Mode m) => switch (m) {
       'sniper' => l.modeSniper, 'jester' => l.modeJester, 'bodyguard' => l.modeBodyguard, 'all' => l.modeAll,
-      'avenger' => l.modeAvenger, 'shadows' => l.modeShadows, _ => l.modeClassic };
+      'avenger' => l.modeAvenger, 'shadows' => l.modeShadows, 'lovers' => l.modeLovers, 'lonewolves' => l.modeLonewolves, _ => l.modeClassic };
 String modeLine(L l, Mode m) => switch (m) {
       'sniper' => l.mSniper, 'jester' => l.mJester, 'bodyguard' => l.mBodyguard, 'all' => l.mAll,
-      'avenger' => l.mAvenger, 'shadows' => l.mShadows, _ => l.mClassic };
+      'avenger' => l.mAvenger, 'shadows' => l.mShadows, 'lovers' => l.mLovers, 'lonewolves' => l.mLonewolves, _ => l.mClassic };
 /// [1.3.1] each mode's picture in the mode picker (its signature role, or the table)
 IconData modeIcon(Mode m) => switch (m) {
       'sniper' => roleIcon(Role.sniper), 'jester' => roleIcon(Role.jester), 'bodyguard' => roleIcon(Role.bodyguard), 'all' => Icons.groups_outlined,
-      'avenger' => roleIcon(Role.hunter), 'shadows' => roleIcon(Role.watcher), _ => Icons.style_outlined };
+      'avenger' => roleIcon(Role.hunter), 'shadows' => roleIcon(Role.watcher), 'lovers' => roleIcon(Role.cupid), 'lonewolves' => roleIcon(Role.killer),
+      _ => Icons.style_outlined };
 Color modeColor(Mode m) => switch (m) {
       'sniper' => roleColor(Role.sniper), 'jester' => roleColor(Role.jester), 'bodyguard' => roleColor(Role.bodyguard), 'all' => C.gold,
-      'avenger' => roleColor(Role.hunter), 'shadows' => roleColor(Role.watcher), _ => C.red2 };
+      'avenger' => roleColor(Role.hunter), 'shadows' => roleColor(Role.watcher), 'lovers' => roleColor(Role.cupid), 'lonewolves' => roleColor(Role.killer),
+      _ => C.red2 };
 /// [S20] the modes only a 1.3.0 table can play (every seat on roles13Build)
 bool newMode(Mode m) => m == 'avenger' || m == 'shadows';
+/// [S21] the modes only a 1.4.0 table can play (every seat on roles14Build)
+bool mode14(Mode m) => m == 'lovers' || m == 'lonewolves';
 /// [S18, his ruling] the modes that may add the Bodyguard (a switch under the mode picker)
 bool bodyguardOptional(Mode m) => m == 'sniper' || m == 'jester';
 /// [S17 P1] the mode the setup marks as Suggested for this many players

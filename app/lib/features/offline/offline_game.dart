@@ -115,9 +115,13 @@ class OfflineGame extends ChangeNotifier {
 
   void nightOpen(int seat) { if (screen == Screen.nightPass && who == seat) _go(Screen.nightPick); }
   /// [S20] frame: the Framer's frame (hasFrame with null = none); reveal: a Mayor reveals himself in the morning.
-  void nightPick(int seat, Object? choice, {int? frame, bool hasFrame = false, bool? reveal}) {
+  /// [S21] silence: the Silencer's pick (hasSilence with null = nobody); pair: Cupid's second lover.
+  void nightPick(int seat, Object? choice, {int? frame, bool hasFrame = false, bool? reveal, int? silence, bool hasSilence = false, int? pair}) {
     if (screen != Screen.nightPick || who != seat) return;
-    if (_act(Action.nightWith(seat, choice, day: s.day, frame: frame, hasFrame: hasFrame, reveal: reveal))) _go(Screen.nightLocked);
+    if (_act(Action.nightWith(seat, choice, day: s.day, frame: frame, hasFrame: hasFrame, reveal: reveal, silence: silence, hasSilence: hasSilence,
+        pair: pair, hasPair: pair != null))) {
+      _go(Screen.nightLocked);
+    }
   }
   void nightNext(int seat) {
     if (screen != Screen.nightLocked || who != seat) return;
@@ -245,6 +249,8 @@ class OfflineGame extends ChangeNotifier {
       audio.mafiaWin(mafia, clips, _armReveal);
     } else if (s.winner == Winner.jester) {
       audio.jesterWin(clips, _armReveal);
+    } else if (s.winner != Winner.citizens) {
+      audio.otherWin(clips, _armReveal); // [S21] the Serial Killer, the Lovers, a draw
     } else {
       audio.citizensWin(mafia, clips, _armReveal);
     }
